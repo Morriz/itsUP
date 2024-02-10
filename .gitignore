@@ -1,0 +1,9 @@
+__pycache__
+.aider*
+.env
+.history
+.venv
+certs/*
+db.yml
+proxy/*.conf
+upstream

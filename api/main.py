@@ -1,0 +1,158 @@
+import os
+from typing import Dict, List
+
+import dotenv
+from fastapi import Depends, HTTPException, Request
+from github_webhooks import create_app
+
+from lib.data import (
+    get_env,
+    get_project,
+    get_projects,
+    get_service,
+    get_services,
+    upsert_env,
+    upsert_project,
+    upsert_service,
+)
+from lib.git import update_repo
+from lib.models import PingPayload, Project, Service, WorkflowJobPayload
+from lib.proxy import reload_proxy, write_nginx
+from lib.upstream import check_upstream, update_upstream, write_upstreams
+
+dotenv.load_dotenv()
+
+
+api_token = os.environ["API_KEY"]
+app = create_app(secret_token=api_token)
+
+
+def verify_token(req: Request):
+    """Verify the authorization token in the request header"""
+    token = req.headers["Authorization"]
+    if not token == api_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def _after_config_change(project: str):
+    """Run after a project is updated"""
+    write_nginx()
+    write_upstreams()
+    update_upstream(project)
+    reload_proxy()
+
+
+def _handle_update_upstream(project: str, service: str):
+    """handle incoming requests to update the upstream"""
+    check_upstream(project, service)
+    update_upstream(project, service, rollout=True)
+    # reload proxy's terminate service as it needs to get the new upstream
+    reload_proxy("terminate")
+
+
+@app.get("/update-upstream", response_model=None)
+def get_hook_handler(
+    project: str,
+    service: str = None,
+    _: None = Depends(verify_token),
+):
+    """Handle requests to update the upstream"""
+    _handle_update_upstream(project, service)
+
+
+@app.hooks.register("ping", PingPayload)
+async def github_ping_handler(
+    payload: PingPayload,
+) -> None:
+    """Handle incoming github webhook requests for ping events to notify callers we're up"""
+    print(payload.zen)
+    return {"message": "pong"}
+
+
+@app.hooks.register("workflow_job", WorkflowJobPayload)
+async def github_workflow_job_handler(
+    payload: WorkflowJobPayload,
+    query_params: Dict[str, str],
+) -> None:
+    """Handle incoming github webhook requests for workflow_job events to update the upstream"""
+    if (
+        payload.workflow_job.status == "completed"
+        and payload.workflow_job.conclusion == "success"
+    ):
+        project = query_params.get("project")
+        service = query_params.get("service")
+        if payload.workflow_job.name != project:
+            print(
+                f"Workflow job name {payload.workflow_job.name} does not match project {project}"
+            )
+            return
+
+        # here we listen to the webhook for this particular repo:
+        if project == "doup":
+            update_repo()
+            return
+
+        _handle_update_upstream(project, service)
+
+
+@app.get("/project/{project}", response_model=List[Service])
+def get_projects_handler(project: str = None, _: None = Depends(verify_token)):
+    """Get the list of all or one project"""
+    if project:
+        return get_project(project)
+    return get_projects()
+
+
+@app.get("/project/{project}/services/{service}", response_model=Service)
+def get_service_handler(
+    project: str, service: str = None, _: None = Depends(verify_token)
+):
+    """Get the list of a project's services, or a specific one"""
+    if service:
+        return get_service(project, service)
+    return get_services(project)
+
+
+@app.get("/project/{project}/services/{service}/env", response_model=Service)
+def get_env_handler(project: str, service: str, _: None = Depends(verify_token)):
+    """Get the list of a project's services, or a specific one"""
+    return get_env(project, service)
+
+
+@app.post("/project", tags=["Project"])
+def post_project_handler(
+    project: Project,
+    _: None = Depends(verify_token),
+):
+    """Create or update a project"""
+    upsert_project(project)
+    _after_config_change(project)
+
+
+@app.post("/service", tags=["Service"])
+def post_service_handler(
+    project: str,
+    service: Service,
+    _: None = Depends(verify_token),
+):
+    """Create or update a service"""
+    upsert_service(project, service)
+    _after_config_change(project)
+
+
+@app.post("/env", tags=["Service"])
+def post_env_handler(
+    project: str,
+    svc: str,
+    env: List[Dict[str, str]],
+    _: None = Depends(verify_token),
+):
+    """Create or update env for a project service"""
+    upsert_env(project, svc, env)
+    _after_config_change(project)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8888)

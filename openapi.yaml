@@ -1,0 +1,135 @@
+openapi: 3.1.0
+info:
+  title: FastAPI
+  version: 0.1.0
+paths:
+  /hooks:
+    get:
+      summary: Update Service
+      operationId: update_service_hooks_get
+      parameters:
+      - name: service
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Service
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /service:
+    get:
+      summary: Get Service List
+      description: Get the list of services
+      operationId: get_service_list_service_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Service'
+                type: array
+                title: Response Get Service List Service Get
+    post:
+      tags:
+      - Service
+      summary: Upsert Service
+      description: Create or update a service
+      operationId: upsert_service_service_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Service'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Service:
+      properties:
+        domain:
+          type: string
+          title: Domain
+        svc:
+          type: string
+          title: Svc
+        upstream:
+          type: string
+          title: Upstream
+        image:
+          type: string
+          title: Image
+        path:
+          type: string
+          title: Path
+          default: /
+        forward:
+          type: boolean
+          title: Forward
+          default: false
+        port:
+          type: integer
+          title: Port
+          default: 8080
+        passthrough:
+          type: boolean
+          title: Passthrough
+          default: false
+      type: object
+      required:
+      - domain
+      - svc
+      title: Service
+      description: Service model
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

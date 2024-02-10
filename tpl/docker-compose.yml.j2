@@ -1,0 +1,37 @@
+---
+version: '3.8'
+
+networks:
+  proxynet:
+    name: proxynet
+    external: true
+
+services:
+{% for s in services %}
+  {{ project }}-{{ s.svc }}:
+    image: {{ s.image }}
+    {% if s.command -%}
+    command: {{ s.command }}
+    {% endif -%}
+    networks:
+      - default
+      - proxynet
+    restart: unless-stopped
+    {% if s.env -%}
+    environment:
+      {% for k, v in s.env.items() -%}
+        {{ k }}: {{ v }}
+      {% endfor -%}
+    {% endif %}
+    {% if s.port -%}
+    expose:
+      - '{{ s.port }}'
+    {% endif -%}
+    {% if s.volumes %}
+    volumes:
+      {% for v in s.volumes -%}
+      - .{{ v }}:{{ v }}
+      {% endfor -%}
+    {% endif -%}
+{% endfor -%}
+      

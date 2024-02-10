@@ -1,0 +1,5 @@
+fastapi
+github-webhooks-framework
+jinja2-cli
+pytest
+uvicorn[standard]

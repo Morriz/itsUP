@@ -1,0 +1,33 @@
+projects:
+  - description: Home Assistant passthrough
+    domain: home.example.com
+    name: home-assistant # keep this name as it also makes sure to forward port 80 for certbot
+    services:
+      - svc: 192.168.1.111
+        passthrough: true
+        port: 443
+  - description: Doup API running on the host
+    domain: doup.example.com
+    name: doup
+    services:
+      - svc: 172.17.0.1
+        port: 8888
+  - description: test project to demonstrate inter service connectivity
+    domain: hello.srv.instrukt.ai
+    name: test
+    upstream: master
+    services:
+      - image: otomi/nodejs-helloworld:v1.2.13
+        svc: master
+        port: 8080
+        env:
+          TARGET: cost concerned people
+          INFORMANT: http://test-informant:8080
+        volumes:
+          - /data/bla
+          - /etc/dida
+      - image: otomi/nodejs-helloworld:v1.2.13
+        svc: informant
+        port: 8080
+        env:
+          TARGET: boss
