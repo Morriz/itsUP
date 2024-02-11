@@ -1,0 +1,14 @@
+__pycache__
+.dev
+.dockerignore
+.env*
+.git
+.github
+.venv
+.vscode
+bin
+certs
+hostpipe
+data
+Dockerfile
+README.md

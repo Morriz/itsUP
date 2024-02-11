@@ -1,40 +1,19 @@
 ---
 version: '3.8'
 
-networks:
-  proxynet:
-    name: proxynet
-    driver: bridge
-    driver_opts:
-      encrypted: 'true'
-
 services:
-  proxy:
-    image: nginxinc/nginx-unprivileged:stable
-    networks:
-      - default
+  api:
+    image: morriz/doup:main
     ports:
-      - 8443:8443
-      - 8080:8080
+      - 8888:8080
     restart: unless-stopped
     volumes:
-      - ../data:/data
-      - ./map:/etc/nginx/map
-      - ./proxy.conf:/etc/nginx/nginx.conf
-
-  terminate:
-    image: nginxinc/nginx-unprivileged:stable
-    # user: 101:101
-    depends_on:
-      - proxy
-    networks:
-      - default
-      - proxynet
-    expose:
-      - '8443'
-    restart: unless-stopped
-    volumes:
-      - ../certs:/certs
-      - ./map:/etc/nginx/map
-      - ./terminate.conf:/etc/nginx/nginx.conf
-      - ./snippets:/etc/nginx/snippets
+      - ./bin:/app/bin
+      - ./certs:/app/certs
+      - ./hostpipe:/app/hostpipe
+      - ./hostpipe.txt:/app/hostpipe.txt
+      - ./data:/app/data
+      - ./proxy:/app/proxy
+      - ./upstream:/app/upstream
+    env_file:
+      - .env

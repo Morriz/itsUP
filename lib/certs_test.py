@@ -3,24 +3,20 @@ import os
 import sys
 import unittest
 from unittest import TestCase, mock
+from unittest.mock import Mock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.certs import get_certs
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-
+@mock.patch("os.environ", {"LE_EMAIL": "mail@example.com"})
 class TestCodeUnderTest(TestCase):
 
     # Certbot command is run for each domain
-    @mock.patch("os.environ", {"LE_EMAIL": "mail@example.com"})
     @mock.patch("lib.certs.get_domains", return_value=["example.com"])
-    @mock.patch("subprocess.Popen", return_value=mock.Mock())
-    @mock.patch("lib.certs.stream_output")
-    def test_certbot_command_run_for_each_domain(
-        self, mock_stream_output: mock.Mock, mock_popen: mock.Mock, _
-    ):
+    @mock.patch("lib.certs.run_command")
+    def test_certbot_command_run_for_each_domain(self, mock_run_command: Mock, _):
         # Call the function under test
         get_certs()
 
@@ -59,25 +55,23 @@ class TestCodeUnderTest(TestCase):
                 cp -L /data/letsencrypt/live/example.com/privkey.pem /certs/example.com/privkey.pem && \
                 chown -R 101:101 /certs/example.com && touch /data/changed && chmod a+wr /data/changed",
                 ],
-                stdout=-1,
             ),
         ]
 
-        mock_popen.assert_has_calls(expected_command_calls)
-        mock_stream_output.assert_called_once()
+        mock_run_command.assert_has_calls(expected_command_calls)
 
     # Certificates are updated if they have changed
-    @mock.patch("subprocess.Popen")
-    @mock.patch("lib.certs.get_domains")
-    @mock.patch("lib.certs.stream_output")
+    @mock.patch("lib.certs.get_domains", return_value=["example.com"])
+    @mock.patch("lib.certs.run_command")
     @mock.patch("os.path.isfile")
     @mock.patch("os.remove")
     def test_certificates_updated_if_changed(
-        self, mock_remove, mock_isfile, _, mock_get_domains, mock_popen
+        self,
+        mock_remove: Mock,
+        mock_isfile: Mock,
+        _,
+        mock_get_domains: Mock,
     ):
-        mock_get_domains.return_value = ["example.com"]
-        mock_process = mock.Mock()
-        mock_popen.return_value = mock_process
         mock_isfile.return_value = True
 
         # Call the function under test
@@ -88,14 +82,11 @@ class TestCodeUnderTest(TestCase):
 
     # No domains are passed to certbot
     @mock.patch("subprocess.Popen")
-    @mock.patch("lib.certs.get_domains")
-    @mock.patch("lib.certs.stream_output")
+    @mock.patch("lib.certs.get_domains", return_value=[])
     @mock.patch("os.remove")
     def test_no_domains_passed_to_certbot(
-        self, mock_remove, _, mock_get_domains, mock_popen
+        self, mock_remove: Mock, mock_get_domains: Mock, mock_popen: Mock
     ):
-        mock_get_domains.return_value = []
-
         # Call the function under test
         result = get_certs()
 
@@ -104,8 +95,8 @@ class TestCodeUnderTest(TestCase):
         self.assertFalse(result)
 
     # LE_EMAIL environment variable is not set
-    @mock.patch("os.environ", {})
-    def test_le_email_env_variable_not_set(self):
+    @mock.patch("os.getenv", return_value=None)
+    def test_le_email_env_variable_not_set(self, _):
 
         # Call the function under test
         with self.assertRaises(ValueError) as context:

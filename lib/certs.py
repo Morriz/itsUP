@@ -1,13 +1,13 @@
 import os
-import subprocess
 
 from lib.data import get_domains
-from lib.utils import stream_output
+from lib.utils import run_command
 
 
 def get_certs():
 
     email = os.getenv("LE_EMAIL")
+    print(f"LE_EMAIL: {email}")
     if email is None:
         raise ValueError("LE_EMAIL environment variable is not set")
     domains = get_domains()
@@ -53,9 +53,7 @@ def get_certs():
         staging = os.getenv("LE_STAGING")
         if not staging is None:
             command.append("--staging")
-        process = subprocess.Popen(command, stdout=subprocess.PIPE)
-        stream_output(process)
-        process.wait()
+        run_command(command)
 
         # Check if certificates have changed
         if os.path.isfile("." + change_file):

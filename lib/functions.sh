@@ -1,4 +1,31 @@
-alias dc="docker compose"
+image=morriz/doup:main
+
+dcd() {
+  cmd=$1
+  shift
+  [ -z "$cmd" ] && echo "No command given!" && return 1
+  d=
+  r=
+  if [ "$cmd" = "up" ]; then
+    d="-d"
+    r="--remove-orphans"
+  fi
+  docker compose $cmd $d $r $@
+}
+
+dcdx() {
+  eval docker compose exec api sh -c "'$@'"
+}
+
+drun() {
+  eval docker run --rm -it --name doup \
+    -v $PWD/certs:/app/certs \
+    -v $PWD/data:/app/data \
+    -v $PWD/hostpipe:/app/hostpipe \
+    -v $PWD/proxy:/app/proxy \
+    -v $PWD/upstream:/app/upstream \
+    $image sh -c "'$@'"
+}
 
 # Run docker compose in the proxy
 dcp() {

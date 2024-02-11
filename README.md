@@ -90,7 +90,3 @@ I don't want to switch folders/terminals all the time and want to keep history o
 - `bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.
 - `bin/write-artifacts.py`: after updating `db.yml` yo ucan run this script to check new artifacts.
 
-
-## Roadmap
-
-1. Dockerize (and use `docker compose` for) most of the code in this repo (except `bin/host-cmd-listener.sh`, which will listen on the host to a named pipe for commands starting with `docker compose` and perform sanity checks)

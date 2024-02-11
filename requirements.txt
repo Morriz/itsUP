@@ -1,5 +1,6 @@
 fastapi
 github-webhooks-framework
 jinja2-cli
-pytest
+python-dotenv
+pyyaml
 uvicorn[standard]
