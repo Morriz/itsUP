@@ -1,10 +1,9 @@
-import subprocess
 from typing import Dict
 
 from jinja2 import Template
 
 from lib.data import get_domains, get_project, get_services, get_terminate_services
-from lib.utils import stream_output
+from lib.utils import run_command
 
 
 def get_internal_map() -> Dict[str, str]:
@@ -74,22 +73,16 @@ def reload_proxy(service: str = None):
     print("Reloading proxy")
     # Execute docker compose command to reload nginx for both 'proxy' and 'terminate' services
     for s in [service] if service else ["proxy", "terminate"]:
-        process = subprocess.Popen(
+        run_command(
             ["docker", "compose", "exec", s, "nginx", "-s", "reload"],
             cwd="proxy",
-            stdout=subprocess.PIPE,
         )
-        stream_output(process)
-        process.wait()
 
 
 def rollout_proxy(service: str = None):
     print(f'Rolling out service "{service}"')
     for s in [service] if service else ["proxy", "terminate"]:
-        process = subprocess.Popen(
+        run_command(
             ["docker", "rollout", s],
             cwd="proxy",
-            stdout=subprocess.PIPE,
         )
-        stream_output(process)
-        process.wait()

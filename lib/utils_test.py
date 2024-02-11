@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 from unittest import mock
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

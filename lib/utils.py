@@ -24,6 +24,7 @@ def run_host_command(command: list, cwd: str = None):
 def run_command(command: list, cwd: str = None):
     if os.path.exists("/.dockerenv"):
         return run_host_command(command, cwd)
+    # pylint: disable=consider-using-with
     process = subprocess.Popen(
         command,
         cwd=cwd,

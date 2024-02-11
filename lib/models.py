@@ -3,6 +3,8 @@ from typing import Dict, List
 from github_webhooks.schemas import WebhookCommonPayload
 from pydantic import BaseModel
 
+# pylint: disable=too-few-public-methods
+
 
 class Service(BaseModel):
     """Service model"""

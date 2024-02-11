@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from lib.certs import get_certs
 
 
+# pylint: disable=duplicate-code
 @mock.patch("os.environ", {"LE_EMAIL": "mail@example.com"})
 class TestCodeUnderTest(TestCase):
 
@@ -95,8 +96,9 @@ class TestCodeUnderTest(TestCase):
         self.assertFalse(result)
 
     # LE_EMAIL environment variable is not set
+    @mock.patch("lib.certs.get_domains", return_value=[])
     @mock.patch("os.getenv", return_value=None)
-    def test_le_email_env_variable_not_set(self, _):
+    def test_le_email_env_variable_not_set(self, _1, _2):
 
         # Call the function under test
         with self.assertRaises(ValueError) as context:

@@ -1,5 +1,4 @@
 import os
-import subprocess
 import sys
 import unittest
 from unittest import TestCase, mock
@@ -181,58 +180,37 @@ class TestProxy(TestCase):
         mock_write_proxy.assert_called_once()
         mock_write_terminate.assert_called_once()
 
-    @mock.patch("subprocess.Popen")
-    @mock.patch("lib.proxy.stream_output")
-    def test_reload_proxy(self, mock_stream_output: Mock, mock_popen: Mock):
-        # Mock the subprocess.Popen object
-        mock_process = mock.Mock()
-        mock_popen.return_value = mock_process
+    @mock.patch("lib.proxy.run_command")
+    def test_reload_proxy(self, mock_run_command: Mock):
 
         # Call the function under test
         reload_proxy()
 
         # Assert that the subprocess.Popen was called twice
-        mock_popen.assert_has_calls(
+        mock_run_command.assert_has_calls(
             [
                 call(
                     ["docker", "compose", "exec", "proxy", "nginx", "-s", "reload"],
                     cwd="proxy",
-                    stdout=subprocess.PIPE,
                 ),
-                call().wait(),
                 call(
                     ["docker", "compose", "exec", "terminate", "nginx", "-s", "reload"],
                     cwd="proxy",
-                    stdout=subprocess.PIPE,
                 ),
-                call().wait(),
             ]
         )
 
-        # Assert that the stream_output function is called twice
-        self.assertEqual(mock_stream_output.call_count, 2)
-
-    @mock.patch("subprocess.Popen")
-    @mock.patch("lib.proxy.stream_output")
-    def test_reload_proxy_with_service(
-        self, mock_stream_output: Mock, mock_popen: Mock
-    ):
-        # Mock the subprocess.Popen object
-        mock_process = mock.Mock()
-        mock_popen.return_value = mock_process
+    @mock.patch("lib.proxy.run_command")
+    def test_reload_proxy_with_service(self, mock_run_command: Mock):
 
         # Call the function under test
         reload_proxy(service="terminate")
 
         # Assert that the subprocess.Popen was called with the correct arguments
-        mock_popen.assert_called_once_with(
+        mock_run_command.assert_called_once_with(
             ["docker", "compose", "exec", "terminate", "nginx", "-s", "reload"],
             cwd="proxy",
-            stdout=subprocess.PIPE,
         )
-
-        # Assert that the stream_output function is called
-        mock_stream_output.assert_called_once_with(mock_process)
 
 
 if __name__ == "__main__":

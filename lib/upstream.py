@@ -1,12 +1,11 @@
 import os
-import subprocess
 from typing import List
 
 from jinja2 import Template
 
 from lib.data import get_project, get_service, get_upstream_services
 from lib.models import Service
-from lib.utils import stream_output
+from lib.utils import run_command
 
 
 def write_upstream(project, services: List[Service]) -> None:
@@ -49,13 +48,7 @@ def update_upstream(
 ) -> None:
     """Reload service(s) in a docker compose config"""
     print(f"Updating upstream for project {project}")
-    process = subprocess.Popen(
-        ["docker", "compose", "up", "-d"],
-        cwd=f"upstream/{project}",
-        stdout=subprocess.PIPE,
-    )
-    process.wait()
-    stream_output(process)
+    run_command(["docker", "compose", "up", "-d"], cwd=f"upstream/{project}")
     if not rollout:
         return
     for svc in get_upstream_services(project):
@@ -72,10 +65,6 @@ def update_upstreams(rollout: bool = False) -> None:
 
 def rollout_service(project: str, service: str):
     print(f'Rolling out service "{project}:{service}"')
-    process = subprocess.Popen(
-        ["docker", "rollout", f"{project}-{service}"],
-        cwd=f"upstream/{project}",
-        stdout=subprocess.PIPE,
+    run_command(
+        ["docker", "rollout", f"{project}-{service}"], cwd=f"upstream/{project}"
     )
-    stream_output(process)
-    process.wait()

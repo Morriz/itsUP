@@ -7,7 +7,6 @@ from lib.utils import run_command
 def get_certs():
 
     email = os.getenv("LE_EMAIL")
-    print(f"LE_EMAIL: {email}")
     if email is None:
         raise ValueError("LE_EMAIL environment variable is not set")
     domains = get_domains()

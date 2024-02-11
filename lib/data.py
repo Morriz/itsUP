@@ -18,7 +18,7 @@ def write_projects(projects: List[Project]):
         yaml.dump({"projects": projects}, f)
 
 
-def get_project(name: str, throw: bool = True) -> Project:
+def get_project(name: str, throw: bool = True) -> Union[Project, None]:
     """Get a project by name. Optionally throw an error if not found (default)."""
     projects = get_projects()
     for item in projects:
@@ -28,6 +28,7 @@ def get_project(name: str, throw: bool = True) -> Project:
     print(error)
     if throw:
         raise ValueError(error)
+    return None
 
 
 def upsert_project(project: Project):
@@ -93,6 +94,7 @@ def get_service(
     print(error)
     if throw:
         raise ValueError(error)
+    return None
 
 
 def get_env(project: Union[str, Project], svc: str) -> Dict[str, str]:
