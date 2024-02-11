@@ -10,9 +10,10 @@ services:
     volumes:
       - ./bin:/app/bin
       - ./certs:/app/certs
-      - ./hostpipe:/app/hostpipe
-      - ./hostpipe.txt:/app/hostpipe.txt
       - ./data:/app/data
+      - ./hostpipe:/hostpipe
+      - ./hostpipe.txt:/app/hostpipe.txt
+      - ./lib:/app/lib
       - ./proxy:/app/proxy
       - ./upstream:/app/upstream
     env_file:

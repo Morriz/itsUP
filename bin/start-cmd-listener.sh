@@ -15,7 +15,7 @@ git="git fetch origin main && git reset --hard origin/main"
 while true; do
   cmd=$(cat ./hostpipe)
   # cmd="cd upstream/test && docker compose up -d"
-  echo "Received command: $cmd"
+  echo "Received command: $cmd" >$out
   if echo $cmd | $grep "^cd [0-9a-zA-Z/_-]* && docker compose "; then
     eval "$cmd; cd $here" >$out
   elif echo $cmd | $grep "^docker run --rm --name certbot "; then

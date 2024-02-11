@@ -12,7 +12,7 @@ FROM ci as test
 RUN .venv/bin/python -m unittest discover -s . -p '*_test.py'
 RUN .venv/bin/pylint **/*.py
 
-FROM python:3.11-alpine
+FROM python:3.11-slim
 WORKDIR /app
 COPY --from=base /app /app
 COPY . /app
