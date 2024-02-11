@@ -1,5 +1,5 @@
 fastapi==0.109.2
-github-webhooks-framework2==0.1.12
+github-webhooks-framework2==0.1.13
 jinja2-cli==0.8.2
 python-dotenv==1.0.1
 PyYAML==6.0.1
