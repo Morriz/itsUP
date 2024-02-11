@@ -1,5 +1,5 @@
 fastapi
-github-webhooks-framework
+github-webhooks-framework2
 jinja2-cli
 python-dotenv
 pyyaml

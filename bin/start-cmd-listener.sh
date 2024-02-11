@@ -3,6 +3,8 @@
 # not in use (yet) but meant for running this repo in docker
 # and being able to run docker-compose commands on the host
 
+mkfifo hostpipe >/dev/null 2>&1
+
 here=$(pwd)
 out=$(pwd)/hostpipe.txt
 grep="grep -E"

@@ -63,6 +63,7 @@ def get_hook_handler(
 @app.hooks.register("ping", PingPayload)
 async def github_ping_handler(
     payload: PingPayload,
+    _: Dict[str, str],
 ) -> None:
     """Handle incoming github webhook requests for ping events to notify callers we're up"""
     print(payload.zen)
