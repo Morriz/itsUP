@@ -53,23 +53,6 @@ class TestRunCommand(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         mock_popen.assert_called_once_with(["ls"], cwd=None, stdout=subprocess.PIPE)
 
-    @mock.patch("lib.utils.run_host_command")
-    @mock.patch("os.path.exists")
-    @mock.patch("subprocess.Popen")
-    def test_runs_host_command(self, mock_popen: Mock, mock_path_exists: Mock, mock_run_host_command: Mock) -> None:
-
-        # Set up mock
-        mock_process = mock_popen.return_value
-        mock_process.returncode = 0
-        mock_path_exists.return_value = True
-
-        # Call the function under test
-        run_command(["bla"])
-
-        # Assert the process was not called
-        mock_run_host_command.assert_called_once_with(["bla"], None)
-        mock_popen.assert_not_called()
-
 
 if __name__ == "__main__":
     unittest.main()

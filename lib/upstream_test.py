@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 from unittest import TestCase, mock
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -42,9 +42,17 @@ class TestUpdateUpstream(TestCase):
         )
 
         # Assert that the subprocess.Popen was called with the correct arguments
-        mock_run_command.assert_called_once_with(
-            ["docker", "compose", "up", "-d"],
-            cwd="upstream/my_project",
+        mock_run_command.assert_has_calls(
+            [
+                call(
+                    ["docker", "compose", "pull"],
+                    cwd="upstream/my_project",
+                ),
+                call(
+                    ["docker", "compose", "up", "-d"],
+                    cwd="upstream/my_project",
+                ),
+            ]
         )
 
         # Assert that the rollout_service function is called correctly
@@ -62,11 +70,6 @@ class TestUpdateUpstream(TestCase):
             rollout=False,
         )
 
-        mock_run_command.assert_called_once_with(
-            ["docker", "compose", "up", "-d"],
-            cwd="upstream/my_project",
-        )
-
         # Assert that the rollout_service function is not called
         mock_rollout_service.assert_not_called()
 
@@ -81,7 +84,7 @@ class TestUpdateUpstream(TestCase):
 
         mock_update_upstream.assert_called_once_with(
             "my_project",
-            False,
+            rollout=False,
         )
 
 

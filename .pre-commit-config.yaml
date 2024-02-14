@@ -15,3 +15,7 @@ repos:
         name: Lint code
         entry: bin/lint.sh
         language: script
+      - id: test
+        name: Test code
+        entry: bin/test.sh
+        language: script
