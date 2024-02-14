@@ -3,9 +3,10 @@ from typing import Any, Dict, List
 
 import dotenv
 import uvicorn
-from fastapi import BackgroundTasks, Depends, HTTPException, Request
+from fastapi import BackgroundTasks, Depends
 from github_webhooks import create_app
 
+from lib.auth import verify_apikey
 from lib.data import (
     get_env,
     get_project,
@@ -28,14 +29,6 @@ api_token = os.environ["API_KEY"]
 app = create_app(secret_token=api_token)
 
 
-def verify_token(req: Request) -> None:
-    """Verify the authorization token in the request header"""
-    # we only expect bearer tokens:
-    token = req.headers["Authorization"].split(" ")[1]
-    if not token == api_token:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-
 def _after_config_change(project: str) -> None:
     """Run after a project is updated"""
     write_nginx()
@@ -55,11 +48,15 @@ def _handle_update_upstream(project: str, service: str) -> None:
 @app.get("/update-upstream", response_model=None)
 def get_hook_handler(
     project: str,
+    background_tasks: BackgroundTasks,
     service: str = None,
-    _: None = Depends(verify_token),
+    _: None = Depends(verify_apikey),
 ) -> None:
     """Handle requests to update the upstream"""
-    _handle_update_upstream(project, service)
+    if project == "uptid":
+        background_tasks.add_task(update_repo)
+        return
+    background_tasks.add_task(_handle_update_upstream, project=project, service=service)
 
 
 @app.hooks.register("ping", PingPayload)
@@ -89,7 +86,7 @@ async def github_workflow_job_handler(
 
 
 @app.get("/projects/{project}", response_model=List[Service])
-def get_projects_handler(project: str = None, _: None = Depends(verify_token)) -> List[Project] | Project:
+def get_projects_handler(project: str = None, _: None = Depends(verify_apikey)) -> List[Project] | Project:
     """Get the list of all or one project"""
     if project:
         return get_project(project, throw=True)
@@ -98,7 +95,7 @@ def get_projects_handler(project: str = None, _: None = Depends(verify_token)) -
 
 @app.get("/projects/{project}/services/{service}", response_model=Service)
 def get_project_services_handler(
-    project: str, service: str = None, _: None = Depends(verify_token)
+    project: str, service: str = None, _: None = Depends(verify_apikey)
 ) -> Service | List[Service]:
     """Get the list of a project's services, or a specific one"""
     if service:
@@ -108,7 +105,7 @@ def get_project_services_handler(
 
 
 @app.get("/projects/{project}/services/{service}/env", response_model=Service)
-def get_env_handler(project: str, service: str, _: None = Depends(verify_token)) -> Dict[str, str]:
+def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)) -> Dict[str, str]:
     """Get the list of a project's services, or a specific one"""
     return get_env(project, service)
 
@@ -116,7 +113,7 @@ def get_env_handler(project: str, service: str, _: None = Depends(verify_token))
 @app.post("/projects", tags=["Project"])
 def post_project_handler(
     project: Project,
-    _: None = Depends(verify_token),
+    _: None = Depends(verify_apikey),
 ) -> None:
     """Create or update a project"""
     upsert_project(project)
@@ -124,7 +121,7 @@ def post_project_handler(
 
 
 @app.get("/services", response_model=List[Service])
-def get_services_handler(_: None = Depends(verify_token)) -> List[Service]:
+def get_services_handler(_: None = Depends(verify_apikey)) -> List[Service]:
     """Get the list of all services"""
     return get_services()
 
@@ -133,7 +130,7 @@ def get_services_handler(_: None = Depends(verify_token)) -> List[Service]:
 def post_service_handler(
     project: str,
     service: Service,
-    _: None = Depends(verify_token),
+    _: None = Depends(verify_apikey),
 ) -> None:
     """Create or update a service"""
     upsert_service(project, service)
@@ -145,7 +142,7 @@ def post_env_handler(
     project: str,
     service: str,
     env: Dict[str, str],
-    _: None = Depends(verify_token),
+    _: None = Depends(verify_apikey),
 ) -> None:
     """Create or update env for a project service"""
     upsert_env(project, service, env)
