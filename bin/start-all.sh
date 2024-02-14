@@ -4,5 +4,5 @@
 echo "Starting proxy..."
 bin/start-proxy.sh
 
-echo "Starting doup api..."
+echo "Starting uptid api..."
 bin/start-api.sh

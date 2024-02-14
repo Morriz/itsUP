@@ -2,6 +2,7 @@ import os
 from typing import Any, Dict, List
 
 import dotenv
+import uvicorn
 from fastapi import BackgroundTasks, Depends, HTTPException, Request
 from github_webhooks import create_app
 
@@ -79,7 +80,7 @@ async def github_workflow_job_handler(
     if payload.workflow_job.status == "completed" and payload.workflow_job.conclusion == "success":
         project = query_params.get("project")
         assert project is not None
-        if project == "doup":
+        if project == "uptid":
             background_tasks.add_task(update_repo)
             return
         # needs to be set correctly in the project's workflow file:
@@ -152,6 +153,5 @@ def post_env_handler(
 
 
 if __name__ == "__main__":
-    import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug", reload_dirs=["."])

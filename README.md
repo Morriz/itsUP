@@ -1,6 +1,4 @@
-# Doup
-
-*/duːp/ (sounds like doop)*
+# Uptid
 
 **Lean, automated, poor man's infra for lightweight services running in docker.**
 
@@ -70,7 +68,7 @@ Exception: Only github webhook endpoints (check for annotation `@app.hooks.regis
 #### Webhooks
 
 Webhooks are used for the following:
-1. to receive updates to this repo, which will result in a `git pull` and `bin/apply.py` to update any changes in the code. The provided project with `name: doup` is used for that, so DON'T delete it if you care about automated updates to this repo.
+1. to receive updates to this repo, which will result in a `git pull` and `bin/apply.py` to update any changes in the code. The provided project with `name: uptid` is used for that, so DON'T delete it if you care about automated updates to this repo.
 2. to receive incoming github webhooks (or GET requests to `/update-upstream?project=bla&service=dida`) that result in rolling up of a project or specific service only.
 
 One GitHub webhook listening to `workflow_job`s is provided, which needs:

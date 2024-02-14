@@ -6,9 +6,9 @@ projects:
       - svc: 192.168.1.111
         passthrough: true
         port: 443
-  - description: Doup API running on the host
-    domain: doup.example.com
-    name: doup
+  - description: Uptid API running on the host
+    domain: uptid.example.com
+    name: uptid
     services:
       - svc: 172.17.0.1
         port: 8888

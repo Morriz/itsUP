@@ -3,7 +3,7 @@ requires = ["setuptools~=69.0", "wheel~=0.42.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "doup"
+name = "uptid"
 version = "0.1.1"
 license = { text = "GPL-3.0-only" }
 authors = [{ name = "Maurice Faber", email = "morriz@idiotz.nl" }]
