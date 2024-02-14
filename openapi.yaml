@@ -21,18 +21,18 @@ paths:
       description: Handle requests to update the upstream
       operationId: get_hook_handler_update_upstream_get
       parameters:
-        - name: project
-          in: query
-          required: true
-          schema:
-            type: string
-            title: Project
-        - name: service
-          in: query
-          required: false
-          schema:
-            type: string
-            title: Service
+      - name: project
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Project
+      - name: service
+        in: query
+        required: false
+        schema:
+          type: string
+          title: Service
       responses:
         '200':
           description: Successful Response
@@ -51,12 +51,12 @@ paths:
       description: Get the list of all or one project
       operationId: get_projects_handler_projects__project__get
       parameters:
-        - name: project
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Project
+      - name: project
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project
       responses:
         '200':
           description: Successful Response
@@ -79,18 +79,18 @@ paths:
       description: Get the list of a project's services, or a specific one
       operationId: get_project_services_handler_projects__project__services__service__get
       parameters:
-        - name: project
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Project
-        - name: service
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Service
+      - name: project
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project
+      - name: service
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Service
       responses:
         '200':
           description: Successful Response
@@ -110,18 +110,18 @@ paths:
       description: Get the list of a project's services, or a specific one
       operationId: get_env_handler_projects__project__services__service__env_get
       parameters:
-        - name: project
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Project
-        - name: service
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Service
+      - name: project
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project
+      - name: service
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Service
       responses:
         '200':
           description: Successful Response
@@ -137,23 +137,23 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
-        - Service
+      - Service
       summary: Post Env Handler
       description: Create or update env for a project service
       operationId: post_env_handler_projects__project__services__service__env_post
       parameters:
-        - name: project
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Project
-        - name: service
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Service
+      - name: project
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project
+      - name: service
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Service
       requestBody:
         required: true
         content:
@@ -178,7 +178,7 @@ paths:
   /projects:
     post:
       tags:
-        - Project
+      - Project
       summary: Post Project Handler
       description: Create or update a project
       operationId: post_project_handler_projects_post
@@ -217,17 +217,17 @@ paths:
                 title: Response Get Services Handler Services Get
     post:
       tags:
-        - Service
+      - Service
       summary: Post Service Handler
       description: Create or update a service
       operationId: post_service_handler_services_post
       parameters:
-        - name: project
-          in: query
-          required: true
-          schema:
-            type: string
-            title: Project
+      - name: project
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Project
       requestBody:
         required: true
         content:
@@ -279,7 +279,7 @@ components:
           default: []
       type: object
       required:
-        - name
+      - name
       title: Project
       description: Project model
     Service:
@@ -324,8 +324,8 @@ components:
           default: {}
       type: object
       required:
-        - svc
-        - port
+      - svc
+      - port
       title: Service
       description: Service model
     ValidationError:
@@ -333,8 +333,8 @@ components:
         loc:
           items:
             anyOf:
-              - type: string
-              - type: integer
+            - type: string
+            - type: integer
           type: array
           title: Location
         msg:
@@ -345,11 +345,7 @@ components:
           title: Error Type
       type: object
       required:
-        - loc
-        - msg
-        - type
+      - loc
+      - msg
+      - type
       title: ValidationError
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
