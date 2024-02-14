@@ -23,7 +23,8 @@ def write_upstream_volume_folders(project: str, services: List[Service]) -> None
 
 
 def write_upstreams() -> None:
-    for p in get_projects():
+    # iterate over projects that have p.upstream;
+    for p in [project for project in get_projects() if project.upstream]:
         os.makedirs(f"upstream/{p.name}", exist_ok=True)
         write_upstream(p.name, p.services)
         write_upstream_volume_folders(p.name, p.services)
