@@ -21,7 +21,7 @@ from lib.proxy import (
 
 class TestProxy(TestCase):
     @mock.patch("lib.proxy.get_terminate_services")
-    def test_get_internal_map(self, mock_get_terminate_services):
+    def test_get_internal_map(self, mock_get_terminate_services: Mock) -> None:
         # Mock the get_terminate_services function
         mock_get_terminate_services.return_value = [
             Service(svc="bla", domain="example.com", upstream=False, port=8080),
@@ -39,7 +39,7 @@ class TestProxy(TestCase):
         self.assertEqual(internal_map, expected_map)
 
     @mock.patch("lib.proxy.get_terminate_services")
-    def test_get_terminate_map(self, mock_get_terminate_services):
+    def test_get_terminate_map(self, mock_get_terminate_services: Mock) -> None:
         # Mock the get_terminate_services function
         mock_get_terminate_services.return_value = [
             Service(
@@ -69,12 +69,10 @@ class TestProxy(TestCase):
         self.assertEqual(terminate_map, expected_map)
 
     @mock.patch("lib.proxy.get_services")
-    def test_get_passthrough_map(self, mock_get_services):
+    def test_get_passthrough_map(self, mock_get_services: Mock) -> None:
         # Mock the get_services function
         mock_get_services.return_value = [
-            Service(
-                domain="example.com", svc="my_service", port=8080, passthrough=True
-            ),
+            Service(domain="example.com", svc="my_service", port=8080, passthrough=True),
         ]
 
         # Call the function under test
@@ -98,7 +96,7 @@ class TestProxy(TestCase):
         mock_get_internal_map: Mock,
         mock_template: Mock,
         mock_open: Mock,
-    ):
+    ) -> None:
         # Mock the get_internal_map function
         mock_get_internal_map.return_value = {
             "example.com": "terminate:8080",
@@ -134,7 +132,7 @@ class TestProxy(TestCase):
 
     @mock.patch("builtins.open", new_callable=mock.mock_open)
     @mock.patch("lib.proxy.get_project")
-    def test_write_proxy(self, _: Mock, mock_open: Mock):
+    def test_write_proxy(self, _: Mock, mock_open: Mock) -> None:
 
         # Call the function under test
         write_proxy()
@@ -151,7 +149,7 @@ class TestProxy(TestCase):
     @mock.patch("builtins.open", new_callable=mock.mock_open)
     @mock.patch("lib.proxy.get_domains")
     @mock.patch("lib.proxy.get_project")
-    def test_write_terminate(self, _, mock_get_domains: Mock, mock_open: Mock):
+    def test_write_terminate(self, _: Mock, mock_get_domains: Mock, mock_open: Mock) -> None:
         mock_get_domains.return_value = ["example.com", "example.org"]
 
         # Call the function under test
@@ -169,9 +167,7 @@ class TestProxy(TestCase):
     @mock.patch("lib.proxy.write_maps")
     @mock.patch("lib.proxy.write_proxy")
     @mock.patch("lib.proxy.write_terminate")
-    def test_write_nginx(
-        self, mock_write_terminate: Mock, mock_write_proxy: Mock, mock_write_maps: Mock
-    ):
+    def test_write_nginx(self, mock_write_terminate: Mock, mock_write_proxy: Mock, mock_write_maps: Mock) -> None:
         # Call the function under test
         write_nginx()
 
@@ -181,7 +177,7 @@ class TestProxy(TestCase):
         mock_write_terminate.assert_called_once()
 
     @mock.patch("lib.proxy.run_command")
-    def test_reload_proxy(self, mock_run_command: Mock):
+    def test_reload_proxy(self, mock_run_command: Mock) -> None:
 
         # Call the function under test
         reload_proxy()
@@ -201,7 +197,7 @@ class TestProxy(TestCase):
         )
 
     @mock.patch("lib.proxy.run_command")
-    def test_reload_proxy_with_service(self, mock_run_command: Mock):
+    def test_reload_proxy_with_service(self, mock_run_command: Mock) -> None:
 
         # Call the function under test
         reload_proxy(service="terminate")

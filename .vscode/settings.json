@@ -1,11 +1,33 @@
 {
-  "python.testing.unittestArgs": [
-    "-v",
-    "-s",
-    ".",
-    "-p",
-    "*_test.py"
-  ],
-  "python.testing.pytestEnabled": false,
-  "python.testing.unittestEnabled": true
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.addMissingImports": "always",
+      "source.fixAll": "always",
+      "source.fixAll.unusedImports": "always",
+      "source.organizeImports": "always"
+    },
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.tabSize": 4
+  },
+  "black-formatter.importStrategy": "fromEnvironment",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.reportingScope": "workspace",
+  "pylint.importStrategy": "fromEnvironment",
+  "pylint.severity": {
+    "convention": "Information",
+    "error": "Error",
+    "fatal": "Error",
+    "refactor": "Information",
+    "warning": "Warning",
+    "info": "Information"
+  },
+  "python.analysis.addImport.exactMatchOnly": true,
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.enableSyncServer": true,
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "python.testing.unittestArgs": [ "-v", "-s", ".", "-p", "*_test.py" ],
+  "python.testing.unittestEnabled": true,
+  "isort.check": true,
+  "isort.importStrategy": "fromEnvironment"
 }

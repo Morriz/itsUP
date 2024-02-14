@@ -3,6 +3,7 @@ import os
 import sys
 import unittest
 from unittest import mock
+from unittest.mock import Mock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -21,7 +22,7 @@ class TestCodeUnderTest(unittest.TestCase):
     # Get all projects
     @mock.patch("builtins.open", new_callable=mock.mock_open)
     @mock.patch("yaml.safe_load")
-    def test_get_all_projects_with_mock_imported(self, mock_safe_load, mock_open):
+    def test_get_all_projects_with_mock_imported(self, mock_safe_load: Mock, mock_open: Mock) -> None:
 
         # Mock the return value of yaml.safe_load
         mock_safe_load.return_value = {
@@ -70,7 +71,7 @@ class TestCodeUnderTest(unittest.TestCase):
 
     # Get a project by name with the recommended fix
     @mock.patch("lib.data.get_projects")
-    def test_get_project_by_name_with_mock_imported_with_fix(self, mock_get_projects):
+    def test_get_project_by_name_with_mock_imported_with_fix(self, mock_get_projects: Mock) -> None:
 
         # Mock the return value of get_projects
         mock_get_projects.return_value = [
@@ -105,7 +106,7 @@ class TestCodeUnderTest(unittest.TestCase):
 
     # Get all services with mock
     @mock.patch("lib.data.get_projects")
-    def test_get_all_services_with_mock(self, mock_get_projects):
+    def test_get_all_services_with_mock(self, mock_get_projects: Mock) -> None:
         # Mock the return value of get_projects
         mock_get_projects.return_value = [
             Project(
@@ -140,7 +141,7 @@ class TestCodeUnderTest(unittest.TestCase):
 
     # Get a project by name that does not exist
     @mock.patch("lib.data.get_projects")
-    def test_get_nonexistent_project_by_name(self, mock_get_projects):
+    def test_get_nonexistent_project_by_name(self, mock_get_projects: Mock) -> None:
 
         # Mock the return value of get_projects
         mock_get_projects.return_value = [
@@ -166,7 +167,7 @@ class TestCodeUnderTest(unittest.TestCase):
 
     # Get a service by name that does not exist
     @mock.patch("lib.data.get_project")
-    def test_get_nonexistent_service_by_name(self, mock_get_project):
+    def test_get_nonexistent_service_by_name(self, mock_get_project: Mock) -> None:
 
         # Mock the return value of get_project
         mock_get_project.return_value = Project(
@@ -187,9 +188,7 @@ class TestCodeUnderTest(unittest.TestCase):
     # Upsert a project that does not exist (Fixed)
     @mock.patch("lib.data.get_projects")
     @mock.patch("lib.data.write_projects")
-    def test_upsert_nonexistent_project_fixed(
-        self, mock_write_projects, mock_get_projects
-    ):
+    def test_upsert_nonexistent_project_fixed(self, mock_write_projects: Mock, mock_get_projects: Mock) -> None:
 
         # Mock the return value of get_projects
         mock_get_projects.return_value = [

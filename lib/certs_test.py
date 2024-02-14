@@ -17,7 +17,7 @@ class TestCodeUnderTest(TestCase):
     # Certbot command is run for each domain
     @mock.patch("lib.certs.get_domains", return_value=["example.com"])
     @mock.patch("lib.certs.run_command")
-    def test_certbot_command_run_for_each_domain(self, mock_run_command: Mock, _):
+    def test_certbot_command_run_for_each_domain(self, mock_run_command: Mock, _: Mock) -> None:
         # Call the function under test
         get_certs()
 
@@ -70,9 +70,9 @@ class TestCodeUnderTest(TestCase):
         self,
         mock_remove: Mock,
         mock_isfile: Mock,
-        _,
-        mock_get_domains: Mock,
-    ):
+        _1: Mock,
+        _2: Mock,
+    ) -> None:
         mock_isfile.return_value = True
 
         # Call the function under test
@@ -85,9 +85,7 @@ class TestCodeUnderTest(TestCase):
     @mock.patch("subprocess.Popen")
     @mock.patch("lib.certs.get_domains", return_value=[])
     @mock.patch("os.remove")
-    def test_no_domains_passed_to_certbot(
-        self, mock_remove: Mock, mock_get_domains: Mock, mock_popen: Mock
-    ):
+    def test_no_domains_passed_to_certbot(self, mock_remove: Mock, mock_get_domains: Mock, mock_popen: Mock) -> None:
         # Call the function under test
         result = get_certs()
 
@@ -98,15 +96,13 @@ class TestCodeUnderTest(TestCase):
     # LE_EMAIL environment variable is not set
     @mock.patch("lib.certs.get_domains", return_value=[])
     @mock.patch("os.getenv", return_value=None)
-    def test_le_email_env_variable_not_set(self, _1, _2):
+    def test_le_email_env_variable_not_set(self, _1: Mock, _2: Mock) -> None:
 
         # Call the function under test
         with self.assertRaises(ValueError) as context:
             get_certs()
 
-        self.assertEqual(
-            str(context.exception), "LE_EMAIL environment variable is not set"
-        )
+        self.assertEqual(str(context.exception), "LE_EMAIL environment variable is not set")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from lib.data import get_domains
 from lib.utils import run_command
 
 
-def get_certs():
+def get_certs() -> bool:
 
     email = os.getenv("LE_EMAIL")
     if email is None:

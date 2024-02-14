@@ -10,16 +10,12 @@ from lib.data import Service
 from lib.upstream import update_upstream, update_upstreams
 
 
-# pylint: disable=too-few-public-methods
 class DirEntry:
-    def __init__(self, path):
+    def __init__(self, path: str):
         self.path = path
 
-    def is_dir(self):
+    def is_dir(self) -> bool:
         return True
-
-
-# pylint: enable=too-few-public-methods
 
 
 class TestUpdateUpstream(TestCase):
@@ -31,7 +27,7 @@ class TestUpdateUpstream(TestCase):
         mock_get_upstream_services: Mock,
         mock_run_command: Mock,
         mock_rollout_service: Mock,
-    ):
+    ) -> None:
         # Mock the get_upstream_services function
         mock_get_upstream_services.return_value = [
             Service(svc="service1", project="my_project", port=8080),
@@ -57,9 +53,7 @@ class TestUpdateUpstream(TestCase):
 
     @mock.patch("lib.upstream.rollout_service")
     @mock.patch("lib.upstream.run_command")
-    def test_update_upstream_no_rollout(
-        self, mock_run_command: Mock, mock_rollout_service: Mock
-    ):
+    def test_update_upstream_no_rollout(self, mock_run_command: Mock, mock_rollout_service: Mock) -> None:
 
         # Call the function under test
         update_upstream(
@@ -79,7 +73,7 @@ class TestUpdateUpstream(TestCase):
     @mock.patch("os.scandir")
     @mock.patch("lib.upstream.update_upstream")
     @mock.patch("lib.upstream.run_command")
-    def test_update_upstreams(self, _, mock_update_upstream: Mock, mock_scandir: Mock):
+    def test_update_upstreams(self, _: Mock, mock_update_upstream: Mock, mock_scandir: Mock) -> None:
         mock_scandir.return_value = [DirEntry("upstream/my_project")]
 
         # Call the function under test

@@ -10,13 +10,9 @@ from uvicorn.importer import import_from_string
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 parser = argparse.ArgumentParser(prog="extract-openapi.py")
-parser.add_argument(
-    "--app", help='App import string. Eg. "main:app"', default="api.main:app"
-)
+parser.add_argument("--app", help='App import string. Eg. "main:app"', default="api.main:app")
 parser.add_argument("--app-dir", help="Directory containing the app", default=None)
-parser.add_argument(
-    "--out", help="Output file ending in .json or .yaml", default="openapi.yaml"
-)
+parser.add_argument("--out", help="Output file ending in .json or .yaml", default="openapi.yaml")
 
 if __name__ == "__main__":
     args = parser.parse_args()

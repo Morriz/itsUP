@@ -2,7 +2,9 @@
 
 */duːp/ (sounds like doop)*
 
-## Lean + low cost docker compose infra
+**Lean, automated, poor man's infra for lightweight services running in docker.**
+
+## Fully managed docker compose infra
 
 Single machine multi docker compose architecture with a low cpu/storage footprint and near-zero<sup>*</sup> downtime.
 
@@ -14,12 +16,16 @@ It runs two nginx proxies in series (proxy -> terminate) to be able to:
 **Advantages:**
 
 - shared docker network: encrypted intra-node communication (over a shared network named `proxynet`)
-- near-zero-downtime
+- near-zero-downtime*
 
-**<sup>*</sup>Near-zero-downtime?**
+*<sup>*</sup>Near-zero-downtime?*
 
-Well, all nodes that get rotated do not incur downtime, yet nginx neads a reload signal. During low traffic that will allow for a graceful handling of outstanding http sessions and no downtime, but may be problematic if nginx needs to wait for a magnitude of open sessions. In that case a timeout will force the last open sessions to be terminated.
+Well, all (stateless) nodes that get rotated do not incur downtime, yet nginx neads a reload signal. During low traffic that will allow for a graceful handling of outstanding http sessions and no downtime, but may be problematic if nginx needs to wait for a magnitude of open sessions. In that case a timeout will force the last open sessions to be terminated.
 This approach is a very reliable and cheap approach to achieve zero downtime.
+
+*But what about stateful services?*
+
+It is surely possible to deploy stateful services but those MUST NOT be targeted with the `upstream: xxx` prop, as those services are the entrypoints which MUST be stateless, as those are rolled up with the `docker rollout` by the automation. In order to update those services you are on your own, but it's a breeze compared to local installs, as you can just docker compose commands.
 
 **Prerequisites:**
 
@@ -36,10 +42,10 @@ This approach is a very reliable and cheap approach to achieve zero downtime.
 
 ### Install & run
 
-Install everything and start the proxy so that we can receive incoming challenge webhooks.
+Install everything and start the proxy and api so that we can receive incoming challenge webhooks.
 
 1. `bin/install.sh`
-2. `bin/start-proxy.sh`
+2. `bin/start-all.sh`
 
 ### Adding an upstream svc
 
@@ -51,11 +57,10 @@ Install everything and start the proxy so that we can receive incoming challenge
 1. Edit `db.yaml` and add your service(s), which now need  `domain`, `svc` and `passthrough: true`.
 2. Run `bin/apply.py` to roll out the changes.
 
-### API (optional)
+### Api & OpenApi spec
 
-You can run an API to allow openapi compatible clients to do management on this stack (ChatGPT works wonders).
+The API allows openapi compatible clients to do management on this stack (ChatGPT works wonders).
 
-Start the API with `bin/start-api.sh`.
 Generate the spec with `api/extract-openapi.py`.
 
 All endpoints do auth and expect an incoming Bearer token to be set to `.env/API_KEY`.
@@ -68,13 +73,16 @@ Webhooks are used for the following:
 1. to receive updates to this repo, which will result in a `git pull` and `bin/apply.py` to update any changes in the code. The provided project with `name: doup` is used for that, so DON'T delete it if you care about automated updates to this repo.
 2. to receive incoming github webhooks (or GET requests to `/update-upstream?project=bla&service=dida`) that result in rolling up of a project or specific service only.
 
-One GitHub webhook listening to `workflow_job`s is provided, which needs the hook you will register in the github project to end with `/hook?project=bla&service=dida` (`service` optional), and the `github_secret` set to `.env/API_KEY`.
+One GitHub webhook listening to `workflow_job`s is provided, which needs:
+- the hook you will register in the github project to end with `/hook?project=bla&service=dida` (`service` optional), and the `github_secret` set to `.env/API_KEY`.
 
 I mainly use GitHub workflows and created webhooks for my individual projects, so I can just manage all webhooks in one place. 
 
-### Dev/ops tools
+## Dev/ops tools
 
-#### functions
+You may want to update requirements like this: `bin/requirements-update.sh`.
+
+### functions
 
 Source `lib/functions.sh` to get:
 
@@ -85,7 +93,7 @@ Source `lib/functions.sh` to get:
 In effect these wrapper commands achieve the same as when going into an `upstream/*` folder and running `docker compose` there.
 I don't want to switch folders/terminals all the time and want to keep history of my commands so I choose this approach.
 
-#### Scripts
+### Scripts
 
 - `bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.
 - `bin/write-artifacts.py`: after updating `db.yml` yo ucan run this script to check new artifacts.

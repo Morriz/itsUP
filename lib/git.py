@@ -3,7 +3,7 @@ from lib.upstream import update_upstreams, write_upstreams
 from lib.utils import run_command
 
 
-def update_repo():
+def update_repo() -> None:
     """Update the local git repo"""
     # execute a git pull with python in the root of this project:
     run_command(["git", "pull"], cwd=".")

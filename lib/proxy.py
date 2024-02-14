@@ -13,11 +13,7 @@ def get_internal_map() -> Dict[str, str]:
 
 def get_terminate_map() -> Dict[str, str]:
     filtered = get_terminate_services()
-    return {
-        svc.domain: (f"{svc.project}-" if svc.upstream else "")
-        + f"{svc.svc}:{svc.port}"
-        for svc in filtered
-    }
+    return {svc.domain: (f"{svc.project}-" if svc.upstream else "") + f"{svc.svc}:{svc.port}" for svc in filtered}
 
 
 def get_passthrough_map() -> Dict[str, str]:
@@ -25,7 +21,7 @@ def get_passthrough_map() -> Dict[str, str]:
     return {svc.domain: f"{svc.svc}:{svc.port}" for svc in filtered}
 
 
-def write_maps():
+def write_maps() -> None:
     internal_map = get_internal_map()
     passthrough_map = get_passthrough_map()
     terminate_map = get_terminate_map()
@@ -43,7 +39,7 @@ def write_maps():
         f.write(terminate)
 
 
-def write_proxy():
+def write_proxy() -> None:
     project = get_project("home-assistant", throw=False)
     with open("proxy/tpl/proxy.conf.j2", encoding="utf-8") as f:
         t = f.read()
@@ -53,7 +49,7 @@ def write_proxy():
         f.write(terminate)
 
 
-def write_terminate():
+def write_terminate() -> None:
     domains = get_domains()
     with open("proxy/tpl/terminate.conf.j2", encoding="utf-8") as f:
         t = f.read()
@@ -63,13 +59,13 @@ def write_terminate():
         f.write(terminate)
 
 
-def write_nginx():
+def write_nginx() -> None:
     write_maps()
     write_proxy()
     write_terminate()
 
 
-def reload_proxy(service: str = None):
+def reload_proxy(service: str = None) -> None:
     print("Reloading proxy")
     # Execute docker compose command to reload nginx for both 'proxy' and 'terminate' services
     for s in [service] if service else ["proxy", "terminate"]:
@@ -79,7 +75,7 @@ def reload_proxy(service: str = None):
         )
 
 
-def rollout_proxy(service: str = None):
+def rollout_proxy(service: str = None) -> None:
     print(f'Rolling out service "{service}"')
     for s in [service] if service else ["proxy", "terminate"]:
         run_command(

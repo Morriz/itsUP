@@ -3,17 +3,36 @@ info:
   title: FastAPI
   version: 0.1.0
 paths:
-  /hooks:
+  /hook:
+    post:
+      summary: Webhook Handler
+      operationId: webhook_handler_hook_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: string
+                title: Response Webhook Handler Hook Post
+  /update-upstream:
     get:
-      summary: Update Service
-      operationId: update_service_hooks_get
+      summary: Get Hook Handler
+      description: Handle requests to update the upstream
+      operationId: get_hook_handler_update_upstream_get
       parameters:
-      - name: service
-        in: query
-        required: true
-        schema:
-          type: string
-          title: Service
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: query
+          required: false
+          schema:
+            type: string
+            title: Service
       responses:
         '200':
           description: Successful Response
@@ -26,33 +45,195 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /service:
+  /projects/{project}:
     get:
-      summary: Get Service List
-      description: Get the list of services
-      operationId: get_service_list_service_get
+      summary: Get Projects Handler
+      description: Get the list of all or one project
+      operationId: get_projects_handler_projects__project__get
+      parameters:
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/Service'
-                type: array
-                title: Response Get Service List Service Get
+                title: Response Get Projects Handler Projects  Project  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /projects/{project}/services/{service}:
+    get:
+      summary: Get Project Services Handler
+      description: Get the list of a project's services, or a specific one
+      operationId: get_project_services_handler_projects__project__services__service__get
+      parameters:
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Service
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /projects/{project}/services/{service}/env:
+    get:
+      summary: Get Env Handler
+      description: Get the list of a project's services, or a specific one
+      operationId: get_env_handler_projects__project__services__service__env_get
+      parameters:
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Service
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
-      - Service
-      summary: Upsert Service
-      description: Create or update a service
-      operationId: upsert_service_service_post
+        - Service
+      summary: Post Env Handler
+      description: Create or update env for a project service
+      operationId: post_env_handler_projects__project__services__service__env_post
+      parameters:
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+              title: Env
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /projects:
+    post:
+      tags:
+        - Project
+      summary: Post Project Handler
+      description: Create or update a project
+      operationId: post_project_handler_projects_post
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Service'
+              $ref: '#/components/schemas/Project'
         required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /services:
+    get:
+      summary: Get Services Handler
+      description: Get the list of all services
+      operationId: get_services_handler_services_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+                title: Response Get Services Handler Services Get
+    post:
+      tags:
+        - Service
+      summary: Post Service Handler
+      description: Create or update a service
+      operationId: post_service_handler_services_post
+      parameters:
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Service'
       responses:
         '200':
           description: Successful Response
@@ -76,40 +257,75 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
-    Service:
+    Project:
       properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
         domain:
           type: string
           title: Domain
-        svc:
-          type: string
-          title: Svc
         upstream:
           type: string
           title: Upstream
-        image:
+        services:
+          items:
+            $ref: '#/components/schemas/Service'
+          type: array
+          title: Services
+          default: []
+      type: object
+      required:
+        - name
+      title: Project
+      description: Project model
+    Service:
+      properties:
+        svc:
           type: string
-          title: Image
-        path:
-          type: string
-          title: Path
-          default: /
-        forward:
-          type: boolean
-          title: Forward
-          default: false
+          title: Svc
         port:
           type: integer
           title: Port
-          default: 8080
+        project:
+          type: string
+          title: Project
+        domain:
+          type: string
+          title: Domain
+        image:
+          type: string
+          title: Image
+        command:
+          type: string
+          title: Command
         passthrough:
           type: boolean
           title: Passthrough
           default: false
+        upstream:
+          type: boolean
+          title: Upstream
+          default: false
+        volumes:
+          items:
+            type: string
+          type: array
+          title: Volumes
+          default: []
+        env:
+          additionalProperties:
+            type: string
+          type: object
+          title: Env
+          default: {}
       type: object
       required:
-      - domain
-      - svc
+        - svc
+        - port
       title: Service
       description: Service model
     ValidationError:
@@ -117,8 +333,8 @@ components:
         loc:
           items:
             anyOf:
-            - type: string
-            - type: integer
+              - type: string
+              - type: integer
           type: array
           title: Location
         msg:
@@ -129,7 +345,11 @@ components:
           title: Error Type
       type: object
       required:
-      - loc
-      - msg
-      - type
+        - loc
+        - msg
+        - type
       title: ValidationError
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

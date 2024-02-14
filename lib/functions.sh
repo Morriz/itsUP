@@ -1,78 +1,74 @@
-image=morriz/doup:main
-
-dcd() {
-  cmd=$1
-  shift
-  [ -z "$cmd" ] && echo "No command given!" && return 1
-  d=
-  r=
-  if [ "$cmd" = "up" ]; then
-    d="-d"
-    r="--remove-orphans"
-  fi
-  docker compose $cmd $d $r $@
-}
-
-dcdx() {
-  eval docker compose exec api sh -c "'$@'"
-}
-
+# Run a one-off, interuptable command in a container
 drun() {
-  eval docker run --rm -it --name doup \
+  $image = $1
+  shift
+  eval docker run --rm -it \
     -v $PWD/certs:/app/certs \
     -v $PWD/data:/app/data \
-    -v $PWD/hostpipe:/app/hostpipe \
     -v $PWD/proxy:/app/proxy \
     -v $PWD/upstream:/app/upstream \
     $image sh -c "'$@'"
 }
 
-# Run docker compose in the proxy
 dcp() {
-  cmd=$1
+  dir=$1
+  project=$2
+  part=$3
   shift
+  shift
+  cmd=$@
+  shift
+  [ -z "$dir" ] && echo "No dir given!" && return 1
+  [ -z "$project" ] && echo "No project given!" && return 1
   [ -z "$cmd" ] && echo "No command given!" && return 1
-  d=
-  r=
   if [ "$cmd" = "up" ]; then
-    d="-d"
-    r="--remove-orphans"
+    cmd="$cmd -d"
   fi
-  docker compose --project-directory proxy -p proxy -f proxy/docker-compose.yml $cmd $d $r $@
+  if [ "$part" = "up" ]; then
+    docker compose --project-directory $dir -p $project -f $dir/docker-compose.yml pull
+    cmd="$cmd --remove-orphans"
+  fi
+  eval "docker compose --project-directory $dir -p $project -f $dir/docker-compose.yml $cmd $@"
+}
+
+dcpx() {
+  dir=$1
+  project=$2
+  svc=$3
+  shift
+  shift
+  shift
+  dcp $dir $project exec $svc sh -c "'$@'"
+}
+
+# Run docker compose in the proxy
+dcpp() {
+  dcp proxy proxy $@
+}
+dcppx() {
+  dcpx proxy proxy $@
 }
 
 # Run docker compose in an upstream
-dcu() {
-  project=$1
+dcpu() {
+  upstream=$1
+  project=$(basename $upstream)
   shift
-  [ -z "$project" ] && echo "No upstream project given!" && return 1
-  cmd=$1
+  [ -z "$upstream" ] && echo "No upstream project given!" && return 1
+  dcp $upstream $project $@
+}
+dcpux() {
+  upstream=$1
+  project=$(basename $upstream)
   shift
-  [ -z "$cmd" ] && echo "No command given!" && return 1
-  d=
-  r=
-  if [ "$cmd" = "up" ] && [ -z "$1" ] && [ "$1" != "-d" ]; then
-    d="-d"
-    r="--remove-orphans"
-  fi
-  docker compose --project-directory upstream/$project -p $project -f upstream/$project/docker-compose.yml $cmd $d $r $@
+  dcpx $upstream $project $@
 }
 
 # Run docker compose command in all upstreams
-dca() {
-  cmd=$1
-  shift
-  [ -z "$cmd" ] && echo "No command given!" && return 1
-  d=
-  r=
-  if [ "$cmd" = "up" ]; then
-    # we can't do any blocking calls here, so:
-    d="-d"
-    r="--remove-orphans"
-  fi
+dcpa() {
+  [ -z "$@" ] && echo "No arguments given!" && return 1
   for upstream in $(ls -d upstream/*); do
-    project=$(basename $upstream)
-    dcu $project $cmd $d $r $@
+    dcpu $upstream $@
   done
 }
 
