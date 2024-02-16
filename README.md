@@ -23,18 +23,19 @@ This approach is a very reliable and cheap approach to achieve zero downtime.
 
 *But what about stateful services?*
 
-It is surely possible to deploy stateful services but those MUST NOT be targeted with the `upstream: xxx` prop, as those services are the entrypoints which MUST be stateless, as those are rolled up with the `docker rollout` by the automation. In order to update those services you are on your own, but it's a breeze compared to local installs, as you can just docker compose commands.
+It is surely possible to deploy stateful services but those MUST NOT be targeted with the `entrypoint: xxx` prop, as those services are the entrypoints which MUST be stateless, as those are rolled up with the `docker rollout` by the automation. In order to update those services you are on your own, but it's a breeze compared to local installs, as you can just docker compose commands.
 
 **Prerequisites:**
 
 - [docker](https://www.docker.com)
 - docker [rollout](https://github.com/Wowu/docker-rollout) plugin
+- Portforwarding of port `80` and `443` to the machine running this stack.
 
 ## Howto
 
 ### Configure
 
-1. Copy `db.yaml.sample` to `db.yaml` and edit your project and their services (see explanations below).
+1. Copy `db.yml.sample` to `db.yml` and edit your project and their services (see explanations below).
 2. Copy `.env.sample` to `.env` and set the correct info.
 3. [OPTIONAL] In case you want to run the api create an `API_KEY` (`openssl rand -hex 16`) and put in `.env`.
 
@@ -42,17 +43,18 @@ It is surely possible to deploy stateful services but those MUST NOT be targeted
 
 Install everything and start the proxy and api so that we can receive incoming challenge webhooks.
 
-1. `bin/install.sh`
-2. `bin/start-all.sh`
+1. `bin/install.sh`: installs all project deps.
+2. `bin/start-all.sh`: starts the proxy and the api server.
+3. `bin/apply.py`: applies all of `db.yml`.
 
 ### Adding an upstream service
 
-1. Edit `db.yaml` and add your projects with their service(s), and make sure the project has `upstream: true`.
-3. Run `bin/apply.py` to get certs, write needed artifacts, update relevant docker stacks and reload nginx.
+1. Edit `db.yml` and add your projects with their service(s), and make sure the project has `entrypoint: {your_entrypoint_svc}`.
+2. Run `bin/apply.py` to get certs, write needed artifacts, update relevant docker stacks and reload nginx.
 
 ### Adding a passthrough endpoint
 
-1. Edit `db.yaml` and add your service(s), which now need  `name`, `domain` and `passthrough: true`.
+1. Edit `db.yml` and add your service(s), which now need  `name`, `domain` and `passthrough: true`.
 2. Run `bin/apply.py` to roll out the changes.
 
 ### Api & OpenApi spec
