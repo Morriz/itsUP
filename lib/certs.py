@@ -1,6 +1,6 @@
 import os
 
-from lib.data import get_domains
+from lib.proxy import get_domains
 from lib.utils import run_command
 
 

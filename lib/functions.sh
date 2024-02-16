@@ -51,14 +51,14 @@ dcppx() {
 
 # Run docker compose in an upstream
 dcpu() {
-  upstream="upstream/$1"
+  upstream=$1
   project=$(basename $upstream)
   shift
   [ -z "$upstream" ] && echo "No upstream project given!" && return 1
   dcp $upstream $project $@
 }
 dcpux() {
-  upstream="upstream/$1"
+  upstream=$1
   project=$(basename $upstream)
   shift
   dcpx $upstream $project $@

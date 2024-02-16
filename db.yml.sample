@@ -3,22 +3,22 @@ projects:
     domain: home.example.com
     name: home-assistant # keep this name as it also makes sure to forward port 80 for certbot
     services:
-      - svc: 192.168.1.111
+      - name: 192.168.1.111
         passthrough: true
         port: 443
-  - description: Uptid API running on the host
-    domain: uptid.example.com
-    name: uptid
+  - description: itsUP API running on the host
+    domain: itsup.example.com
+    name: itsUP
     services:
-      - svc: 172.17.0.1
+      - name: 172.17.0.1
         port: 8888
   - description: test project to demonstrate inter service connectivity
-    domain: hello.srv.instrukt.ai
+    domain: hello.example.com
     name: test
-    upstream: master
+    entrypoint: master
     services:
       - image: otomi/nodejs-helloworld:v1.2.13
-        svc: master
+        name: master
         port: 8080
         env:
           TARGET: cost concerned people
@@ -27,7 +27,7 @@ projects:
           - /data/bla
           - /etc/dida
       - image: otomi/nodejs-helloworld:v1.2.13
-        svc: informant
+        name: informant
         port: 8080
         env:
           TARGET: boss

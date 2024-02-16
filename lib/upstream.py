@@ -3,7 +3,7 @@ from typing import List
 
 from jinja2 import Template
 
-from lib.data import get_project, get_projects, get_service, get_upstream_services
+from lib.data import get_project, get_projects, get_service
 from lib.models import Service
 from lib.utils import run_command
 
@@ -23,8 +23,8 @@ def write_upstream_volume_folders(project: str, services: List[Service]) -> None
 
 
 def write_upstreams() -> None:
-    # iterate over projects that have p.upstream;
-    for p in [project for project in get_projects() if project.upstream]:
+    # iterate over projects that have an entrypoint;
+    for p in [project for project in get_projects() if project.entrypoint]:
         os.makedirs(f"upstream/{p.name}", exist_ok=True)
         write_upstream(p.name, p.services)
         write_upstream_volume_folders(p.name, p.services)
@@ -52,9 +52,12 @@ def update_upstream(
     run_command(["docker", "compose", "up", "-d"], cwd=f"upstream/{project}")
     if not rollout:
         return
-    for svc in get_upstream_services(project):
-        if not service or svc.svc == service:
-            rollout_service(project, svc.svc)
+    # filter out the project by name and its services that should have an image
+    projects = get_projects(filter=lambda p, s: p.name == project and bool(s.image))
+    for p in projects:
+        for s in p.services:
+            if not service or s.name == service:
+                rollout_service(project, s.name)
 
 
 def update_upstreams(rollout: bool = False) -> None:

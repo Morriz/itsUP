@@ -4,6 +4,8 @@ import unittest
 from unittest import TestCase, mock
 from unittest.mock import Mock, call
 
+from lib.models import Project
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import Service
@@ -20,13 +22,10 @@ from lib.proxy import (
 
 
 class TestProxy(TestCase):
-    @mock.patch("lib.proxy.get_terminate_services")
-    def test_get_internal_map(self, mock_get_terminate_services: Mock) -> None:
-        # Mock the get_terminate_services function
-        mock_get_terminate_services.return_value = [
-            Service(svc="bla", domain="example.com", upstream=False, port=8080),
-            Service(svc="dida", domain="example.org", upstream=True, port=8080),
-        ]
+    @mock.patch("lib.proxy.get_domains")
+    def test_get_internal_map(self, mock_get_domains: Mock) -> None:
+        # Mock the get_domains function
+        mock_get_domains.return_value = ["example.com", "example.org"]
 
         # Call the function under test
         internal_map = get_internal_map()
@@ -38,42 +37,52 @@ class TestProxy(TestCase):
         }
         self.assertEqual(internal_map, expected_map)
 
-    @mock.patch("lib.proxy.get_terminate_services")
-    def test_get_terminate_map(self, mock_get_terminate_services: Mock) -> None:
-        # Mock the get_terminate_services function
-        mock_get_terminate_services.return_value = [
-            Service(
+    @mock.patch(
+        "lib.proxy.get_projects",
+        return_value=[
+            Project(
+                name="testp",
                 domain="example.com",
-                project="my_project",
-                svc="my_service",
-                port=8080,
-                upstream=True,
+                entrypoint="bla",
+                services=[
+                    Service(name="bla", port=8080),
+                ],
             ),
-            Service(
+            Project(
+                name="testt",
                 domain="example.org",
-                project="my_project",
-                svc="my_service",
-                port=8080,
-                upstream=False,
+                services=[
+                    Service(name="dida", port=8080),
+                ],
             ),
-        ]
+        ],
+    )
+    def test_get_terminate_map(self, _: Mock) -> None:
 
         # Call the function under test
         terminate_map = get_terminate_map()
 
         # Assert the result
         expected_map = {
-            "example.com": "my_project-my_service:8080",
-            "example.org": "my_service:8080",
+            "example.com": "testp-bla:8080",
+            "example.org": "dida:8080",
         }
         self.assertEqual(terminate_map, expected_map)
 
-    @mock.patch("lib.proxy.get_services")
-    def test_get_passthrough_map(self, mock_get_services: Mock) -> None:
-        # Mock the get_services function
-        mock_get_services.return_value = [
-            Service(domain="example.com", svc="my_service", port=8080, passthrough=True),
-        ]
+    @mock.patch(
+        "lib.proxy.get_projects",
+        return_value=[
+            Project(
+                name="testp",
+                domain="example.com",
+                entrypoint="bla",
+                services=[
+                    Service(name="my_service", port=8080, passthrough=True),
+                ],
+            ),
+        ],
+    )
+    def test_get_passthrough_map(self, _: Mock) -> None:
 
         # Call the function under test
         passthrough_map = get_passthrough_map()

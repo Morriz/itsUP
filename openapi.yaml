@@ -20,19 +20,23 @@ paths:
       summary: Get Hook Handler
       description: Handle requests to update the upstream
       operationId: get_hook_handler_update_upstream_get
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
       parameters:
-      - name: project
-        in: query
-        required: true
-        schema:
-          type: string
-          title: Project
-      - name: service
-        in: query
-        required: false
-        schema:
-          type: string
-          title: Service
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: query
+          required: false
+          schema:
+            type: string
+            title: Service
       responses:
         '200':
           description: Successful Response
@@ -50,13 +54,17 @@ paths:
       summary: Get Projects Handler
       description: Get the list of all or one project
       operationId: get_projects_handler_projects__project__get
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
       parameters:
-      - name: project
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
       responses:
         '200':
           description: Successful Response
@@ -78,19 +86,23 @@ paths:
       summary: Get Project Services Handler
       description: Get the list of a project's services, or a specific one
       operationId: get_project_services_handler_projects__project__services__service__get
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
       parameters:
-      - name: project
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project
-      - name: service
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Service
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Service
       responses:
         '200':
           description: Successful Response
@@ -107,28 +119,32 @@ paths:
   /projects/{project}/services/{service}/env:
     get:
       summary: Get Env Handler
-      description: Get the list of a project's services, or a specific one
+      description: Get the list of a project's service' env vars
       operationId: get_env_handler_projects__project__services__service__env_get
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
       parameters:
-      - name: project
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project
-      - name: service
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Service
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Service
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/Env'
         '422':
           description: Validation Error
           content:
@@ -136,39 +152,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
     post:
-      tags:
-      - Service
       summary: Post Env Handler
       description: Create or update env for a project service
       operationId: post_env_handler_projects__project__services__service__env_post
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
       parameters:
-      - name: project
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project
-      - name: service
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Service
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Project
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Service
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties:
-                type: string
-              title: Env
+              $ref: '#/components/schemas/Env'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                title:
+                  Response Post Env Handler Projects  Project  Services  Service  Env
+                  Post
         '422':
           description: Validation Error
           content:
@@ -178,7 +196,7 @@ paths:
   /projects:
     post:
       tags:
-      - Project
+        - Project
       summary: Post Project Handler
       description: Create or update a project
       operationId: post_project_handler_projects_post
@@ -200,11 +218,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
   /services:
     get:
       summary: Get Services Handler
       description: Get the list of all services
       operationId: get_services_handler_services_get
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
       responses:
         '200':
           description: Successful Response
@@ -217,17 +243,21 @@ paths:
                 title: Response Get Services Handler Services Get
     post:
       tags:
-      - Service
+        - Service
       summary: Post Service Handler
       description: Create or update a service
       operationId: post_service_handler_services_post
+      security:
+        - APIKeyQuery: []
+        - APIKeyHeader: []
+        - HTTPBearer: []
       parameters:
-      - name: project
-        in: query
-        required: true
-        schema:
-          type: string
-          title: Project
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Project
       requestBody:
         required: true
         content:
@@ -248,6 +278,11 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    Env:
+      properties: {}
+      additionalProperties: true
+      type: object
+      title: Env
     HTTPValidationError:
       properties:
         detail:
@@ -268,9 +303,9 @@ components:
         domain:
           type: string
           title: Domain
-        upstream:
+        entrypoint:
           type: string
-          title: Upstream
+          title: Entrypoint
         services:
           items:
             $ref: '#/components/schemas/Service'
@@ -279,23 +314,18 @@ components:
           default: []
       type: object
       required:
-      - name
+        - name
       title: Project
       description: Project model
     Service:
       properties:
-        svc:
+        name:
           type: string
-          title: Svc
+          title: Name
         port:
           type: integer
           title: Port
-        project:
-          type: string
-          title: Project
-        domain:
-          type: string
-          title: Domain
+          default: 8080
         image:
           type: string
           title: Image
@@ -306,10 +336,6 @@ components:
           type: boolean
           title: Passthrough
           default: false
-        upstream:
-          type: boolean
-          title: Upstream
-          default: false
         volumes:
           items:
             type: string
@@ -317,15 +343,12 @@ components:
           title: Volumes
           default: []
         env:
-          additionalProperties:
-            type: string
-          type: object
-          title: Env
+          allOf:
+            - $ref: '#/components/schemas/Env'
           default: {}
       type: object
       required:
-      - svc
-      - port
+        - name
       title: Service
       description: Service model
     ValidationError:
@@ -333,8 +356,8 @@ components:
         loc:
           items:
             anyOf:
-            - type: string
-            - type: integer
+              - type: string
+              - type: integer
           type: array
           title: Location
         msg:
@@ -345,7 +368,19 @@ components:
           title: Error Type
       type: object
       required:
-      - loc
-      - msg
-      - type
+        - loc
+        - msg
+        - type
       title: ValidationError
+  securitySchemes:
+    APIKeyQuery:
+      type: apiKey
+      in: query
+      name: apikey
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+    HTTPBearer:
+      type: http
+      scheme: bearer

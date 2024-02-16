@@ -4,10 +4,12 @@ import unittest
 from unittest import TestCase, mock
 from unittest.mock import Mock, call
 
+from lib.models import Project
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import Service
-from lib.upstream import update_upstream, update_upstreams
+from lib.upstream import update_upstream, update_upstreams, write_upstream
 
 
 class DirEntry:
@@ -18,21 +20,95 @@ class DirEntry:
         return True
 
 
+_ret_tpl = """
+---
+version: '3.8'
+
+networks:
+  proxynet:
+    name: proxynet
+    external: true
+
+services:
+
+  test-master:
+    image: morriz/hello-world:main
+    networks:
+      - default
+      - proxynet
+    restart: unless-stopped
+    environment:
+      TARGET: cost concerned people
+      INFORMANT: http://test-informant:8080
+      
+    expose:
+      - '8080'
+    
+    volumes:
+      - ./data/bla:/data/bla
+      - ./etc/dida:/etc/dida
+      
+  test-informant:
+    image: morriz/hello-world:main
+    networks:
+      - default
+      - proxynet
+    restart: unless-stopped
+    environment:
+      TARGET: boss
+      
+    expose:
+      - '8080'"""
+
+
 class TestUpdateUpstream(TestCase):
+    @mock.patch("builtins.open", new_callable=mock.mock_open, read_data=_ret_tpl)
+    def test_write_upstream(
+        self,
+        mock_open: Mock,
+    ) -> None:
+
+        services = [
+            Service(
+                image="morriz/hello-world:main",
+                name="master",
+                port=8080,
+                env={"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"},
+                volumes=["./data/bla:/data/bla", "./etc/dida:/etc/dida"],
+            ),
+            Service(image="morriz/hello-world:main", name="informant", port=8080, env={"TARGET": "boss"}),
+        ]
+
+        # Call the function under test
+        write_upstream(
+            "test",
+            services=services,
+        )
+
+        # Assert that the subprocess.Popen was called with the correct arguments
+        mock_open.return_value.write.assert_called_once_with(_ret_tpl)
+
     @mock.patch("lib.upstream.rollout_service")
     @mock.patch("lib.upstream.run_command")
-    @mock.patch("lib.upstream.get_upstream_services")
+    @mock.patch(
+        "lib.upstream.get_projects",
+        return_value=[
+            Project(
+                name="my_project",
+                entrypoint="service1",
+                services=[
+                    Service(name="service1", port=8080),
+                    Service(name="service2", port=8080),
+                ],
+            )
+        ],
+    )
     def test_update_upstream(
         self,
-        mock_get_upstream_services: Mock,
+        _: Mock,
         mock_run_command: Mock,
         mock_rollout_service: Mock,
     ) -> None:
-        # Mock the get_upstream_services function
-        mock_get_upstream_services.return_value = [
-            Service(svc="service1", project="my_project", port=8080),
-            Service(svc="service2", project="my_project", port=8080),
-        ]
 
         # Call the function under test
         update_upstream(

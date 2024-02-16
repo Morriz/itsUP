@@ -2,14 +2,36 @@ from typing import Callable, Dict, List
 
 import yaml
 
-from lib.models import Project, Service
+from lib.models import Env, Project, Service
 
 
-def get_projects() -> List[Project]:
-    """Get all projects"""
+def get_db() -> Dict[str, List[Dict[str, str]]]:
+    """Get the db"""
     with open("db.yml", encoding="utf-8") as f:
-        db = yaml.safe_load(f)
-    return [Project(**p) for p in db["projects"]]
+        return yaml.safe_load(f)
+
+
+def validate_db() -> None:
+    """Validate db.yml contents"""
+    db = get_db()
+    for project in db["projects"]:
+        Project.model_validate(project)
+
+
+def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Project]:
+    """Get all projects. Optionally filter the results."""
+    db = get_db()
+    ret = []
+    for p_json in db["projects"]:
+        services = []
+        p = Project(**p_json)
+        for s in p.services:
+            if not filter or filter(p, s):
+                services.append(s)
+        if len(services) > 0:
+            p.services = services
+            ret.append(p)
+    return ret
 
 
 def write_projects(projects: List[Project]) -> None:
@@ -44,28 +66,9 @@ def upsert_project(project: Project) -> None:
     write_projects(projects)
 
 
-def get_services(
-    project: str = None,
-    filter: Callable[[Project, Service], bool] = None,
-) -> List[Service]:
-    """
-    Get all projects with their services, or just the services for a project.
-    Optionally filter the services, and flatten the list.
-    """
-    projects = get_projects()
-    services = []
-    for p in projects:
-        if project and p.name != project:
-            continue
-        for svc in p.services:
-            # first add some derived props
-            svc.domain = p.domain  # we set it here as this is the main data getter
-            svc.project = p.name
-            if p.upstream == svc.svc:
-                svc.upstream = True
-            if not filter or filter(p, svc):
-                services.append(svc)
-    return services
+def get_services(project: str = None) -> List[Service]:
+    """Get all services or just for a particular project."""
+    return [s for p in get_projects(lambda p, _: not bool(project) or p.name == project) for s in p.services]
 
 
 def get_service(project: str | Project, service: str, throw: bool = True) -> Service:
@@ -73,7 +76,7 @@ def get_service(project: str | Project, service: str, throw: bool = True) -> Ser
     p = get_project(project, throw) if isinstance(project, str) else project
     assert p is not None
     for item in p.services:
-        if item.svc == service:
+        if item.name == service:
             return item
     error = f"Service {service} not found in project {project}"
     print(error)
@@ -89,7 +92,7 @@ def get_env(project: str | Project, svc: str) -> Dict[str, str]:
     return service.env
 
 
-def upsert_env(project: str | Project, svc: str, env: Dict[str, str]) -> None:
+def upsert_env(project: str | Project, svc: str, env: Env) -> None:
     """Upsert the env of a service"""
     p = get_project(project) if isinstance(project, str) else project
     assert p is not None
@@ -105,24 +108,9 @@ def upsert_service(project: str | Project, service: Service) -> None:
     assert p is not None
     for i, s in enumerate(p.services):
         assert s is not None
-        if s.svc == service.svc:
+        if s.name == service.name:
             p.services[i] = service
             break
     else:
         p.services.append(service)
     upsert_project(p)
-
-
-def get_terminate_services() -> List[Service]:
-    return get_services(filter=lambda p, s: not s.passthrough and not (p.upstream and not s.upstream))
-
-
-def get_domains() -> List[str]:
-    """Get all domains in use"""
-    services = get_terminate_services()
-    return [svc.domain for svc in services if svc.domain]
-
-
-def get_upstream_services(project: str = None) -> List[Service]:
-    """Get all services that are running upstream"""
-    return get_services(project, filter=(lambda _, s: bool(s.image)))

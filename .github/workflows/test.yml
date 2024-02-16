@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  uptid:
+  itsUP:
     runs-on: ubuntu-latest
 
     steps:

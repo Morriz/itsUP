@@ -82,14 +82,14 @@ class TestCodeUnderTest(TestCase):
         self.assertTrue(result)
 
     # No domains are passed to certbot
-    @mock.patch("subprocess.Popen")
+    @mock.patch("lib.certs.run_command")
     @mock.patch("lib.certs.get_domains", return_value=[])
     @mock.patch("os.remove")
-    def test_no_domains_passed_to_certbot(self, mock_remove: Mock, mock_get_domains: Mock, mock_popen: Mock) -> None:
+    def test_no_domains_passed_to_certbot(self, mock_remove: Mock, _: Mock, mock_run_command: Mock) -> None:
         # Call the function under test
         result = get_certs()
 
-        mock_popen.assert_not_called()
+        mock_run_command.assert_not_called()
         mock_remove.assert_not_called()
         self.assertFalse(result)
 

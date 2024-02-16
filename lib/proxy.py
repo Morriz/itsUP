@@ -1,24 +1,34 @@
-from typing import Dict
+from typing import Dict, List
 
 from jinja2 import Template
 
-from lib.data import get_domains, get_project, get_services, get_terminate_services
+from lib.data import get_project, get_projects
 from lib.utils import run_command
 
 
+def get_domains() -> List[str]:
+    """Get all domains in use"""
+    projects = get_projects(filter=lambda _, s: not s.passthrough)
+    return [p.domain for p in projects if p.domain]
+
+
 def get_internal_map() -> Dict[str, str]:
-    filtered = get_terminate_services()
-    return {svc.domain: "terminate:8443" for svc in filtered}
+    domains = get_domains()
+    return {d: "terminate:8443" for d in domains}
 
 
 def get_terminate_map() -> Dict[str, str]:
-    filtered = get_terminate_services()
-    return {svc.domain: (f"{svc.project}-" if svc.upstream else "") + f"{svc.svc}:{svc.port}" for svc in filtered}
+    filtered = get_projects(filter=lambda p, s: not s.passthrough or p.entrypoint == s.name)
+    return {
+        p.domain: (f"{p.name}-" if p.entrypoint == s.name else "") + f"{s.name}:{s.port}"
+        for p in filtered
+        for s in p.services
+    }
 
 
 def get_passthrough_map() -> Dict[str, str]:
-    filtered = get_services(filter=lambda p, s: s.passthrough)
-    return {svc.domain: f"{svc.svc}:{svc.port}" for svc in filtered}
+    filtered = get_projects(filter=lambda _, s: s.passthrough is True)
+    return {p.domain: f"{s.name}:{s.port}" for p in filtered for s in p.services}
 
 
 def write_maps() -> None:

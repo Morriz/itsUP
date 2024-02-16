@@ -1,4 +1,4 @@
-# Uptid
+# itsUP
 
 **Lean, automated, poor man's infra for lightweight services running in docker.**
 
@@ -45,14 +45,14 @@ Install everything and start the proxy and api so that we can receive incoming c
 1. `bin/install.sh`
 2. `bin/start-all.sh`
 
-### Adding an upstream svc
+### Adding an upstream service
 
 1. Edit `db.yaml` and add your projects with their service(s), and make sure the project has `upstream: true`.
 3. Run `bin/apply.py` to get certs, write needed artifacts, update relevant docker stacks and reload nginx.
 
 ### Adding a passthrough endpoint
 
-1. Edit `db.yaml` and add your service(s), which now need  `domain`, `svc` and `passthrough: true`.
+1. Edit `db.yaml` and add your service(s), which now need  `name`, `domain` and `passthrough: true`.
 2. Run `bin/apply.py` to roll out the changes.
 
 ### Api & OpenApi spec
@@ -68,7 +68,7 @@ Exception: Only github webhook endpoints (check for annotation `@app.hooks.regis
 #### Webhooks
 
 Webhooks are used for the following:
-1. to receive updates to this repo, which will result in a `git pull` and `bin/apply.py` to update any changes in the code. The provided project with `name: uptid` is used for that, so DON'T delete it if you care about automated updates to this repo.
+1. to receive updates to this repo, which will result in a `git pull` and `bin/apply.py` to update any changes in the code. The provided project with `name: itsUP` is used for that, so DON'T delete it if you care about automated updates to this repo.
 2. to receive incoming github webhooks (or GET requests to `/update-upstream?project=bla&service=dida`) that result in rolling up of a project or specific service only.
 
 One GitHub webhook listening to `workflow_job`s is provided, which needs:
@@ -78,9 +78,7 @@ I mainly use GitHub workflows and created webhooks for my individual projects, s
 
 ## Dev/ops tools
 
-You may want to update requirements like this: `bin/requirements-update.sh`.
-
-### functions
+### utility functions for dev workflow
 
 Source `lib/functions.sh` to get:
 
@@ -95,4 +93,6 @@ I don't want to switch folders/terminals all the time and want to keep history o
 
 - `bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.
 - `bin/write-artifacts.py`: after updating `db.yml` yo ucan run this script to check new artifacts.
+- `bin/validate-db.py`: after manually editing `db.yml` please run this (also ran from `bin/write-artifacts.py`)
+- `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
 

@@ -5,233 +5,131 @@ import unittest
 from unittest import mock
 from unittest.mock import Mock
 
+import yaml
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from lib.data import (
-    get_project,
-    get_projects,
-    get_service,
-    get_services,
-    upsert_project,
-)
+from lib.data import get_project, get_projects, get_service, upsert_project
 from lib.models import Project, Service
+
+with open("db.yml.sample", encoding="utf-8") as f:
+    _ret_db = yaml.safe_load(f)
+
+_ret_get_projects = [
+    Project(
+        name="home-assistant",
+        description="Home Assistant passthrough",
+        domain="home.example.com",
+        services=[
+            Service(name="192.168.1.111", passthrough=True, port=443),
+        ],
+    ),
+    Project(
+        name="itsUP",
+        description="itsUP API running on the host",
+        domain="itsup.example.com",
+        services=[
+            Service(name="172.17.0.1", port=8888),
+        ],
+    ),
+    Project(
+        name="test",
+        description="test project to demonstrate inter service connectivity",
+        domain="hello.example.com",
+        entrypoint="master",
+        services=[
+            Service(
+                env={"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"},
+                image="otomi/nodejs-helloworld:v1.2.13",
+                name="master",
+                volumes=["/data/bla", "/etc/dida"],
+            ),
+            Service(
+                env={"TARGET": "boss"},
+                image="otomi/nodejs-helloworld:v1.2.13",
+                name="informant",
+            ),
+        ],
+    ),
+]
 
 
 class TestCodeUnderTest(unittest.TestCase):
 
-    # Get all projects
-    @mock.patch("builtins.open", new_callable=mock.mock_open)
-    @mock.patch("yaml.safe_load")
-    def test_get_all_projects_with_mock_imported(self, mock_safe_load: Mock, mock_open: Mock) -> None:
-
-        # Mock the return value of yaml.safe_load
-        mock_safe_load.return_value = {
-            "projects": [
-                {
-                    "name": "project1",
-                    "description": "description1",
-                    "domain": "domain1",
-                    "upstream": "upstream1",
-                    "services": [],
-                },
-                {
-                    "name": "project2",
-                    "description": "description2",
-                    "domain": "domain2",
-                    "upstream": "upstream2",
-                    "services": [],
-                },
-            ]
-        }
+    # Get all projects with no filter
+    @mock.patch(
+        "lib.data.get_db",
+        return_value=_ret_db.copy(),
+    )
+    def test_get_projects_no_filter(self, mock_get_db: Mock) -> None:
 
         # Call the function under test
         result = get_projects()
 
         # Assert that the mock functions were called correctly
-        mock_open.assert_called_once_with("db.yml", encoding="utf-8")
+        mock_get_db.assert_called_once()
+
+        # Assert the result
+        self.assertEqual(result, _ret_get_projects)
+
+    # Get projects with filter
+    @mock.patch(
+        "lib.data.get_db",
+        return_value=_ret_db.copy(),
+    )
+    def test_get_projects_with_filter(self, _: Mock) -> None:
+
+        # Call the function under test
+        result = get_projects(lambda p, s: p.name == "test" and p.entrypoint == s.name)
 
         # Assert the result
         expected_result = [
             Project(
-                name="project1",
-                description="description1",
-                domain="domain1",
-                upstream="upstream1",
-                services=[],
-            ),
-            Project(
-                name="project2",
-                description="description2",
-                domain="domain2",
-                upstream="upstream2",
-                services=[],
-            ),
-        ]
-        self.assertEqual(result, expected_result)
-
-    # Get a project by name with the recommended fix
-    @mock.patch("lib.data.get_projects")
-    def test_get_project_by_name_with_mock_imported_with_fix(self, mock_get_projects: Mock) -> None:
-
-        # Mock the return value of get_projects
-        mock_get_projects.return_value = [
-            Project(
-                name="project1",
-                description="description1",
-                domain="domain1",
-                upstream="upstream1",
-                services=[],
-            ),
-            Project(
-                name="project2",
-                description="description2",
-                domain="domain2",
-                upstream="upstream2",
-                services=[],
-            ),
-        ]
-
-        # Call the function under test
-        result = get_project("project1")
-
-        # Assert the result
-        expected_result = Project(
-            name="project1",
-            description="description1",
-            domain="domain1",
-            upstream="upstream1",
-            services=[],
-        )
-        self.assertEqual(result, expected_result)
-
-    # Get all services with mock
-    @mock.patch("lib.data.get_projects")
-    def test_get_all_services_with_mock(self, mock_get_projects: Mock) -> None:
-        # Mock the return value of get_projects
-        mock_get_projects.return_value = [
-            Project(
-                name="project1",
-                description="description1",
-                domain="domain1",
-                upstream="upstream1",
+                name="test",
+                description="test project to demonstrate inter service connectivity",
+                domain="hello.example.com",
+                entrypoint="master",
                 services=[
-                    Service(svc="service1", port=8080),
-                    Service(svc="service2", port=8081),
+                    _ret_get_projects[2].services[0],
                 ],
             ),
-            Project(
-                name="project2",
-                description="description2",
-                domain="domain2",
-                upstream="upstream2",
-                services=[Service(svc="service3", port=8082)],
-            ),
-        ]
-
-        # Call the function under test
-        result = get_services()
-
-        # Assert the result
-        expected_result = [
-            Service(svc="service1", port=8080, project="project1", domain="domain1"),
-            Service(svc="service2", port=8081, project="project1", domain="domain1"),
-            Service(svc="service3", port=8082, project="project2", domain="domain2"),
         ]
         self.assertEqual(result, expected_result)
 
     # Get a project by name that does not exist
-    @mock.patch("lib.data.get_projects")
-    def test_get_nonexistent_project_by_name(self, mock_get_projects: Mock) -> None:
-
-        # Mock the return value of get_projects
-        mock_get_projects.return_value = [
-            Project(
-                name="project1",
-                description="description1",
-                domain="domain1",
-                upstream="upstream1",
-                services=[],
-            ),
-            Project(
-                name="project2",
-                description="description2",
-                domain="domain2",
-                upstream="upstream2",
-                services=[],
-            ),
-        ]
+    @mock.patch(
+        "lib.data.get_projects",
+        return_value=_ret_get_projects.copy(),
+    )
+    def test_get_nonexistent_project_by_name(self, _: Mock) -> None:
 
         # Call the function under test
         with self.assertRaises(ValueError):
             get_project("nonexistent_project")
 
     # Get a service by name that does not exist
-    @mock.patch("lib.data.get_project")
-    def test_get_nonexistent_service_by_name(self, mock_get_project: Mock) -> None:
-
-        # Mock the return value of get_project
-        mock_get_project.return_value = Project(
-            name="project1",
-            description="description1",
-            domain="domain1",
-            upstream="upstream1",
-            services=[
-                Service(svc="service1", port=8080),
-                Service(svc="service2", port=8081),
-            ],
-        )
+    @mock.patch(
+        "lib.data.get_project",
+        return_value=_ret_get_projects.copy()[0],
+    )
+    def test_get_nonexistent_service_by_name(self, _: Mock) -> None:
 
         # Call the function under test
         with self.assertRaises(ValueError):
             get_service("project1", "nonexistent_service")
 
     # Upsert a project that does not exist (Fixed)
-    @mock.patch("lib.data.get_projects")
+    @mock.patch("lib.data.get_projects", return_value=_ret_get_projects.copy())
     @mock.patch("lib.data.write_projects")
     def test_upsert_nonexistent_project_fixed(self, mock_write_projects: Mock, mock_get_projects: Mock) -> None:
 
-        # Mock the return value of get_projects
-        mock_get_projects.return_value = [
-            Project(
-                name="project1",
-                description="description1",
-                domain="domain1",
-                upstream="upstream1",
-                services=[],
-            ),
-            Project(
-                name="project2",
-                description="description2",
-                domain="domain2",
-                upstream="upstream2",
-                services=[],
-            ),
-        ]
-
+        new_project = Project(name="new_project", domain="new_domain")
         # Call the function under test
-        upsert_project(Project(name="new_project", domain="new_domain"))
+        upsert_project(new_project)
 
         # Assert that the mock functions were called correctly
         mock_get_projects.assert_called_once()
-        mock_write_projects.assert_called_once_with(
-            [
-                Project(
-                    name="project1",
-                    description="description1",
-                    domain="domain1",
-                    upstream="upstream1",
-                    services=[],
-                ),
-                Project(
-                    name="project2",
-                    description="description2",
-                    domain="domain2",
-                    upstream="upstream2",
-                    services=[],
-                ),
-                Project(name="new_project", domain="new_domain"),
-            ]
-        )
+        mock_write_projects.assert_called_once_with(_ret_get_projects + [new_project])
 
 
 if __name__ == "__main__":

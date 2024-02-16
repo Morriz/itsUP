@@ -1,22 +1,26 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from github_webhooks.schemas import WebhookCommonPayload
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+
+class Env(BaseModel):
+    model_config = ConfigDict(extra="allow")
 
 
 class Service(BaseModel):
     """Service model"""
 
-    svc: str
-    port: int
-    project: str = None
-    domain: str = None
+    name: str
+    port: int = 8080
+    """When set, the service will be exposed on this domain."""
     image: str = None
     command: str = None
     passthrough: bool = False
-    upstream: bool = False
+    """Wether or not traffic to this service is forwarded as-is (without terminating SSL)"""
     volumes: List[str] = []
-    env: Dict[str, str] = {}
+    env: Env = None
+    """A dictionary of environment variables to pass to the service"""
 
 
 class Project(BaseModel):
@@ -25,7 +29,8 @@ class Project(BaseModel):
     name: str
     description: str = None
     domain: str = None
-    upstream: str = None
+    entrypoint: str = None
+    """When "entrypoint" is set it should point to a service in the "services" list that has an image"""
     services: List[Service] = []
 
 

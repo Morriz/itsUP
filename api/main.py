@@ -18,7 +18,7 @@ from lib.data import (
     upsert_service,
 )
 from lib.git import update_repo
-from lib.models import PingPayload, Project, Service, WorkflowJobPayload
+from lib.models import Env, PingPayload, Project, Service, WorkflowJobPayload
 from lib.proxy import reload_proxy, write_nginx
 from lib.upstream import check_upstream, update_upstream, write_upstreams
 
@@ -45,6 +45,14 @@ def _handle_update_upstream(project: str, service: str) -> None:
     reload_proxy("terminate")
 
 
+def _handle_hook(project: str, background_tasks: BackgroundTasks, service: str = None) -> None:
+    """Handle incoming requests to update the upstream"""
+    if project == "itsUP":
+        background_tasks.add_task(update_repo)
+        return
+    background_tasks.add_task(_handle_update_upstream, project=project, service=service)
+
+
 @app.get("/update-upstream", response_model=None)
 def get_hook_handler(
     project: str,
@@ -53,10 +61,7 @@ def get_hook_handler(
     _: None = Depends(verify_apikey),
 ) -> None:
     """Handle requests to update the upstream"""
-    if project == "uptid":
-        background_tasks.add_task(update_repo)
-        return
-    background_tasks.add_task(_handle_update_upstream, project=project, service=service)
+    _handle_hook(project, background_tasks, service)
 
 
 @app.hooks.register("ping", PingPayload)
@@ -77,12 +82,8 @@ async def github_workflow_job_handler(
     if payload.workflow_job.status == "completed" and payload.workflow_job.conclusion == "success":
         project = query_params.get("project")
         assert project is not None
-        if project == "uptid":
-            background_tasks.add_task(update_repo)
-            return
-        # needs to be set correctly in the project's workflow file:
         service = payload.workflow_job.name
-        background_tasks.add_task(_handle_update_upstream, project=project, service=service)
+        _handle_hook(project, background_tasks, service)
 
 
 @app.get("/projects/{project}", response_model=List[Service])
@@ -100,13 +101,12 @@ def get_project_services_handler(
     """Get the list of a project's services, or a specific one"""
     if service:
         return get_service(project, service, throw=True)
-    p = get_project(project, throw=True)
-    return p.services
+    return get_project(project, throw=True).services
 
 
-@app.get("/projects/{project}/services/{service}/env", response_model=Service)
+@app.get("/projects/{project}/services/{service}/env", response_model=Dict[str, str])
 def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)) -> Dict[str, str]:
-    """Get the list of a project's services, or a specific one"""
+    """Get the list of a project's service' env vars"""
     return get_env(project, service)
 
 
@@ -137,11 +137,14 @@ def post_service_handler(
     _after_config_change(project)
 
 
-@app.post("/projects/{project}/services/{service}/env", tags=["Service"])
+@app.post(
+    "/projects/{project}/services/{service}/env",
+    response_model=object,
+)
 def post_env_handler(
     project: str,
     service: str,
-    env: Dict[str, str],
+    env: Env,
     _: None = Depends(verify_apikey),
 ) -> None:
     """Create or update env for a project service"""
