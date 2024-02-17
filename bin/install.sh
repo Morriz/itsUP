@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
+. .venv/bin/activate
 
 [ ! -d ".venv" ] && python -m venv .venv
-.venv/bin/pip install -r requirements-prod.txt
+pip install -r requirements-prod.txt

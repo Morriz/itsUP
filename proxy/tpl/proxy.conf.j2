@@ -21,7 +21,7 @@ http {
     }
     error_page 550 = @hass;
     location @hass {
-      proxy_pass http://{{ s.svc }}:{{ s.port }};
+      proxy_pass http://{{ s.name }}:{{ s.port }};
     }
     {% endif -%}
     # /HACK

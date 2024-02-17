@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!.venv/bin/python
 import os
 from typing import Any, Dict, List
 
@@ -54,7 +54,8 @@ def _handle_hook(project: str, background_tasks: BackgroundTasks, service: str =
     background_tasks.add_task(_handle_update_upstream, project=project, service=service)
 
 
-@app.get("/update-upstream", response_model=None)
+@app.get("/update-upstream/{project}", response_model=None)
+@app.get("/update-upstream/{project}/{service}", response_model=None)
 def get_hook_handler(
     project: str,
     background_tasks: BackgroundTasks,
@@ -95,6 +96,7 @@ def get_projects_handler(project: str = None, _: None = Depends(verify_apikey)) 
     return get_projects()
 
 
+@app.get("/projects/{project}/services", response_model=Service)
 @app.get("/projects/{project}/services/{service}", response_model=Service)
 def get_project_services_handler(
     project: str, service: str = None, _: None = Depends(verify_apikey)
