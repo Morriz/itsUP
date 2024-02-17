@@ -85,20 +85,20 @@ def get_service(project: str | Project, service: str, throw: bool = True) -> Ser
     return None
 
 
-def get_env(project: str | Project, svc: str) -> Dict[str, str]:
+def get_env(project: str | Project, service: str) -> Dict[str, str]:
     """Get a project's env by name"""
-    service = get_service(project, svc)
+    service = get_service(project, service)
     assert service is not None
     return service.env
 
 
-def upsert_env(project: str | Project, svc: str, env: Env) -> None:
+def upsert_env(project: str | Project, service: str, env: Env) -> None:
     """Upsert the env of a service"""
     p = get_project(project) if isinstance(project, str) else project
     assert p is not None
-    s = get_service(p, svc)
+    s = get_service(p, service)
     assert s is not None
-    s.env = s.env | env
+    s.env = Env(**(s.env.model_dump() | env.model_dump()))
     upsert_service(project, s)
 
 

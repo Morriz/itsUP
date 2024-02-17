@@ -88,7 +88,8 @@ async def github_workflow_job_handler(
         _handle_hook(project, background_tasks, service)
 
 
-@app.get("/projects/{project}", response_model=List[Service])
+@app.get("/projects", response_model=List[Project])
+@app.get("/projects/{project}", response_model=Project)
 def get_projects_handler(project: str = None, _: None = Depends(verify_apikey)) -> List[Project] | Project:
     """Get the list of all or one project"""
     if project:
@@ -96,7 +97,7 @@ def get_projects_handler(project: str = None, _: None = Depends(verify_apikey)) 
     return get_projects()
 
 
-@app.get("/projects/{project}/services", response_model=Service)
+@app.get("/projects/{project}/services", response_model=List[Service])
 @app.get("/projects/{project}/services/{service}", response_model=Service)
 def get_project_services_handler(
     project: str, service: str = None, _: None = Depends(verify_apikey)
@@ -107,7 +108,7 @@ def get_project_services_handler(
     return get_project(project, throw=True).services
 
 
-@app.get("/projects/{project}/services/{service}/env", response_model=Dict[str, str])
+@app.get("/projects/{project}/services/{service}/env", response_model=Env)
 def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)) -> Dict[str, str]:
     """Get the list of a project's service' env vars"""
     return get_env(project, service)
@@ -142,7 +143,7 @@ def post_service_handler(
 
 @app.post(
     "/projects/{project}/services/{service}/env",
-    response_model=object,
+    tags=["Env"],
 )
 def post_env_handler(
     project: str,

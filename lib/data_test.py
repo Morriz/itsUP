@@ -9,8 +9,8 @@ import yaml
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from lib.data import get_project, get_projects, get_service, upsert_project
-from lib.models import Project, Service
+from lib.data import get_project, get_projects, get_service, upsert_env, upsert_project
+from lib.models import Env, Project, Service
 
 with open("db.yml.sample", encoding="utf-8") as f:
     _ret_db = yaml.safe_load(f)
@@ -130,6 +130,28 @@ class TestCodeUnderTest(unittest.TestCase):
         # Assert that the mock functions were called correctly
         mock_get_projects.assert_called_once()
         mock_write_projects.assert_called_once_with(_ret_get_projects + [new_project])
+
+    # Upsert a project's service' env
+    @mock.patch("lib.data.get_project", return_value=_ret_get_projects[2].copy())
+    @mock.patch("lib.data.get_service", return_value=_ret_get_projects[2].services[1].copy())
+    @mock.patch("lib.data.upsert_service")
+    def test_upsert_env(self, mock_upsert_service: Mock, mock_get_service: Mock, mock_get_project: Mock) -> None:
+
+        extra_env = Env(**{"TARGET": "sir", "x": 1, "y": 2})
+        # Call the function under test
+        upsert_env(project="test", service="informant", env=extra_env)
+
+        # Assert that the mock functions were called correctly
+        mock_get_project.assert_called_once()
+        mock_get_service.assert_called_once()
+        mock_upsert_service.assert_called_once_with(
+            "test",
+            Service(
+                env=extra_env,
+                image="otomi/nodejs-helloworld:v1.2.13",
+                name="informant",
+            ),
+        )
 
 
 if __name__ == "__main__":
