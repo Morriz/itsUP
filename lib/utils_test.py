@@ -1,5 +1,4 @@
 import os
-import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -7,32 +6,7 @@ from unittest.mock import Mock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from lib.utils import run_command, stream_output
-
-
-class TestStreamOutput(unittest.TestCase):
-
-    # Outputs the process stdout to sys.stdout.buffer.
-    @mock.patch("subprocess.Popen")
-    @mock.patch("sys.stdout.buffer.write")
-    def test_outputs_stdout(self, mock_write: Mock, mock_run: Mock) -> None:
-        process = mock_run.return_value
-        process.stdout.read.side_effect = [b"output1", b"output2", b""]
-
-        stream_output(process)
-
-        mock_write.assert_has_calls([mock.call(b"output1"), mock.call(b"output2")])
-
-    # Handles the process stdout stream correctly.
-    @mock.patch("subprocess.Popen")
-    @mock.patch("sys.stdout.buffer.write")
-    def test_handles_stdout_stream(self, mock_write: Mock, mock_run: Mock) -> None:
-        process = mock_run.return_value
-        process.stdout.read.side_effect = [b"output1", b"output2", b""]
-
-        stream_output(process)
-
-        mock_write.assert_has_calls([mock.call(b"output1"), mock.call(b"output2")])
+from lib.utils import run_command
 
 
 class TestRunCommand(unittest.TestCase):

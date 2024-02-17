@@ -22,6 +22,7 @@ from lib.git import update_repo
 from lib.models import Env, PingPayload, Project, Service, WorkflowJobPayload
 from lib.proxy import reload_proxy, write_nginx
 from lib.upstream import check_upstream, update_upstream, write_upstreams
+from lib.utils import run_command
 
 dotenv.load_dotenv()
 
@@ -36,6 +37,7 @@ def _after_config_change(project: str) -> None:
     write_upstreams()
     update_upstream(project)
     reload_proxy()
+    run_command(["bin/apply.sh"])
 
 
 def _handle_update_upstream(project: str, service: str) -> None:
@@ -117,11 +119,12 @@ def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)
 @app.post("/projects", tags=["Project"])
 def post_project_handler(
     project: Project,
+    background_tasks: BackgroundTasks,
     _: None = Depends(verify_apikey),
 ) -> None:
     """Create or update a project"""
     upsert_project(project)
-    _after_config_change(project.name)
+    background_tasks.add_task(_after_config_change, project.name)
 
 
 @app.get("/services", response_model=List[Service])
@@ -134,11 +137,12 @@ def get_services_handler(_: None = Depends(verify_apikey)) -> List[Service]:
 def post_service_handler(
     project: str,
     service: Service,
+    background_tasks: BackgroundTasks,
     _: None = Depends(verify_apikey),
 ) -> None:
     """Create or update a service"""
     upsert_service(project, service)
-    _after_config_change(project)
+    background_tasks.add_task(_after_config_change, project)
 
 
 @app.post(
@@ -149,11 +153,12 @@ def post_env_handler(
     project: str,
     service: str,
     env: Env,
+    background_tasks: BackgroundTasks,
     _: None = Depends(verify_apikey),
 ) -> None:
     """Create or update env for a project service"""
     upsert_env(project, service, env)
-    _after_config_change(project)
+    background_tasks.add_task(_after_config_change, project)
 
 
 if __name__ == "__main__":

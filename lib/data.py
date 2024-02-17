@@ -25,7 +25,7 @@ def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Proj
     for p_json in db["projects"]:
         services = []
         p = Project(**p_json)
-        for s in p.services:
+        for s in p.services.copy():
             if not filter or filter(p, s):
                 services.append(s)
         if len(services) > 0:

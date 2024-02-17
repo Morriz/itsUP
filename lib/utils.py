@@ -1,11 +1,5 @@
 import subprocess
-import sys
-from typing import Any, List
-
-
-def stream_output(process: subprocess.Popen[Any]) -> None:
-    for c in iter(lambda: process.stdout.read(1), b""):
-        sys.stdout.buffer.write(c)
+from typing import List
 
 
 def run_command(command: List[str], cwd: str = None) -> int:

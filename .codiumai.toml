@@ -57,8 +57,7 @@ plan_instructions = """
 example_test = """
     @mock.patch("os.scandir")
     @mock.patch("lib.upstream.update_upstream")
-    @mock.patch("lib.upstream.stream_output")
-    def test_update_upstreams(self, _, mock_update_upstream, mock_scandir):
+    def test_update_upstreams(self, mock_update_upstream: Mock, mock_scandir: Mock):
         mock_scandir.return_value = [DirEntry("upstream/my_project")]
 
         # Call the function under test
