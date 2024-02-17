@@ -43,6 +43,6 @@ class WorkflowJobPayload(WebhookCommonPayload):
     class WorkflowJob(BaseModel):
         name: str
         status: str
-        conclusion: str
+        conclusion: str = None
 
     workflow_job: WorkflowJob
