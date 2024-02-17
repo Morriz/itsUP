@@ -47,10 +47,10 @@ def _handle_update_upstream(project: str, service: str) -> None:
 
 def _handle_hook(project: str, background_tasks: BackgroundTasks, service: str = None) -> None:
     """Handle incoming requests to update the upstream"""
-    check_upstream(project, service)
     if project == "itsUP":
         background_tasks.add_task(update_repo)
         return
+    check_upstream(project, service)
     background_tasks.add_task(_handle_update_upstream, project=project, service=service)
 
 
