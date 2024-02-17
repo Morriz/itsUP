@@ -1,4 +1,5 @@
 import os
+from logging import info
 from typing import List
 
 from jinja2 import Template
@@ -37,7 +38,7 @@ def check_upstream(project: str, service: str = None) -> None:
     if not service:
         return
     if not get_service(project, service):
-        print(f"Project {project} does not have service {service}")
+        info(f"Project {project} does not have service {service}")
         raise ValueError(f"Project {project} does not have service {service}")
 
 
@@ -47,7 +48,7 @@ def update_upstream(
     rollout: bool = False,
 ) -> None:
     """Reload service(s) in a docker compose config"""
-    print(f"Updating upstream for project {project}")
+    info(f"Updating upstream for project {project}")
     run_command(["docker", "compose", "pull"], cwd=f"upstream/{project}")
     run_command(["docker", "compose", "up", "-d"], cwd=f"upstream/{project}")
     if not rollout:
@@ -68,5 +69,5 @@ def update_upstreams(rollout: bool = False) -> None:
 
 
 def rollout_service(project: str, service: str) -> None:
-    print(f'Rolling out service "{project}:{service}"')
+    info(f'Rolling out service "{project}:{service}"')
     run_command(["docker", "rollout", f"{project}-{service}"], cwd=f"upstream/{project}")

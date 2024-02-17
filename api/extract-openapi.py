@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import sys
+from logging import info
 
 import yaml
 from uvicorn.importer import import_from_string
@@ -18,19 +19,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.app_dir is not None:
-        print(f"adding {args.app_dir} to sys.path")
+        info(f"adding {args.app_dir} to sys.path")
         sys.path.insert(0, args.app_dir)
 
-    print(f"importing app from {args.app}")
+    info(f"importing app from {args.app}")
     app = import_from_string(args.app)
     openapi = app.openapi()
     version = openapi.get("openapi", "unknown version")
 
-    print(f"writing openapi spec v{version}")
+    info(f"writing openapi spec v{version}")
     with open(args.out, "w", encoding="utf-8") as f:
         if args.out.endswith(".json"):
             json.dump(openapi, f, indent=2)
         else:
             yaml.dump(openapi, f, sort_keys=False)
 
-    print(f"spec written to {args.out}")
+    info(f"spec written to {args.out}")

@@ -1,9 +1,9 @@
+from logging import info
 from typing import Dict, List
 
 from jinja2 import Template
 
 from lib.data import get_project, get_projects
-from lib.models import Project, Service
 from lib.utils import run_command
 
 
@@ -78,8 +78,18 @@ def write_nginx() -> None:
     write_terminate()
 
 
+def update_proxy(
+    service: str = None,
+) -> None:
+    """Reload service(s) in the docker compose config for the proxy"""
+    info(f"Updating proxy {service}")
+    run_command(["docker", "compose", "pull"], cwd="proxy")
+    run_command(["docker", "compose", "up", "-d"], cwd="proxy")
+    rollout_proxy(service)
+
+
 def reload_proxy(service: str = None) -> None:
-    print("Reloading proxy")
+    info("Reloading proxy")
     # Execute docker compose command to reload nginx for both 'proxy' and 'terminate' services
     for s in [service] if service else ["proxy", "terminate"]:
         run_command(
@@ -89,9 +99,6 @@ def reload_proxy(service: str = None) -> None:
 
 
 def rollout_proxy(service: str = None) -> None:
-    print(f'Rolling out service "{service}"')
+    info(f"Rolling out proxy {service}")
     for s in [service] if service else ["proxy", "terminate"]:
-        run_command(
-            ["docker", "rollout", s],
-            cwd="proxy",
-        )
+        run_command(["docker", "rollout", s], cwd="proxy")

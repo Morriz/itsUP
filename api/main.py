@@ -1,5 +1,6 @@
 #!.venv/bin/python
 import os
+from logging import info
 from typing import Any, Dict, List
 
 import dotenv
@@ -21,7 +22,7 @@ from lib.data import (
 )
 from lib.git import update_repo
 from lib.models import Env, PingPayload, Project, Service, WorkflowJobPayload
-from lib.proxy import reload_proxy, write_nginx
+from lib.proxy import reload_proxy, update_proxy, write_nginx
 from lib.upstream import check_upstream, update_upstream, write_upstreams
 
 dotenv.load_dotenv()
@@ -33,11 +34,13 @@ app = create_app(secret_token=api_token)
 
 def _after_config_change(project: str, service: str = None) -> None:
     """Run after a project is updated"""
+    info("Config change detected")
     get_certs(project)
     write_nginx()
     write_upstreams()
     update_upstream(project, service, rollout=True)
-    reload_proxy()
+    update_proxy()
+    # reload_proxy()
 
 
 def _handle_update_upstream(project: str, service: str) -> None:
@@ -74,7 +77,7 @@ async def github_ping_handler(
     **_: Any,
 ) -> str:
     """Handle incoming github webhook requests for ping events to notify callers we're up"""
-    print(f"Got ping message: {payload.zen}")
+    info(f"Got ping message: {payload.zen}")
     return "pong"
 
 

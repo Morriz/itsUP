@@ -1,4 +1,5 @@
 import os
+from logging import info
 
 from lib.proxy import get_domains
 from lib.utils import run_command
@@ -13,7 +14,7 @@ def get_certs(project: str = None) -> bool:
     change_file = "/data/changed"
     changed = False
 
-    print(f"Running certbot on domains: {' '.join(domains)}")
+    info(f"Running certbot on domains: {' '.join(domains)}")
     for domain in domains:
         # Run certbot command inside docker
         command = [
@@ -57,7 +58,7 @@ def get_certs(project: str = None) -> bool:
         # Check if certificates have changed
         if os.path.isfile("." + change_file):
             changed = True
-            print(f"Certificates for {domain} have been updated")
+            info(f"Certificates for {domain} have been updated")
             os.remove("." + change_file)
 
     return changed

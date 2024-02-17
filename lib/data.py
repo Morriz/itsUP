@@ -1,3 +1,4 @@
+from logging import info
 from typing import Callable, Dict, List
 
 import yaml
@@ -48,7 +49,7 @@ def get_project(name: str, throw: bool = True) -> Project:
         if item.name == name:
             return item
     error = f"Project {name} not found"
-    print(error)
+    info(error)
     if throw:
         raise ValueError(error)
     return None
@@ -80,7 +81,7 @@ def get_service(project: str | Project, service: str, throw: bool = True) -> Ser
         if item.name == service:
             return item
     error = f"Service {service} not found in project {project}"
-    print(error)
+    info(error)
     if throw:
         raise ValueError(error)
     return None
