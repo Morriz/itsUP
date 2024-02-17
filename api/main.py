@@ -37,7 +37,7 @@ def _after_config_change(project: str) -> None:
     write_upstreams()
     update_upstream(project)
     reload_proxy()
-    run_command(["bin/apply.sh"])
+    run_command(["bin/apply.py"])
 
 
 def _handle_update_upstream(project: str, service: str) -> None:
