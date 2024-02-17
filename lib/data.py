@@ -36,8 +36,9 @@ def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Proj
 
 def write_projects(projects: List[Project]) -> None:
     """Write the projects to the db"""
+    projects_dump = [p.model_dump(exclude_defaults=True) for p in projects]
     with open("db.yml", "w", encoding="utf-8") as f:
-        yaml.dump({"projects": projects}, f)
+        yaml.dump({"projects": projects_dump}, f)
 
 
 def get_project(name: str, throw: bool = True) -> Project:

@@ -9,7 +9,14 @@ import yaml
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from lib.data import get_project, get_projects, get_service, upsert_env, upsert_project
+from lib.data import (
+    get_project,
+    get_projects,
+    get_service,
+    upsert_env,
+    upsert_project,
+    write_projects,
+)
 from lib.models import Env, Project, Service
 
 with open("db.yml.sample", encoding="utf-8") as f:
@@ -56,21 +63,21 @@ _ret_get_projects = [
 
 class TestCodeUnderTest(unittest.TestCase):
 
-    # Get all projects with no filter
+    # write all projects
     @mock.patch(
-        "lib.data.get_db",
-        return_value=_ret_db.copy(),
+        "lib.data.yaml",
+        return_value={"dump": mock.Mock()},
     )
-    def test_get_projects_no_filter(self, mock_get_db: Mock) -> None:
+    @mock.patch("builtins.open", new_callable=mock.mock_open)
+    def test_write_projects(self, mock_open: Mock, mock_yaml: Mock) -> None:
 
         # Call the function under test
-        result = get_projects()
+        write_projects(_ret_get_projects)
+
+        mock_open.assert_called_once_with("db.yml", "w", encoding="utf-8")
 
         # Assert that the mock functions were called correctly
-        mock_get_db.assert_called_once()
-
-        # Assert the result
-        self.assertEqual(result, _ret_get_projects)
+        mock_yaml.dump.assert_called_once_with(_ret_db, mock_open())
 
     # Get projects with filter
     @mock.patch(
@@ -95,6 +102,22 @@ class TestCodeUnderTest(unittest.TestCase):
             ),
         ]
         self.assertEqual(result, expected_result)
+
+    # Get all projects with no filter
+    @mock.patch(
+        "lib.data.get_db",
+        return_value=_ret_db.copy(),
+    )
+    def test_get_projects_no_filter(self, mock_get_db: Mock) -> None:
+
+        # Call the function under test
+        result = get_projects()
+
+        # Assert that the mock functions were called correctly
+        mock_get_db.assert_called_once()
+
+        # Assert the result
+        self.assertEqual(result, _ret_get_projects)
 
     # Get a project by name that does not exist
     @mock.patch(

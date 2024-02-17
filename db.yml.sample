@@ -19,7 +19,6 @@ projects:
     services:
       - image: otomi/nodejs-helloworld:v1.2.13
         name: master
-        port: 8080
         env:
           TARGET: cost concerned people
           INFORMANT: http://test-informant:8080
@@ -28,6 +27,5 @@ projects:
           - /etc/dida
       - image: otomi/nodejs-helloworld:v1.2.13
         name: informant
-        port: 8080
         env:
           TARGET: boss

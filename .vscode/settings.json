@@ -11,6 +11,8 @@
   },
   "black-formatter.importStrategy": "fromEnvironment",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "isort.check": true,
+  "isort.importStrategy": "fromEnvironment",
   "mypy-type-checker.importStrategy": "fromEnvironment",
   "mypy-type-checker.reportingScope": "workspace",
   "pylint.importStrategy": "fromEnvironment",
@@ -18,16 +20,26 @@
     "convention": "Information",
     "error": "Error",
     "fatal": "Error",
+    "info": "Information",
     "refactor": "Information",
-    "warning": "Warning",
-    "info": "Information"
+    "warning": "Warning"
   },
   "python.analysis.addImport.exactMatchOnly": true,
   "python.analysis.autoImportCompletions": true,
   "python.analysis.enableSyncServer": true,
   "python.defaultInterpreterPath": ".venv/bin/python",
-  "python.testing.unittestArgs": [ "-v", "-s", ".", "-p", "*_test.py" ],
-  "python.testing.unittestEnabled": true,
-  "isort.check": true,
-  "isort.importStrategy": "fromEnvironment"
+  "python.testing.unittestArgs": [
+    "-v",
+    "-s",
+    ".",
+    "-p",
+    "*_test.py"
+  ],
+  "files.associations": {
+    "*.yml": "yaml",
+  },
+  "files.exclude": {
+    "**/.history": true
+  },
+  "python.testing.unittestEnabled": true
 }
