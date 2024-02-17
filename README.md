@@ -46,6 +46,7 @@ Install everything and start the proxy and api so that we can receive incoming c
 1. `bin/install.sh`: installs all project deps.
 2. `bin/start-all.sh`: starts the proxy and the api server.
 3. `bin/apply.py`: applies all of `db.yml`.
+4. 4. `bin/api-logs.sh`: tail the output of the api server.
 
 ### Adding an upstream service
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import os
 from typing import Any, Dict, List
 
@@ -154,4 +155,4 @@ def post_env_handler(
 
 if __name__ == "__main__":
 
-    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug", reload_dirs=["."])
+    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug", reload_dirs=["."], log_config="api-log.conf.yaml")
