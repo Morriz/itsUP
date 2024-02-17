@@ -11,3 +11,5 @@ def update_repo() -> None:
     write_upstreams()
     update_upstreams()
     reload_proxy()
+    # restart the api to make sure the new code is running:
+    run_command(["bin/start-api.sh"])
