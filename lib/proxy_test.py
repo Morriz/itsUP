@@ -4,11 +4,10 @@ import unittest
 from unittest import TestCase, mock
 from unittest.mock import Mock, call
 
-from lib.models import Project
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import Service
+from lib.models import Project
 from lib.proxy import (
     get_internal_map,
     get_passthrough_map,
@@ -19,6 +18,7 @@ from lib.proxy import (
     write_proxy,
     write_terminate,
 )
+from lib.test_stubs import test_db
 
 
 class TestProxy(TestCase):
@@ -38,24 +38,8 @@ class TestProxy(TestCase):
         self.assertEqual(internal_map, expected_map)
 
     @mock.patch(
-        "lib.proxy.get_projects",
-        return_value=[
-            Project(
-                name="testp",
-                domain="example.com",
-                entrypoint="bla",
-                services=[
-                    Service(name="bla", port=8080),
-                ],
-            ),
-            Project(
-                name="testt",
-                domain="example.org",
-                services=[
-                    Service(name="dida", port=8080),
-                ],
-            ),
-        ],
+        "lib.data.get_db",
+        return_value=test_db,
     )
     def test_get_terminate_map(self, _: Mock) -> None:
 
@@ -64,8 +48,8 @@ class TestProxy(TestCase):
 
         # Assert the result
         expected_map = {
-            "example.com": "testp-bla:8080",
-            "example.org": "dida:8080",
+            "itsup.example.com": "172.17.0.1:8888",
+            "hello.example.com": "test-master:8080",
         }
         self.assertEqual(terminate_map, expected_map)
 

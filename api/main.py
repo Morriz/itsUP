@@ -8,6 +8,7 @@ from fastapi import BackgroundTasks, Depends
 from github_webhooks import create_app
 
 from lib.auth import verify_apikey
+from lib.certs import get_certs
 from lib.data import (
     get_env,
     get_project,
@@ -22,7 +23,6 @@ from lib.git import update_repo
 from lib.models import Env, PingPayload, Project, Service, WorkflowJobPayload
 from lib.proxy import reload_proxy, write_nginx
 from lib.upstream import check_upstream, update_upstream, write_upstreams
-from lib.utils import run_command
 
 dotenv.load_dotenv()
 
@@ -31,13 +31,13 @@ api_token = os.environ["API_KEY"]
 app = create_app(secret_token=api_token)
 
 
-def _after_config_change(project: str) -> None:
+def _after_config_change(project: str, service: str = None) -> None:
     """Run after a project is updated"""
+    get_certs(project)
     write_nginx()
     write_upstreams()
-    update_upstream(project)
+    update_upstream(project, service, rollout=True)
     reload_proxy()
-    run_command(["bin/apply.py"])
 
 
 def _handle_update_upstream(project: str, service: str) -> None:

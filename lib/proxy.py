@@ -3,12 +3,13 @@ from typing import Dict, List
 from jinja2 import Template
 
 from lib.data import get_project, get_projects
+from lib.models import Project, Service
 from lib.utils import run_command
 
 
-def get_domains() -> List[str]:
+def get_domains(project: str = None) -> List[str]:
     """Get all domains in use"""
-    projects = get_projects(filter=lambda _, s: not s.passthrough)
+    projects = get_projects(filter=lambda _, s: not s.passthrough and (not project or project == s.name))
     return [p.domain for p in projects if p.domain]
 
 
@@ -18,7 +19,9 @@ def get_internal_map() -> Dict[str, str]:
 
 
 def get_terminate_map() -> Dict[str, str]:
-    filtered = get_projects(filter=lambda p, s: not s.passthrough or p.entrypoint == s.name)
+    filtered = get_projects(
+        filter=lambda p, s: bool(p.domain) and not s.passthrough and (not bool(p.entrypoint) or p.entrypoint == s.name)
+    )
     return {
         p.domain: (f"{p.name}-" if p.entrypoint == s.name else "") + f"{s.name}:{s.port}"
         for p in filtered

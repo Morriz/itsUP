@@ -4,12 +4,12 @@ from lib.proxy import get_domains
 from lib.utils import run_command
 
 
-def get_certs() -> bool:
-
+def get_certs(project: str = None) -> bool:
+    """Get certificates for all or one project"""
     email = os.getenv("LE_EMAIL")
     if email is None:
         raise ValueError("LE_EMAIL environment variable is not set")
-    domains = get_domains()
+    domains = get_domains(project)
     change_file = "/data/changed"
     changed = False
 
