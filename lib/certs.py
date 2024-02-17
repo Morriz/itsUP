@@ -1,5 +1,5 @@
 import os
-from logging import info
+from logging import debug, info
 
 from lib.proxy import get_domains
 from lib.utils import run_command
@@ -7,6 +7,7 @@ from lib.utils import run_command
 
 def get_certs(project: str = None) -> bool:
     """Get certificates for all or one project"""
+    debug("Getting certificates" + (f" for project {project}" if project else ""))
     email = os.getenv("LE_EMAIL")
     if email is None:
         raise ValueError("LE_EMAIL environment variable is not set")

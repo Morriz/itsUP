@@ -40,7 +40,7 @@ def _after_config_change(project: str, service: str = None) -> None:
     write_upstreams()
     update_upstream(project, service, rollout=True)
     update_proxy()
-    # reload_proxy()
+    reload_proxy()
 
 
 def _handle_update_upstream(project: str, service: str) -> None:
@@ -145,7 +145,7 @@ def post_service_handler(
 ) -> None:
     """Create or update a service"""
     upsert_service(project, service)
-    background_tasks.add_task(_after_config_change, project)
+    background_tasks.add_task(_after_config_change, project, service.name)
 
 
 @app.post(
@@ -161,7 +161,7 @@ def post_env_handler(
 ) -> None:
     """Create or update env for a project service"""
     upsert_env(project, service, env)
-    background_tasks.add_task(_after_config_change, project)
+    background_tasks.add_task(_after_config_change, project, service)
 
 
 if __name__ == "__main__":

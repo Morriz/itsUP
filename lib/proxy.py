@@ -9,7 +9,7 @@ from lib.utils import run_command
 
 def get_domains(project: str = None) -> List[str]:
     """Get all domains in use"""
-    projects = get_projects(filter=lambda _, s: not s.passthrough and (not project or project == s.name))
+    projects = get_projects(filter=lambda p, s: not s.passthrough and (not project or project == p.name))
     return [p.domain for p in projects if p.domain]
 
 
@@ -85,7 +85,7 @@ def update_proxy(
     info(f"Updating proxy {service}")
     run_command(["docker", "compose", "pull"], cwd="proxy")
     run_command(["docker", "compose", "up", "-d"], cwd="proxy")
-    rollout_proxy(service)
+    # rollout_proxy(service)
 
 
 def reload_proxy(service: str = None) -> None:

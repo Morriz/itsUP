@@ -1,4 +1,4 @@
-from logging import info
+from logging import debug, info
 from typing import Callable, Dict, List
 
 import yaml
@@ -14,6 +14,7 @@ def get_db() -> Dict[str, List[Dict[str, str]]]:
 
 def validate_db() -> None:
     """Validate db.yml contents"""
+    debug("Validating db.yml")
     db = get_db()
     for project in db["projects"]:
         Project.model_validate(project)
@@ -21,6 +22,7 @@ def validate_db() -> None:
 
 def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Project]:
     """Get all projects. Optionally filter the results."""
+    debug("Getting projects" + (f" with filter {filter}" if filter else ""))
     db = get_db()
     ret = []
     for p_json in db["projects"]:
@@ -37,13 +39,15 @@ def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Proj
 
 def write_projects(projects: List[Project]) -> None:
     """Write the projects to the db"""
-    projects_dump = [p.model_dump(exclude_defaults=True) for p in projects]
+    debug(f"Writing {len(projects)} projects to the db")
+    projects_dump = [p.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True) for p in projects]
     with open("db.yml", "w", encoding="utf-8") as f:
         yaml.dump({"projects": projects_dump}, f)
 
 
 def get_project(name: str, throw: bool = True) -> Project:
     """Get a project by name. Optionally throw an error if not found (default)."""
+    debug(f"Getting project {name}")
     projects = get_projects()
     for item in projects:
         if item.name == name:
@@ -57,6 +61,7 @@ def get_project(name: str, throw: bool = True) -> Project:
 
 def upsert_project(project: Project) -> None:
     """Upsert a project"""
+    debug(f"Upserting project {project.name}: {project}")
     projects = get_projects()
     # find the project in the list
     for i, p in enumerate(projects):
@@ -70,11 +75,13 @@ def upsert_project(project: Project) -> None:
 
 def get_services(project: str = None) -> List[Service]:
     """Get all services or just for a particular project."""
+    debug(f"Getting services for project {project}" if project else "Getting all services")
     return [s for p in get_projects(lambda p, _: not bool(project) or p.name == project) for s in p.services]
 
 
 def get_service(project: str | Project, service: str, throw: bool = True) -> Service:
     """Get a project's service by name"""
+    debug(f"Getting service {service} in project {project.name if isinstance(project, Project) else project}")
     p = get_project(project, throw) if isinstance(project, str) else project
     assert p is not None
     for item in p.services:
@@ -89,6 +96,7 @@ def get_service(project: str | Project, service: str, throw: bool = True) -> Ser
 
 def get_env(project: str | Project, service: str) -> Dict[str, str]:
     """Get a project's env by name"""
+    debug(f"Getting env for service {service} in project {project.name if isinstance(project, Project) else project}")
     service = get_service(project, service)
     assert service is not None
     return service.env
@@ -97,6 +105,7 @@ def get_env(project: str | Project, service: str) -> Dict[str, str]:
 def upsert_env(project: str | Project, service: str, env: Env) -> None:
     """Upsert the env of a service"""
     p = get_project(project) if isinstance(project, str) else project
+    debug(f"Upserting env for service {service} in project {p.name}: {env.model_dump_json()}")
     assert p is not None
     s = get_service(p, service)
     assert s is not None
@@ -107,6 +116,7 @@ def upsert_env(project: str | Project, service: str, env: Env) -> None:
 def upsert_service(project: str | Project, service: Service) -> None:
     """Upsert a service"""
     p = get_project(project) if isinstance(project, str) else project
+    debug(f"Upserting service {service.name} in project {p.name}: {service}")
     assert p is not None
     for i, s in enumerate(p.services):
         assert s is not None
