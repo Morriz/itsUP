@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     {% if s.env -%}
     environment:
-      {% for k, v in s.env.items() -%}
+      {% for k, v in s.env -%}
       {{ k }}: {{ v }}
       {% endfor -%}
     {% endif %}

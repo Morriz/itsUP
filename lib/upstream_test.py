@@ -4,7 +4,7 @@ import unittest
 from unittest import TestCase, mock
 from unittest.mock import Mock, call
 
-from lib.models import Project
+from lib.models import Env, Project
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -73,10 +73,10 @@ class TestUpdateUpstream(TestCase):
                 image="morriz/hello-world:main",
                 name="master",
                 port=8080,
-                env={"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"},
+                env=Env(**{"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"}),
                 volumes=["./data/bla:/data/bla", "./etc/dida:/etc/dida"],
             ),
-            Service(image="morriz/hello-world:main", name="informant", port=8080, env={"TARGET": "boss"}),
+            Service(image="morriz/hello-world:main", name="informant", port=8080, env=Env(**{"TARGET": "boss"})),
         ]
 
         # Call the function under test
