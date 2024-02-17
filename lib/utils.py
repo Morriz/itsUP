@@ -9,12 +9,12 @@ def stream_output(process: subprocess.Popen[Any]) -> None:
 
 
 def run_command(command: List[str], cwd: str = None) -> int:
-    # pylint: disable=consider-using-with
-    process = subprocess.Popen(
-        command,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-    )
-    stream_output(process)
-    process.wait()
+    with open("logs/error.log", "w", encoding="utf-8") as f:
+        process = subprocess.run(
+            command,
+            check=True,
+            cwd=cwd,
+            stdout=f,
+            stderr=f,
+        )
     return process.returncode
