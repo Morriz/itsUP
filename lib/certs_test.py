@@ -11,7 +11,7 @@ from lib.certs import get_certs
 
 
 # pylint: disable=duplicate-code
-@mock.patch("os.environ", {"LE_EMAIL": "mail@example.com"})
+@mock.patch("os.environ", {"LETSENCRYPT_EMAIL": "mail@example.com"})
 class TestCodeUnderTest(TestCase):
 
     # Certbot command is run for each domain
@@ -93,7 +93,7 @@ class TestCodeUnderTest(TestCase):
         mock_remove.assert_not_called()
         self.assertFalse(result)
 
-    # LE_EMAIL environment variable is not set
+    # LETSENCRYPT_EMAIL environment variable is not set
     @mock.patch("lib.certs.get_domains", return_value=[])
     @mock.patch("os.getenv", return_value=None)
     def test_le_email_env_variable_not_set(self, _1: Mock, _2: Mock) -> None:
@@ -102,7 +102,7 @@ class TestCodeUnderTest(TestCase):
         with self.assertRaises(ValueError) as context:
             get_certs()
 
-        self.assertEqual(str(context.exception), "LE_EMAIL environment variable is not set")
+        self.assertEqual(str(context.exception), "LETSENCRYPT_EMAIL environment variable is not set")
 
 
 if __name__ == "__main__":

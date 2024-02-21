@@ -8,9 +8,9 @@ from lib.utils import run_command
 def get_certs(project: str = None) -> bool:
     """Get certificates for all or one project"""
     debug("Getting certificates" + (f" for project {project}" if project else ""))
-    email = os.getenv("LE_EMAIL")
+    email = os.getenv("LETSENCRYPT_EMAIL")
     if email is None:
-        raise ValueError("LE_EMAIL environment variable is not set")
+        raise ValueError("LETSENCRYPT_EMAIL environment variable is not set")
     domains = get_domains(project)
     change_file = "/data/changed"
     changed = False
@@ -51,7 +51,7 @@ def get_certs(project: str = None) -> bool:
                 cp -L /data/letsencrypt/live/{domain}/privkey.pem /certs/{domain}/privkey.pem && \
                 chown -R 101:101 /certs/{domain} && touch {change_file} && chmod a+wr {change_file}",
         ]
-        staging = os.getenv("LE_STAGING")
+        staging = os.getenv("LETSENCRYPT_STAGING")
         if not staging is None:
             command.append("--staging")
         run_command(command)

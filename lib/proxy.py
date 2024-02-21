@@ -104,7 +104,9 @@ def write_routers() -> None:
     with open("proxy/tpl/config-web.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_config_web = Template(t)
-    config_web = tpl_config_web.render(trusted_ips_cidr=trusted_ips_cidr)
+    le_email = os.environ.get("LETSENCRYPT_EMAIL")
+    le_staging = os.environ.get("LETSENCRYPT_STAGING")
+    config_web = tpl_config_web.render(trusted_ips_cidr=trusted_ips_cidr, le_email=le_email, le_staging=le_staging)
     with open("proxy/traefik/config-web.yml", "w", encoding="utf-8") as f:
         f.write(config_web)
 
