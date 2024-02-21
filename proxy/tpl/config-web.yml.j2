@@ -1,34 +1,30 @@
-accessLog:
-  format: json
-  fields:
-    defaultMode: keep
-    headers:
-      defaultMode: keep
+accessLog: {}
+  # format: json
+  # fields:
+  #   defaultMode: keep
+  #   headers:
+  #     defaultMode: keep
 
 entryPoints:
   web:
     address: ':8080'
     forwardedHeaders:
       trustedIPs:
-        - 127.0.0.0/32
-        - {{ trusted_ips_cidr }}
+        - 172.0.0.0/8
     proxyProtocol:
       trustedIPs:
-        - 127.0.0.0/32
-        - {{ trusted_ips_cidr }}
+        - 172.0.0.0/8
 
   web-secure:
     address: ':8443'
-    # http3:
-      # advertisedPort: 8443
+    http3:
+      advertisedPort: 8443
     forwardedHeaders:
       trustedIPs:
-        - 127.0.0.1/32
-        - {{ trusted_ips_cidr }}
+        - 172.0.0.0/8
     proxyProtocol:
       trustedIPs:
-        - 127.0.0.1/32
-        - {{ trusted_ips_cidr }}
+        - 172.0.0.0/8
 
 api:
   insecure: false
@@ -47,7 +43,6 @@ providers:
 certificatesResolvers:
   letsencrypt:
     acme:
-      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
       storage: /etc/acme/acme.json
       # tlsChallenge: {}
       httpChallenge:
@@ -55,10 +50,6 @@ certificatesResolvers:
 
 experimental:
   http3: true
-  plugins:
-    traefik-get-real-ip:
-      moduleName: "github.com/Paxxs/traefik-get-real-ip"
-      version: "v1.0.3"
 
 global:
   sendAnonymousUsage: true

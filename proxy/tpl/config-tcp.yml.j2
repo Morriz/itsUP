@@ -1,32 +1,33 @@
-accessLog:
-  format: json
-  fields:
-    defaultMode: keep
-    headers:
-      defaultMode: keep
-
 entryPoints:
   tcp:
     address: ':8080'
     forwardedHeaders:
       trustedIPs:
         - 127.0.0.0/32
-        - {{ trusted_ips_cidr }}
+{%- for ip in trusted_ips_cidr.split(',') %}
+        - {{ ip }}
+{%- endfor %}
     proxyProtocol:
       trustedIPs:
         - 127.0.0.0/32
-        - {{ trusted_ips_cidr }}
+{%- for ip in trusted_ips_cidr.split(',') %}
+        - {{ ip }}
+{%- endfor %}
 
   tcp-secure:
     address: ':8443'
     forwardedHeaders:
       trustedIPs:
         - 127.0.0.1/32
-        - {{ trusted_ips_cidr }}
+{%- for ip in trusted_ips_cidr.split(',') %}
+        - {{ ip }}
+{%- endfor %}
     proxyProtocol:
       trustedIPs:
-        - 127.0.0.1/32
-        - {{ trusted_ips_cidr }}
+        - 127.0.0.0/32
+{%- for ip in trusted_ips_cidr.split(',') %}
+        - {{ ip }}
+{%- endfor %}
 
 log:
   level: DEBUG
@@ -35,9 +36,3 @@ providers:
   file:
     filename: /etc/traefik/routers-tcp.yml
     watch: true
-
-experimental:
-  plugins:
-    fail2ban:
-      moduleName: 'github.com/tomMoulard/fail2ban'
-      version: 'v0.7.1'

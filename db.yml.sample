@@ -29,3 +29,10 @@ projects:
         name: informant
         env:
           TARGET: boss
+  - description: whoami service
+    domain: whoami.example.com
+    entrypoint: web
+    name: whoami
+    services:
+      - image: traefik/whoami:latest
+        name: web

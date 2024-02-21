@@ -29,15 +29,18 @@ http:
   services:
 {%- for p in projects %}
   {%- set s = p.services[0] %}
-  {%- if s.passthrough %}
     {{ p.name}}:
       loadBalancer:
+  {%- if s.proxyprotocol %}
+        proxyProtocol:
+          version: 2
+  {%- endif %}
+  {%- if s.passthrough %}
         servers:
           # just forwarding port 80 for doing own http challenge
           - url: http://{% if p.entrypoint == s.name %}{{ p.name }}-{% endif %}{{ s.name }}:80/
   {%- endif %}
 {%- endfor %}
-          # the rest of the services are brought up by containers with their labels
   middlewares:
     removeServiceSelector:
       stripPrefix:
@@ -48,19 +51,3 @@ http:
     traefik-auth:
       basicauth:
         users: {{ traefik_admin }}
-    my-traefik-get-real-ip:
-      plugin:
-        traefik-get-real-ip:
-          Proxy:
-            - proxyHeadername: X-From-Cdn
-              proxyHeadervalue: cdn1
-              realIP: X-Forwarded-For
-            - proxyHeadername: X-From-Cdn
-              proxyHeadervalue: cdn2
-              realIP: Client-Ip
-            - overwriteXFF: 'true'
-              proxyHeadername: X-From-Cdn
-              proxyHeadervalue: cdn3
-              realIP: Cf-Connecting-Ip
-            - proxyHeadername: '*'
-              realIP: RemoteAddr

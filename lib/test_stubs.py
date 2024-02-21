@@ -41,4 +41,13 @@ test_projects = [
             ),
         ],
     ),
+    Project(
+        name="whoami",
+        description="whoami service",
+        domain="whoami.example.com",
+        entrypoint="web",
+        services=[
+            Service(image="traefik/whoami:latest", name="web"),
+        ],
+    ),
 ]

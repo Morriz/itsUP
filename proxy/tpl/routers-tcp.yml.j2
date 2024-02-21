@@ -42,9 +42,13 @@ tcp:
 {%- endif %}
     http:
       loadBalancer:
+        proxyProtocol:
+          version: 2
         servers:
           - address: traefik-web:8080
     https:
       loadBalancer:
+        proxyProtocol:
+          version: 2
         servers:
           - address: traefik-web:8443

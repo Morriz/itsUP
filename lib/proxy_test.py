@@ -50,6 +50,7 @@ class TestProxy(TestCase):
         expected_map = {
             "itsup.example.com": "172.17.0.1:8888",
             "hello.example.com": "test-master:8080",
+            "whoami.example.com": "whoami-web:8080",
         }
         self.assertEqual(terminate_map, expected_map)
 
@@ -157,10 +158,13 @@ class TestProxy(TestCase):
             ],
         )
 
+    @mock.patch("os.environ", return_value={"TRAEFIK_DOMAIN": "traefik.example.com", "TRUSTED_IPS_CIDR": "192.168.1.1"})
     @mock.patch("lib.proxy.write_maps")
     @mock.patch("lib.proxy.write_proxy")
     @mock.patch("lib.proxy.write_terminate")
-    def test_write_proxies(self, mock_write_terminate: Mock, mock_write_proxy: Mock, mock_write_maps: Mock) -> None:
+    def test_write_proxies(
+        self, mock_write_terminate: Mock, mock_write_proxy: Mock, mock_write_maps: Mock, _: Mock
+    ) -> None:
         # Call the function under test
         write_proxies()
 
