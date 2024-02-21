@@ -23,19 +23,15 @@ http:
       service: {{ p.name }}
       entryPoints:
         - web
-      rule: 'Host(`{{ p.domain }}`)'
+      rule: 'Host(`{{ p.domain }}`) && PathPrefix(`/.well-known/acme-challenge/`)'
   {%- endif %}
 {%- endfor %}
   services:
 {%- for p in projects %}
   {%- set s = p.services[0] %}
+  {%- if s.passthrough %}
     {{ p.name}}:
       loadBalancer:
-  {%- if s.proxyprotocol %}
-        proxyProtocol:
-          version: 2
-  {%- endif %}
-  {%- if s.passthrough %}
         servers:
           # just forwarding port 80 for doing own http challenge
           - url: http://{% if p.entrypoint == s.name %}{{ p.name }}-{% endif %}{{ s.name }}:80/

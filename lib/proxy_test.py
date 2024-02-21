@@ -158,7 +158,9 @@ class TestProxy(TestCase):
             ],
         )
 
-    @mock.patch("os.environ", return_value={"TRAEFIK_DOMAIN": "traefik.example.com", "TRUSTED_IPS_CIDR": "192.168.1.1"})
+    @mock.patch(
+        "os.environ", return_value={"TRAEFIK_DOMAIN": "traefik.example.com", "TRUSTED_IPS_CIDRS": "192.168.1.1"}
+    )
     @mock.patch("lib.proxy.write_maps")
     @mock.patch("lib.proxy.write_proxy")
     @mock.patch("lib.proxy.write_terminate")

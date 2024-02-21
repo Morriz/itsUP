@@ -1,16 +1,17 @@
+accessLog: {}
 entryPoints:
   tcp:
     address: ':8080'
     forwardedHeaders:
       trustedIPs:
         - 127.0.0.0/32
-{%- for ip in trusted_ips_cidr.split(',') %}
+{%- for ip in trusted_ips_cidr %}
         - {{ ip }}
 {%- endfor %}
     proxyProtocol:
       trustedIPs:
         - 127.0.0.0/32
-{%- for ip in trusted_ips_cidr.split(',') %}
+{%- for ip in trusted_ips_cidr %}
         - {{ ip }}
 {%- endfor %}
 
@@ -19,13 +20,13 @@ entryPoints:
     forwardedHeaders:
       trustedIPs:
         - 127.0.0.1/32
-{%- for ip in trusted_ips_cidr.split(',') %}
+{%- for ip in trusted_ips_cidr %}
         - {{ ip }}
 {%- endfor %}
     proxyProtocol:
       trustedIPs:
         - 127.0.0.0/32
-{%- for ip in trusted_ips_cidr.split(',') %}
+{%- for ip in trusted_ips_cidr %}
         - {{ ip }}
 {%- endfor %}
 
