@@ -164,8 +164,14 @@ class TestProxy(TestCase):
     @mock.patch("lib.proxy.write_maps")
     @mock.patch("lib.proxy.write_proxy")
     @mock.patch("lib.proxy.write_terminate")
+    @mock.patch("lib.proxy.write_routers")
     def test_write_proxies(
-        self, mock_write_terminate: Mock, mock_write_proxy: Mock, mock_write_maps: Mock, _: Mock
+        self,
+        mock_write_routers: Mock,
+        mock_write_terminate: Mock,
+        mock_write_proxy: Mock,
+        mock_write_maps: Mock,
+        _: Mock,
     ) -> None:
         # Call the function under test
         write_proxies()
