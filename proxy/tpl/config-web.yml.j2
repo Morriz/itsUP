@@ -11,9 +11,11 @@ entryPoints:
     forwardedHeaders:
       trustedIPs:
         - 172.0.0.0/8
+        - 192.168.0.0/16
     proxyProtocol:
       trustedIPs:
         - 172.0.0.0/8
+        - 192.168.0.0/16
 
   web-secure:
     address: ':8443'
@@ -22,9 +24,11 @@ entryPoints:
     forwardedHeaders:
       trustedIPs:
         - 172.0.0.0/8
+        - 192.168.0.0/16
     proxyProtocol:
       trustedIPs:
         - 172.0.0.0/8
+        - 192.168.0.0/16
 
 api:
   insecure: false
@@ -44,9 +48,7 @@ certificatesResolvers:
   letsencrypt:
     acme:
       storage: /etc/acme/acme.json
-      # tlsChallenge: {}
-      httpChallenge:
-        entryPoint: web
+      tlsChallenge: {}
 
 experimental:
   http3: true
