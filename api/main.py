@@ -40,14 +40,14 @@ def _after_config_change(project: str, service: str = None) -> None:
     write_upstreams()
     update_upstream(project, service, rollout=True)
     update_proxy()
-    reload_proxy()
+    # reload_proxy()
 
 
 def _handle_update_upstream(project: str, service: str) -> None:
     """handle incoming requests to update the upstream"""
     update_upstream(project, service, rollout=True)
     # reload proxy's terminate service as it needs to get the new upstream
-    reload_proxy("terminate")
+    # reload_proxy("terminate")
 
 
 def _handle_hook(project: str, background_tasks: BackgroundTasks, service: str = None) -> None:

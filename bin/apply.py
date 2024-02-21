@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.certs import get_certs
-from lib.proxy import reload_proxy, write_proxies
+from lib.proxy import write_proxies
 from lib.upstream import update_upstreams, write_upstreams
 
 load_dotenv()
@@ -20,4 +20,4 @@ if __name__ == "__main__":
     write_proxies()
     write_upstreams()
     update_upstreams(rollout)
-    reload_proxy()
+    # reload_proxy()

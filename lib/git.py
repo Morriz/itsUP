@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from lib.proxy import reload_proxy, write_proxies
+from lib.proxy import write_proxies
 from lib.upstream import update_upstreams, write_upstreams
 from lib.utils import run_command
 
@@ -18,6 +18,6 @@ def update_repo() -> None:
     write_proxies()
     write_upstreams()
     update_upstreams()
-    reload_proxy()
+    # reload_proxy()
     # restart the api to make sure the new code is running:
     run_command(["bin/start-api.sh"])
