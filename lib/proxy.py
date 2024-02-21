@@ -1,10 +1,14 @@
+import os
 from logging import info
 from typing import Dict, List
 
+from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_project, get_projects
 from lib.utils import run_command
+
+load_dotenv()
 
 
 def get_domains(project: str = None) -> List[str]:
@@ -44,11 +48,11 @@ def write_maps() -> None:
     internal = tpl.render(map=internal_map)
     passthrough = tpl.render(map=passthrough_map)
     terminate = tpl.render(map=terminate_map)
-    with open("proxy/map/internal.conf", "w", encoding="utf-8") as f:
+    with open("proxy/nginx/map/internal.conf", "w", encoding="utf-8") as f:
         f.write(internal)
-    with open("proxy/map/passthrough.conf", "w", encoding="utf-8") as f:
+    with open("proxy/nginx/map/passthrough.conf", "w", encoding="utf-8") as f:
         f.write(passthrough)
-    with open("proxy/map/terminate.conf", "w", encoding="utf-8") as f:
+    with open("proxy/nginx/map/terminate.conf", "w", encoding="utf-8") as f:
         f.write(terminate)
 
 
@@ -58,7 +62,7 @@ def write_proxy() -> None:
         t = f.read()
     tpl = Template(t)
     terminate = tpl.render(project=project)
-    with open("proxy/proxy.conf", "w", encoding="utf-8") as f:
+    with open("proxy/nginx/proxy.conf", "w", encoding="utf-8") as f:
         f.write(terminate)
 
 
@@ -68,14 +72,47 @@ def write_terminate() -> None:
         t = f.read()
     tpl = Template(t)
     terminate = tpl.render(domains=domains)
-    with open("proxy/terminate.conf", "w", encoding="utf-8") as f:
+    with open("proxy/nginx/terminate.conf", "w", encoding="utf-8") as f:
         f.write(terminate)
 
 
-def write_nginx() -> None:
+def write_routers() -> None:
+    projects = get_projects(filter=lambda p, s: not bool(p.entrypoint) or p.entrypoint == s.name)
+    with open("proxy/tpl/routers-web.yml.j2", encoding="utf-8") as f:
+        t = f.read()
+    tpl_routers_web = Template(t)
+    domain = os.environ.get("TRAEFIK_DOMAIN")
+    traefik_admin = os.environ.get("TRAEFIK_ADMIN")
+    routers_web = tpl_routers_web.render(
+        projects=projects, traefik_rule=f"Host(`{domain}`)", traefik_admin=traefik_admin
+    )
+    with open("proxy/traefik/routers-web.yml", "w", encoding="utf-8") as f:
+        f.write(routers_web)
+    with open("proxy/tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
+        t = f.read()
+    tpl_routers_tcp = Template(t)
+    routers_tcp = tpl_routers_tcp.render(projects=projects, traefik_rule=f"HostSNI(`{domain}`)")
+    with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
+        f.write(routers_tcp)
+    with open("proxy/tpl/config-tcp.yml.j2", encoding="utf-8") as f:
+        t = f.read()
+    tpl_config_tcp = Template(t)
+    config_tcp = tpl_config_tcp.render(trusted_ips_cidr=os.environ.get("TRUSTED_IPS_CIDR"))
+    with open("proxy/traefik/config-tcp.yml", "w", encoding="utf-8") as f:
+        f.write(config_tcp)
+    with open("proxy/tpl/config-web.yml.j2", encoding="utf-8") as f:
+        t = f.read()
+    tpl_config_web = Template(t)
+    config_web = tpl_config_web.render(trusted_ips_cidr=os.environ.get("TRUSTED_IPS_CIDR"))
+    with open("proxy/traefik/config-web.yml", "w", encoding="utf-8") as f:
+        f.write(config_web)
+
+
+def write_proxies() -> None:
     write_maps()
     write_proxy()
     write_terminate()
+    write_routers()
 
 
 def update_proxy(

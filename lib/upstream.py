@@ -1,34 +1,39 @@
 import os
 from logging import info
-from typing import List
 
+from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_project, get_projects, get_service
-from lib.models import Service
+from lib.models import Project
 from lib.utils import run_command
 
+load_dotenv()
 
-def write_upstream(project: str, services: List[Service]) -> None:
+
+def write_upstream(project: Project) -> None:
     with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
         tpl = f.read()
-    content = Template(tpl).render(project=project, services=services)
-    with open(f"upstream/{project}/docker-compose.yml", "w", encoding="utf-8") as f:
+    if os.environ.get("PYTHON_ENV") != "production":
+        content = Template(tpl).render(project=project, domain=os.environ.get("TRAEFIK_DOMAIN"), env="development")
+    else:
+        content = Template(tpl).render(project=project, domain=project.domain)
+    with open(f"upstream/{project.name}/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(content)
 
 
-def write_upstream_volume_folders(project: str, services: List[Service]) -> None:
-    for svc in services:
-        for path in svc.volumes:
-            os.makedirs(f"upstream/{project}{path}", exist_ok=True)
+def write_upstream_volume_folders(project: Project) -> None:
+    for s in project.services:
+        for path in s.volumes:
+            os.makedirs(f"upstream/{project.name}{path}", exist_ok=True)
 
 
 def write_upstreams() -> None:
     # iterate over projects that have an entrypoint;
     for p in [project for project in get_projects() if project.entrypoint]:
         os.makedirs(f"upstream/{p.name}", exist_ok=True)
-        write_upstream(p.name, p.services)
-        write_upstream_volume_folders(p.name, p.services)
+        write_upstream(p)
+        write_upstream_volume_folders(p)
 
 
 def check_upstream(project: str, service: str = None) -> None:

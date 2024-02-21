@@ -28,7 +28,7 @@ dcp() {
     docker compose --project-directory $dir -p $project -f $dir/docker-compose.yml pull
     cmd="$cmd --remove-orphans"
   fi
-  eval "docker compose --project-directory $dir -p $project -f $dir/docker-compose.yml $cmd $@"
+  eval "export HOST_GID=$(id -g daemon) && docker compose --project-directory $dir -p $project -f $dir/docker-compose.yml $cmd $@"
 }
 
 dcpx() {

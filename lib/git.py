@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from lib.proxy import reload_proxy, write_nginx
+from lib.proxy import reload_proxy, write_proxies
 from lib.upstream import update_upstreams, write_upstreams
 from lib.utils import run_command
 
@@ -15,7 +15,7 @@ def update_repo() -> None:
     if os.environ["PYTHON_ENV"] == "production":
         run_command("git fetch origin main".split(" "), cwd=".")
         run_command("git reset --hard origin/main".split(" "), cwd=".")
-    write_nginx()
+    write_proxies()
     write_upstreams()
     update_upstreams()
     reload_proxy()

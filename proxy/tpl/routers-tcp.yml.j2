@@ -1,0 +1,50 @@
+{%- if projects %}
+tcp:
+  routers:
+  {%- for p in projects %}
+    {%- set s = p.services[0] %}
+    {%- if s.passthrough %}
+    {{ p.name }}:
+      entryPoints:
+        - tcp-secure
+      service: {{ p.name }}
+      rule: 'HostSNI(`{{ p.domain }}`)'
+      tls:
+        passthrough: true
+    {%- endif %}
+  {%- endfor %}
+    http:
+      entryPoints:
+        - tcp
+      service: http
+      rule: 'HostSNI(`*`)'
+    https:
+      entryPoints:
+        - tcp-secure
+      service: https
+      rule: 'HostSNI(`*`)'
+      tls:
+        passthrough: true
+  services:
+  {%- for p in projects %}
+    {%- set s = p.services[0] %}
+    {%- if s.passthrough %}
+    {{ p.name }}:
+      loadBalancer:
+      {%- if s.proxyprotocol %}
+        proxyProtocol:
+          version: 2
+      {%- endif %}
+        servers:
+          - address: {{ s.name }}:{{ s.port }}
+    {%- endif %}
+  {%- endfor %}
+{%- endif %}
+    http:
+      loadBalancer:
+        servers:
+          - address: traefik-web:8080
+    https:
+      loadBalancer:
+        servers:
+          - address: traefik-web:8443

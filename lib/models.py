@@ -11,16 +11,27 @@ class Env(BaseModel):
 class Service(BaseModel):
     """Service model"""
 
-    name: str
-    port: int = 8080
-    """When set, the service will be exposed on this domain."""
-    image: str = None
     command: str = None
-    passthrough: bool = False
-    """Wether or not traffic to this service is forwarded as-is (without terminating SSL)"""
-    volumes: List[str] = []
+    """The command to run in the service"""
     env: Env = None
     """A dictionary of environment variables to pass to the service"""
+    image: str = None
+    """The image name plus tag to use for the service"""
+    labels: List[str] = []
+    """Extra labels to add to the service. Should not interfere with generated traefik labels for ingress."""
+    name: str
+    passthrough: bool = False
+    """Wether or not traffic to this service is forwarded as-is (without terminating SSL)"""
+    path_prefix: str = None
+    """Should the service be exposed under a specific path?"""
+    path_remove: bool = False
+    """When set, the path prefix will be removed from the request before forwarding it to the service"""
+    port: int = 8080
+    """When set, the service will be exposed on this domain."""
+    proxyprotocol: bool = True
+    """When set, the service will be exposed using the PROXY protocol version 2"""
+    volumes: List[str] = []
+    """A list of volumes to mount in the service"""
 
 
 class Project(BaseModel):

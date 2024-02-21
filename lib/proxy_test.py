@@ -14,7 +14,7 @@ from lib.proxy import (
     get_terminate_map,
     reload_proxy,
     write_maps,
-    write_nginx,
+    write_proxies,
     write_proxy,
     write_terminate,
 )
@@ -117,9 +117,9 @@ class TestProxy(TestCase):
             mock_open.call_args_list,
             [
                 mock.call("proxy/tpl/map.conf.j2", encoding="utf-8"),
-                mock.call("proxy/map/internal.conf", "w", encoding="utf-8"),
-                mock.call("proxy/map/passthrough.conf", "w", encoding="utf-8"),
-                mock.call("proxy/map/terminate.conf", "w", encoding="utf-8"),
+                mock.call("proxy/nginx/map/internal.conf", "w", encoding="utf-8"),
+                mock.call("proxy/nginx/map/passthrough.conf", "w", encoding="utf-8"),
+                mock.call("proxy/nginx/map/terminate.conf", "w", encoding="utf-8"),
             ],
         )
 
@@ -135,7 +135,7 @@ class TestProxy(TestCase):
             mock_open.call_args_list,
             [
                 call("proxy/tpl/proxy.conf.j2", encoding="utf-8"),
-                call("proxy/proxy.conf", "w", encoding="utf-8"),
+                call("proxy/nginx/proxy.conf", "w", encoding="utf-8"),
             ],
         )
 
@@ -153,16 +153,16 @@ class TestProxy(TestCase):
             mock_open.call_args_list,
             [
                 call("proxy/tpl/terminate.conf.j2", encoding="utf-8"),
-                call("proxy/terminate.conf", "w", encoding="utf-8"),
+                call("proxy/nginx/terminate.conf", "w", encoding="utf-8"),
             ],
         )
 
     @mock.patch("lib.proxy.write_maps")
     @mock.patch("lib.proxy.write_proxy")
     @mock.patch("lib.proxy.write_terminate")
-    def test_write_nginx(self, mock_write_terminate: Mock, mock_write_proxy: Mock, mock_write_maps: Mock) -> None:
+    def test_write_proxies(self, mock_write_terminate: Mock, mock_write_proxy: Mock, mock_write_maps: Mock) -> None:
         # Call the function under test
-        write_nginx()
+        write_proxies()
 
         # Assert that the write_maps, write_proxy, and write_terminate functions are called
         mock_write_maps.assert_called_once()

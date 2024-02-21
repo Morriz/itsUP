@@ -7,31 +7,51 @@ networks:
     external: true
 
 services:
-{% for s in services %}
-  {{ project }}-{{ s.name }}:
-    image: {{ s.image }}
-    {% if s.command -%}
+{%- for s in project.services %}
+  {%- set p = project %}
+  {{ project.name }}-{{ s.name }}:
+  {%- if s.command %}
     command: {{ s.command }}
-    {% endif -%}
-    networks:
-      - default
-      - proxynet
-    restart: unless-stopped
-    {% if s.env -%}
+  {%- endif %}
+  {%- if s.env %}
     environment:
-      {% for k, v in s.env -%}
+    {%- for k, v in s.env %}
       {{ k }}: {{ v }}
-      {% endfor -%}
-    {% endif %}
-    {% if s.port -%}
+    {%- endfor %}
+  {%- endif %}
+  {%- if p.entrypoint == s.name %}
     expose:
       - '{{ s.port }}'
-    {% endif -%}
-    {% if s.volumes %}
+  {%- endif %}
+    image: {{ s.image }}
+  {%- if p.entrypoint == s.name %}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxynet
+      - traefik.http.routers.{{ p.name }}.entrypoints=web-secure
+      - traefik.http.routers.{{ p.name }}.rule=Host(`{{ p.domain }}`){%- if s.path_prefix %} && PathPrefix(`{{ s.path_prefix }}`){%- endif %}
+      - traefik.http.routers.{{ p.name }}.tls.certresolver=letsencrypt
+    {%- if path_prefix and path_remove %}
+      - traefik.http.middlewares.removeServiceSelector.stripPrefix.prefixes={{ path_prefix }}
+    {%- endif %}
+      - traefik.http.services.{{ p.name }}.loadbalancer.server.port={{ s.port }}
+    {%- for k, v in s.labels %}
+      - {{ k }}={{ v }}
+    {%- endfor %}    
+  {%- endif %}
+    networks:
+  {%- if p.services | length > 1 %}
+      - default
+  {%- endif %}  
+  {%- if p.entrypoint == s.name %}
+      - proxynet
+  {%- endif %}
+    restart: unless-stopped
+  {%- if s.volumes %}
     volumes:
-      {% for v in s.volumes -%}
+    {%- for v in s.volumes %}
       - .{{ v }}:{{ v }}
-      {% endfor -%}
-    {% endif -%}
-{% endfor -%}
+    {%- endfor %}
+  {%- endif %}
+{%- endfor %}
       

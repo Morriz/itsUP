@@ -9,32 +9,73 @@ networks:
       encrypted: 'true'
 
 services:
-  proxy:
-    image: nginxinc/nginx-unprivileged:stable
+  # watchtower:
+  #   container_name: watchtower
+  #   image: containrrr/watchtower:1.7.1
+  #   networks:
+  #     - traefik
+  #   restart: always
+
+  dockerproxy:
+    image: wollomatic/socket-proxy:1 # see https://github.com/wollomatic/simple-traefik for reference
+    container_name: dockerproxy
+    # this image replaced https://github.com/Tecnativa/docker-socket-proxy as the socket proxy
+    # for an example with the tecnativa proxy refer tags before 2.10
+    # depends_on:
+    #   - watchtower
+    command:
+      # with this configuration socket-proxy acts similar to the tecnativa proxy. For additional hardening
+      # please refer to the documentation of the wollomatic/socket-proxy image
+      - '-loglevel=info' # set to debug for far more logging
+      - '-allowfrom=traefik-web'
+      - '-listenip=0.0.0.0'
+      - '-allowGET=/v1\..{1,2}/(version|containers/.*|events.*)' # this regexp allows readonly access only for requests that traefik needs
+      - '-shutdowngracetime=5'
+      - '-watchdoginterval=600'
+      - '-stoponwatchdog'
+    read_only: true
+    mem_limit: 64M
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    user: '0:1' # replace with the uid:gid of the host owner of the docker socket
+    networks:
+      - default
+    expose:
+      - '2375'
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  traefik-tcp:
+    image: traefik:v2.11
+    container_name: traefik-tcp
+    env_file:
+      - ../.env
     networks:
       - default
     ports:
-      - 8443:8443
       - 8080:8080
-    restart: unless-stopped
+      - 8443:8443
     volumes:
-      - ../data:/data
-      - ./map:/etc/nginx/map
-      - ./proxy.conf:/etc/nginx/nginx.conf
+      - ./traefik/config-tcp.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/routers-tcp.yml:/etc/traefik/routers-tcp.yml:ro
 
-  terminate:
-    image: nginxinc/nginx-unprivileged:stable
-    # user: 101:101
+  traefik-web:
+    image: traefik:v2.11
+    container_name: traefik-web
     depends_on:
-      - proxy
+      - dockerproxy
+    env_file:
+      - ../.env
     networks:
       - default
       - proxynet
     expose:
+      - '8080'
       - '8443'
-    restart: unless-stopped
     volumes:
-      - ../certs:/certs
-      - ./map:/etc/nginx/map
-      - ./terminate.conf:/etc/nginx/nginx.conf
-      - ./snippets:/etc/nginx/snippets
+      - ./traefik/config-web.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/routers-web.yml:/etc/traefik/routers-web.yml:ro
+      - ./traefik/acme:/etc/acme

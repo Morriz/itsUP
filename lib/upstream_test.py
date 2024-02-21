@@ -68,22 +68,22 @@ class TestUpdateUpstream(TestCase):
         mock_open: Mock,
     ) -> None:
 
-        services = [
-            Service(
-                image="morriz/hello-world:main",
-                name="master",
-                port=8080,
-                env=Env(**{"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"}),
-                volumes=["./data/bla:/data/bla", "./etc/dida:/etc/dida"],
-            ),
-            Service(image="morriz/hello-world:main", name="informant", port=8080, env=Env(**{"TARGET": "boss"})),
-        ]
+        project = Project(
+            name="test",
+            services=[
+                Service(
+                    image="morriz/hello-world:main",
+                    name="master",
+                    port=8080,
+                    env=Env(**{"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"}),
+                    volumes=["./data/bla:/data/bla", "./etc/dida:/etc/dida"],
+                ),
+                Service(image="morriz/hello-world:main", name="informant", port=8080, env=Env(**{"TARGET": "boss"})),
+            ],
+        )
 
         # Call the function under test
-        write_upstream(
-            "test",
-            services=services,
-        )
+        write_upstream(project)
 
         # Assert that the subprocess.Popen was called with the correct arguments
         mock_open.return_value.write.assert_called_once_with(_ret_tpl)

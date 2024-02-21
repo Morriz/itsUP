@@ -1,0 +1,68 @@
+accessLog:
+  format: json
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: keep
+
+entryPoints:
+  web:
+    address: ':8080'
+    forwardedHeaders:
+      trustedIPs:
+        - 127.0.0.0/32
+        - {{ trusted_ips_cidr }}
+    proxyProtocol:
+      trustedIPs:
+        - 127.0.0.0/32
+        - {{ trusted_ips_cidr }}
+
+  web-secure:
+    address: ':8443'
+    # http3:
+      # advertisedPort: 8443
+    forwardedHeaders:
+      trustedIPs:
+        - 127.0.0.1/32
+        - {{ trusted_ips_cidr }}
+    proxyProtocol:
+      trustedIPs:
+        - 127.0.0.1/32
+        - {{ trusted_ips_cidr }}
+
+api:
+  insecure: false
+  dashboard: true
+  debug: true
+
+providers:
+  docker:
+    exposedByDefault: false
+    endpoint: tcp://dockerproxy:2375
+    network: default
+  file:
+    filename: /etc/traefik/routers-web.yml
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      storage: /etc/acme/acme.json
+      # tlsChallenge: {}
+      httpChallenge:
+        entryPoint: web
+
+experimental:
+  http3: true
+  plugins:
+    traefik-get-real-ip:
+      moduleName: "github.com/Paxxs/traefik-get-real-ip"
+      version: "v1.0.3"
+
+global:
+  sendAnonymousUsage: true
+
+log:
+  level: DEBUG
+
