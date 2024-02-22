@@ -4,24 +4,25 @@
 
 ## Fully managed docker compose infra
 
-Single machine multi docker compose architecture with a low cpu/storage footprint and near-zero<sup>*</sup> downtime.
+Single machine multi docker compose architecture with a low cpu/storage footprint and near-zero<sup>\*</sup> downtime.
 
 It runs two nginx proxies in series (proxy -> terminate) to be able to:
+
 - terminate SSL/TLS
 - do SSL/TLS passthrough
 - target many upstream endpoints
- 
+
 **Advantages:**
 
 - shared docker network: encrypted intra-node communication (over a shared network named `proxynet`)
-- near-zero-downtime*
+- near-zero-downtime\*
 
-*<sup>*</sup>Near-zero-downtime?*
+_<sup>_</sup>Near-zero-downtime?\*
 
 Well, all (stateless) nodes that get rotated do not incur downtime, yet nginx neads a reload signal. During low traffic that will allow for a graceful handling of outstanding http sessions and no downtime, but may be problematic if nginx needs to wait for a magnitude of open sessions. In that case a timeout will force the last open sessions to be terminated.
 This approach is a very reliable and cheap approach to achieve zero downtime.
 
-*But what about stateful services?*
+_But what about stateful services?_
 
 It is surely possible to deploy stateful services but those MUST NOT be targeted with the `entrypoint: xxx` prop, as those services are the entrypoints which MUST be stateless, as those are rolled up with the `docker rollout` by the automation. In order to update those services you are on your own, but it's a breeze compared to local installs, as you can just docker compose commands.
 
@@ -46,7 +47,7 @@ Install everything and start the proxy and api so that we can receive incoming c
 1. `bin/install.sh`: installs all project deps.
 2. `bin/start-all.sh`: starts the proxy and the api server.
 3. `bin/apply.py`: applies all of `db.yml`.
-4. 4. `bin/api-logs.sh`: tail the output of the api server.
+4. `bin/api-logs.sh`: tail the output of the api server.
 
 ### Adding an upstream service
 
@@ -55,8 +56,27 @@ Install everything and start the proxy and api so that we can receive incoming c
 
 ### Adding a passthrough endpoint
 
-1. Edit `db.yml` and add your service(s), which now need  `name`, `domain` and `passthrough: true`.
+1. Add a project without `entrypoint:` and one service, which now need `name`, `domain` and `passthrough: true`.
 2. Run `bin/apply.py` to roll out the changes.
+
+### Adding a local (host) endpoint
+
+1. Add a project without `entrypoint:` and one service, which only need `name` and `domain`.
+2. Run `bin/apply.py` to roll out the changes.
+
+### Plugins
+
+You can enable and configure plugins in `db.yml`. Right now we support the following:
+
+#### CrowdSec
+
+[CrowdSec](https://www.crowdsec.net) can run as a container via plugin [crowdsec-bouncer-traefik-plugin](https://github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin). First set `enable: true`, run `bin/write-artifacts.py`, and bring up the stack (or just the `crowdsec` container:
+
+```
+docker compose exec crowdsec cscli bouncers add crowdsecBouncer
+```
+
+Put the resulting api key in the plugin configuration in `db.yml` and apply with `bin/apply.py`.
 
 ### Api & OpenApi spec
 
@@ -71,13 +91,15 @@ Exception: Only github webhook endpoints (check for annotation `@app.hooks.regis
 #### Webhooks
 
 Webhooks are used for the following:
+
 1. to receive updates to this repo, which will result in a `git pull` and `bin/apply.py` to update any changes in the code. The provided project with `name: itsUP` is used for that, so DON'T delete it if you care about automated updates to this repo.
 2. to receive incoming github webhooks (or GET requests to `/update-upstream?project=bla&service=dida`) that result in rolling up of a project or specific service only.
 
 One GitHub webhook listening to `workflow_job`s is provided, which needs:
+
 - the hook you will register in the github project to end with `/hook?project=bla&service=dida` (`service` optional), and the `github_secret` set to `.env/API_KEY`.
 
-I mainly use GitHub workflows and created webhooks for my individual projects, so I can just manage all webhooks in one place. 
+I mainly use GitHub workflows and created webhooks for my individual projects, so I can just manage all webhooks in one place.
 
 ## Dev/ops tools
 
@@ -95,7 +117,6 @@ I don't want to switch folders/terminals all the time and want to keep history o
 ### Scripts
 
 - `bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.
-- `bin/write-artifacts.py`: after updating `db.yml` yo ucan run this script to check new artifacts.
+- `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
 - `bin/validate-db.py`: after manually editing `db.yml` please run this (also ran from `bin/write-artifacts.py`)
 - `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
-

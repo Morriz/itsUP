@@ -164,10 +164,14 @@ class TestProxy(TestCase):
     @mock.patch("lib.proxy.write_maps")
     @mock.patch("lib.proxy.write_proxy")
     @mock.patch("lib.proxy.write_terminate")
+    @mock.patch("lib.proxy.write_compose")
+    @mock.patch("lib.proxy.write_config")
     @mock.patch("lib.proxy.write_routers")
     def test_write_proxies(
         self,
         mock_write_routers: Mock,
+        mock_write_config: Mock,
+        mock_write_compose: Mock,
         mock_write_terminate: Mock,
         mock_write_proxy: Mock,
         mock_write_maps: Mock,
@@ -180,6 +184,9 @@ class TestProxy(TestCase):
         mock_write_maps.assert_called_once()
         mock_write_proxy.assert_called_once()
         mock_write_terminate.assert_called_once()
+        mock_write_compose.assert_called_once()
+        mock_write_config.assert_called_once()
+        mock_write_routers.assert_called_once()
 
     @mock.patch("lib.proxy.run_command")
     def test_reload_proxy(self, mock_run_command: Mock) -> None:

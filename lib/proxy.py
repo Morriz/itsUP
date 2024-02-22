@@ -5,7 +5,7 @@ from typing import Dict, List
 from dotenv import load_dotenv
 from jinja2 import Template
 
-from lib.data import get_project, get_projects
+from lib.data import get_plugin_registry, get_project, get_projects
 from lib.utils import run_command
 
 load_dotenv()
@@ -82,9 +82,12 @@ def write_routers() -> None:
         t = f.read()
     tpl_routers_web = Template(t)
     domain = os.environ.get("TRAEFIK_DOMAIN")
-    traefik_admin = os.environ.get("TRAEFIK_ADMIN")
     routers_web = tpl_routers_web.render(
-        projects=projects, traefik_rule=f"Host(`{domain}`)", traefik_admin=traefik_admin
+        projects=projects,
+        traefik_rule=f"Host(`{domain}`)",
+        traefik_admin=os.environ.get("TRAEFIK_ADMIN"),
+        plugin_registry=get_plugin_registry(),
+        trusted_ips_cidrs=os.environ.get("TRUSTED_IPS_CIDRS").split(","),
     )
     with open("proxy/traefik/routers-web.yml", "w", encoding="utf-8") as f:
         f.write(routers_web)
@@ -94,21 +97,40 @@ def write_routers() -> None:
     routers_tcp = tpl_routers_tcp.render(projects=projects, traefik_rule=f"HostSNI(`{domain}`)")
     with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
+
+
+def write_config() -> None:
     with open("proxy/tpl/config-tcp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_config_tcp = Template(t)
-    trusted_ips_cidr = os.environ.get("TRUSTED_IPS_CIDRS").split(",")
-    config_tcp = tpl_config_tcp.render(trusted_ips_cidr=trusted_ips_cidr)
+    trusted_ips_cidrs = os.environ.get("TRUSTED_IPS_CIDRS").split(",")
+    config_tcp = tpl_config_tcp.render(trusted_ips_cidrs=trusted_ips_cidrs)
     with open("proxy/traefik/config-tcp.yml", "w", encoding="utf-8") as f:
         f.write(config_tcp)
     with open("proxy/tpl/config-web.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_config_web = Template(t)
-    le_email = os.environ.get("LETSENCRYPT_EMAIL")
-    le_staging = os.environ.get("LETSENCRYPT_STAGING")
-    config_web = tpl_config_web.render(trusted_ips_cidr=trusted_ips_cidr, le_email=le_email, le_staging=le_staging)
+    plugin_registry = get_plugin_registry()
+    has_plugins = any(plugin.enabled for _, plugin in plugin_registry)
+    config_web = tpl_config_web.render(
+        trusted_ips_cidrs=trusted_ips_cidrs,
+        le_email=os.environ.get("LETSENCRYPT_EMAIL"),
+        le_staging=bool(os.environ.get("LETSENCRYPT_STAGING")),
+        plugin_registry=plugin_registry,
+        has_plugins=has_plugins,
+    )
     with open("proxy/traefik/config-web.yml", "w", encoding="utf-8") as f:
         f.write(config_web)
+
+
+def write_compose() -> None:
+    plugin_registry = get_plugin_registry()
+    with open("proxy/tpl/docker-compose.yml.j2", encoding="utf-8") as f:
+        t = f.read()
+    tpl_compose = Template(t)
+    compose = tpl_compose.render(plugin_registry=plugin_registry)
+    with open("proxy/docker-compose.yml", "w", encoding="utf-8") as f:
+        f.write(compose)
 
 
 def write_proxies() -> None:
@@ -116,6 +138,8 @@ def write_proxies() -> None:
     write_proxy()
     write_terminate()
     write_routers()
+    write_config()
+    write_compose()
 
 
 def update_proxy(

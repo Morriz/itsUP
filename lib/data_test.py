@@ -35,7 +35,7 @@ class TestCodeUnderTest(unittest.TestCase):
         mock_open.assert_called_once_with("db.yml", "w", encoding="utf-8")
 
         # Assert that the mock functions were called correctly
-        mock_yaml.dump.assert_called_once_with(test_db, mock_open())
+        mock_yaml.dump.assert_called_once_with({"projects": test_db["projects"]}, mock_open())
 
     # Get projects with filter
     @mock.patch(

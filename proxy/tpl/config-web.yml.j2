@@ -1,9 +1,14 @@
-accessLog: {}
+accessLog:
+  filePath: /var/log/traefik/access.log
   # format: json
   # fields:
   #   defaultMode: keep
   #   headers:
   #     defaultMode: keep
+
+log:
+  filePath: /var/log/traefik/error.log
+  level: DEBUG
 
 entryPoints:
   web:
@@ -56,10 +61,15 @@ certificatesResolvers:
 
 experimental:
   http3: true
+{%- if has_plugins %}  
+  plugins:
+  {%- if plugin_registry.crowdsec.enabled %}
+    {%- set p = plugin_registry.crowdsec %}
+    bouncer:
+      modulename: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      version: {{ p.version }}
+  {%- endif %}
+{%- endif %}
 
 global:
   sendAnonymousUsage: true
-
-log:
-  level: DEBUG
-

@@ -5,13 +5,13 @@ entryPoints:
     forwardedHeaders:
       trustedIPs:
         - 127.0.0.0/32
-{%- for ip in trusted_ips_cidr %}
+{%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
     proxyProtocol:
       trustedIPs:
         - 127.0.0.0/32
-{%- for ip in trusted_ips_cidr %}
+{%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
 
@@ -20,13 +20,13 @@ entryPoints:
     forwardedHeaders:
       trustedIPs:
         - 127.0.0.1/32
-{%- for ip in trusted_ips_cidr %}
+{%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
     proxyProtocol:
       trustedIPs:
         - 127.0.0.0/32
-{%- for ip in trusted_ips_cidr %}
+{%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
 

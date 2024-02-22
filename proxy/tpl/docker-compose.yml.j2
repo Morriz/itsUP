@@ -81,6 +81,7 @@ services:
     depends_on:
       - dockerproxy
       - traefik-tcp
+{%- if plugin_registry.crowdsec.enabled %}
       - crowdsec
   crowdsec:
     image: crowdsecurity/crowdsec:v1.6.0
@@ -90,13 +91,16 @@ services:
       GID: ${GID-1000}
       COLLECTIONS: crowdsecurity/linux crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/sshd crowdsecurity/whitelist-good-actors
       CUSTOM_HOSTNAME: crowdsec
-      BOUNCER_KEY_TRAEFIK: L9yZ1y2XagDm9915mRg2fg==
+      {%- if plugin_registry.crowdsec.apikey %}
+      BOUNCER_KEY_TRAEFIK: {{ plugin_registry.crowdsec.apikey }}
+      {%- endif %}
     volumes:
       - ./traefik/crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
       - logs:/var/log/traefik:ro
       - crowdsec-db:/var/lib/crowdsec/data/
     labels:
-      - "traefik.enable=false"
+      - "traefik.enable=false"      
+{%- endif %}
 
 volumes:
   logs:

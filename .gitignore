@@ -5,6 +5,7 @@ __pycache__
 .venv
 certs/*
 db.yml
+proxy/docker-compose.yml
 proxy/nginx/*.conf
 proxy/traefik/*.yml
 upstream

@@ -1,3 +1,20 @@
+plugins:
+  crowdsec:
+    enabled: false
+    version: v1.2.0
+#    apikey:
+    options:
+      logLevel: INFO
+      updateIntervalSeconds: 60
+      defaultDecisionSeconds: 60
+      httpTimeoutSeconds: 10
+      crowdsecCapiMachineId: login
+      crowdsecCapiPassword: password
+      crowdsecCapiScenarios:
+        - crowdsecurity/http-path-traversal-probing
+        - crowdsecurity/http-xss-probing
+        - crowdsecurity/http-generic-bf
+
 projects:
   - description: Home Assistant passthrough
     domain: home.example.com

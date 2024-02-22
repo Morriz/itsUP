@@ -41,5 +41,8 @@
   "files.exclude": {
     "**/.history": true
   },
-  "python.testing.unittestEnabled": true
+  "python.testing.unittestEnabled": true,
+  "[dotenv]": {
+    "editor.defaultFormatter": "foxundermoon.shell-format"
+  }
 }

@@ -1,12 +1,13 @@
+from atexit import register
 from logging import debug, info
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List, Union, cast
 
 import yaml
 
-from lib.models import Env, Project, Service
+from lib.models import Env, Plugin, PluginRegistry, Project, Service
 
 
-def get_db() -> Dict[str, List[Dict[str, str]]]:
+def get_db() -> Dict[str, List[Dict[str, Any]] | Dict[str, Any]]:
     """Get the db"""
     with open("db.yml", encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -16,18 +17,43 @@ def validate_db() -> None:
     """Validate db.yml contents"""
     debug("Validating db.yml")
     db = get_db()
+    plugins_raw = cast(Dict[str, Any], db["plugins"])
+    for name, plugin in plugins_raw.items():
+        p = {"name": name, **plugin}
+        Plugin.model_validate(p)
     for project in db["projects"]:
         Project.model_validate(project)
+
+
+def get_plugin_registry() -> PluginRegistry:
+    """Get plugin registry."""
+    debug("Getting plugin registry")
+    db = get_db()
+    plugins_raw = cast(Dict[str, Any], db["plugins"])
+    return PluginRegistry(**plugins_raw)
+
+
+def get_plugins(filter: Callable[[Plugin], bool] = None) -> List[Plugin]:
+    """Get all plugins. Optionally filter the results."""
+    debug("Getting plugins" + (f" with filter {filter}" if filter else ""))
+    registry = get_plugin_registry()
+    plugins = []
+    for name, p in registry:
+        plugin = Plugin(name=name, **p)
+        if not filter or filter(plugin):
+            plugins.append(plugin)
+    return plugins
 
 
 def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Project]:
     """Get all projects. Optionally filter the results."""
     debug("Getting projects" + (f" with filter {filter}" if filter else ""))
     db = get_db()
+    projects_raw = cast(List[Dict[str, Any]], db["projects"])
     ret = []
-    for p_json in db["projects"]:
+    for project in projects_raw:
         services = []
-        p = Project(**p_json)
+        p = Project(**project)
         for s in p.services.copy():
             if not filter or filter(p, s):
                 services.append(s)
@@ -83,7 +109,6 @@ def get_service(project: str | Project, service: str, throw: bool = True) -> Ser
     """Get a project's service by name"""
     debug(f"Getting service {service} in project {project.name if isinstance(project, Project) else project}")
     p = get_project(project, throw) if isinstance(project, str) else project
-    assert p is not None
     for item in p.services:
         if item.name == service:
             return item
@@ -98,7 +123,6 @@ def get_env(project: str | Project, service: str) -> Dict[str, str]:
     """Get a project's env by name"""
     debug(f"Getting env for service {service} in project {project.name if isinstance(project, Project) else project}")
     service = get_service(project, service)
-    assert service is not None
     return service.env
 
 
@@ -106,9 +130,7 @@ def upsert_env(project: str | Project, service: str, env: Env) -> None:
     """Upsert the env of a service"""
     p = get_project(project) if isinstance(project, str) else project
     debug(f"Upserting env for service {service} in project {p.name}: {env.model_dump_json()}")
-    assert p is not None
     s = get_service(p, service)
-    assert s is not None
     s.env = Env(**(s.env.model_dump() | env.model_dump()))
     upsert_service(project, s)
 
@@ -117,9 +139,7 @@ def upsert_service(project: str | Project, service: Service) -> None:
     """Upsert a service"""
     p = get_project(project) if isinstance(project, str) else project
     debug(f"Upserting service {service.name} in project {p.name}: {service}")
-    assert p is not None
     for i, s in enumerate(p.services):
-        assert s is not None
         if s.name == service.name:
             p.services[i] = service
             break

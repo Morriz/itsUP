@@ -8,6 +8,27 @@ class Env(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class Plugin(BaseModel):
+    """Plugin model"""
+
+    enabled: bool = False
+    """Wether or not the plugin is enabled"""
+    apikey: str = None
+    """The API key to use for the plugin, if the plugin requires one"""
+    name: str = None
+    """The name of the plugin"""
+    description: str = None
+    """A description of the plugin"""
+    options: Dict[str, Any] = {}
+    """A dictionary of options to pass to the plugin"""
+
+
+class PluginRegistry(BaseModel):
+    """Plugin registry"""
+
+    crowdsec: Plugin
+
+
 class Service(BaseModel):
     """Service model"""
 
