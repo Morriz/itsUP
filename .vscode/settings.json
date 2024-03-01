@@ -10,6 +10,7 @@
     "editor.tabSize": 4
   },
   "black-formatter.importStrategy": "fromEnvironment",
+  "cSpell.enabled": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "isort.check": true,
   "isort.importStrategy": "fromEnvironment",
@@ -44,5 +45,5 @@
   "python.testing.unittestEnabled": true,
   "[dotenv]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
-  }
+  },
 }

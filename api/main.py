@@ -1,5 +1,6 @@
 #!.venv/bin/python
 import os
+from functools import cache
 from logging import info
 from typing import Any, Dict, List
 
@@ -94,6 +95,7 @@ async def github_workflow_job_handler(
 
 @app.get("/projects", response_model=List[Project])
 @app.get("/projects/{project}", response_model=Project)
+@cache
 def get_projects_handler(project: str = None, _: None = Depends(verify_apikey)) -> List[Project] | Project:
     """Get the list of all or one project"""
     if project:

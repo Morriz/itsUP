@@ -10,7 +10,7 @@ drun() {
     $image sh -c "'$@'"
 }
 
-dcp() {
+dc_() {
   dir=$1
   project=$2
   part=$3
@@ -31,44 +31,43 @@ dcp() {
   eval "export HOST_GID=$(id -g daemon) && docker compose --project-directory $dir -p $project -f $dir/docker-compose.yml $cmd $@"
 }
 
-dcpx() {
+dcx_() {
   dir=$1
   project=$2
   svc=$3
   shift
   shift
   shift
-  dcp $dir $project exec $svc sh -c "'$@'"
+  dc_ $dir $project exec $svc sh -c "'$@'"
 }
 
 # Run docker compose in the proxy
-dcpp() {
-  dcp proxy proxy $@
+dcp() {
+  dc_ proxy proxy $@
 }
-dcppx() {
-  dcpx proxy proxy $@
+dcpx() {
+  dcx_ proxy proxy $@
 }
 
 # Run docker compose in an upstream
-dcpu() {
-  upstream=$1
-  project=$(basename $upstream)
+dcu() {
+  project=$1
   shift
-  [ -z "$upstream" ] && echo "No upstream project given!" && return 1
-  dcp $upstream $project $@
+  [ -z "$project" ] && echo "No upstream project given!" && return 1
+  dc_ upstream/$project $project $@
 }
-dcpux() {
-  upstream=$1
-  project=$(basename $upstream)
+dcux() {
+  project=$1
   shift
-  dcpx $upstream $project $@
+  dcx_ upstream/$project $project $@
 }
 
 # Run docker compose command in all upstreams
-dcpa() {
+dca() {
   [ -z "$@" ] && echo "No arguments given!" && return 1
   for upstream in $(ls -d upstream/*); do
-    dcpu $upstream $@
+    project=$(basename $upstream)
+    dcu $project $@
   done
 }
 

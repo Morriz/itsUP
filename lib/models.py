@@ -11,6 +11,7 @@ class Env(BaseModel):
 class Plugin(BaseModel):
     """Plugin model"""
 
+    version: str
     enabled: bool = False
     """Wether or not the plugin is enabled"""
     apikey: str = None

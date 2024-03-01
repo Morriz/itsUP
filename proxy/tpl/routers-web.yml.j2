@@ -4,18 +4,11 @@ http:
       service: noop@internal
       entryPoints:
         - web
-      middlewares:
-        - redirect
-        - crowdsec
       rule: Host(`*`)
     traefik-secure:
       service: api@internal
       entryPoints:
         - web-secure
-      middlewares:
-        - default-headers
-        - rate-limit
-        - traefik-auth
       rule: {{ traefik_rule }}
       tls:
         certResolver: letsencrypt
@@ -33,12 +26,6 @@ http:
       rule: 'Host(`{{ p.domain }}`)'
       tls:
         certResolver: letsencrypt
-    {%- endif %}
-      middlewares:
-        - default-headers
-        - rate-limit
-    {%- if plugin_registry.crowdsec.enabled %}
-        - crowdsec
     {%- endif %}
   {%- endif %}
 {%- endfor %}

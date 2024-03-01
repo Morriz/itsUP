@@ -1,0 +1,26 @@
+{
+  "version": "0.2",
+  "ignorePaths": [ ],
+  "dictionaryDefinitions": [ ],
+  "dictionaries": [ ],
+  "words": [
+    "blocklists",
+    "crowdsec",
+    "cscli",
+    "dcpx",
+    "dcux",
+    "dida",
+    "healthchecks",
+    "howto",
+    "itsup",
+    "letsencrypt",
+    "openapi",
+    "portforwarding",
+    "traefik",
+    "upstreams",
+    "uvicorn",
+    "venv"
+  ],
+  "ignoreWords": [ ],
+  "import": [ ]
+}
