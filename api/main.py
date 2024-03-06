@@ -121,7 +121,8 @@ def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)
 
 
 @app.post("/projects", tags=["Project"])
-def post_project_handler(
+@app.put("/projects", tags=["Project"])
+def upsert_project_handler(
     project: Project,
     background_tasks: BackgroundTasks,
     _: None = Depends(verify_apikey),
@@ -138,7 +139,8 @@ def get_services_handler(_: None = Depends(verify_apikey)) -> List[Service]:
 
 
 @app.post("/services", tags=["Service"])
-def post_service_handler(
+@app.put("/services", tags=["Service"])
+def upsert_service_handler(
     project: str,
     service: Service,
     background_tasks: BackgroundTasks,
@@ -149,18 +151,18 @@ def post_service_handler(
     background_tasks.add_task(_after_config_change, project, service.name)
 
 
-@app.post(
+@app.patch(
     "/projects/{project}/services/{service}/env",
     tags=["Env"],
 )
-def post_env_handler(
+def patch_env_handler(
     project: str,
     service: str,
     env: Env,
     background_tasks: BackgroundTasks,
     _: None = Depends(verify_apikey),
 ) -> None:
-    """Create or update env for a project service"""
+    """Update env for a project service"""
     upsert_env(project, service, env)
     background_tasks.add_task(_after_config_change, project, service)
 

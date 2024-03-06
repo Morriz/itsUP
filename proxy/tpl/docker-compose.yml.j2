@@ -87,9 +87,14 @@ services:
     image: crowdsecurity/crowdsec:v1.6.0
     container_name: crowdsec
     restart: unless-stopped
+    networks:
+      - default
+    expose:
+      - '8080'
+      - '7422'
     environment:
       GID: ${GID-1000}
-      COLLECTIONS: crowdsecurity/linux crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/sshd crowdsecurity/whitelist-good-actors
+      COLLECTIONS: crowdsecurity/linux crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/sshd crowdsecurity/whitelist-good-actors crowdsecurity/appsec-virtual-patching
       CUSTOM_HOSTNAME: crowdsec
       {%- if plugin_registry.crowdsec.apikey %}
       BOUNCER_KEY_TRAEFIK: {{ plugin_registry.crowdsec.apikey }}

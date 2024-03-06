@@ -144,12 +144,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - Project
+      summary: Upsert Project Handler
+      description: Create or update a project
+      operationId: upsert_project_handler_projects_put
+      security:
+      - APIKeyQuery: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Project-Input'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
       - Project
-      summary: Post Project Handler
+      summary: Upsert Project Handler
       description: Create or update a project
-      operationId: post_project_handler_projects_post
+      operationId: upsert_project_handler_projects_post
       security:
       - APIKeyQuery: []
       - APIKeyHeader: []
@@ -281,12 +309,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-    post:
+    patch:
       tags:
       - Env
-      summary: Post Env Handler
-      description: Create or update env for a project service
-      operationId: post_env_handler_projects__project__services__service__env_post
+      summary: Patch Env Handler
+      description: Update env for a project service
+      operationId: patch_env_handler_projects__project__services__service__env_patch
       security:
       - APIKeyQuery: []
       - APIKeyHeader: []
@@ -341,12 +369,47 @@ paths:
                 items:
                   $ref: '#/components/schemas/Service'
                 title: Response Get Services Handler Services Get
+    put:
+      tags:
+      - Service
+      summary: Upsert Service Handler
+      description: Create or update a service
+      operationId: upsert_service_handler_services_put
+      security:
+      - APIKeyQuery: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: project
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Service'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
       - Service
-      summary: Post Service Handler
+      summary: Upsert Service Handler
       description: Create or update a service
-      operationId: post_service_handler_services_post
+      operationId: upsert_service_handler_services_post
       security:
       - APIKeyQuery: []
       - APIKeyHeader: []
