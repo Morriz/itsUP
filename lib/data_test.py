@@ -13,6 +13,7 @@ from lib.data import (
     get_service,
     upsert_env,
     upsert_project,
+    write_db,
     write_projects,
 )
 from lib.models import Env, Project, Service
@@ -21,21 +22,32 @@ from lib.test_stubs import test_db, test_projects
 
 class TestCodeUnderTest(unittest.TestCase):
 
-    # write all projects
+    @mock.patch("lib.data.get_db", return_value=test_db.copy())
     @mock.patch(
         "lib.data.yaml",
         return_value={"dump": mock.Mock()},
     )
     @mock.patch("builtins.open", new_callable=mock.mock_open)
-    def test_write_projects(self, mock_open: Mock, mock_yaml: Mock) -> None:
+    def test_write_db(self, mock_open: Mock, mock_yaml: Mock, _: Mock) -> None:
 
         # Call the function under test
-        write_projects(test_projects)
+        write_db({"projects": test_db["projects"]})
 
         mock_open.assert_called_once_with("db.yml", "w", encoding="utf-8")
 
         # Assert that the mock functions were called correctly
-        mock_yaml.dump.assert_called_once_with({"projects": test_db["projects"]}, mock_open())
+        mock_yaml.dump.assert_called_once_with(
+            {"plugins": test_db["plugins"], "projects": test_db["projects"]}, mock_open()
+        )
+
+    @mock.patch("lib.data.write_db")
+    def test_write_projects(self, mock_write_db: Mock) -> None:
+
+        # Call the function under test
+        write_projects(test_projects)
+
+        # Assert that the mock functions were called correctly
+        mock_write_db.assert_called_once_with({"projects": test_db["projects"]})
 
     # Get projects with filter
     @mock.patch(

@@ -1,9 +1,31 @@
 import yaml
 
-from lib.models import Project, Service
+from lib.models import Plugin, Project, Service
 
 with open("db.yml.sample", encoding="utf-8") as f:
     test_db = yaml.safe_load(f)
+
+test_plugins = {
+    "crowdsec": Plugin(
+        **{
+            "enabled": False,
+            "version": "v1.2.0",
+            "options": {
+                "logLevel": "INFO",
+                "updateIntervalSeconds": 60,
+                "defaultDecisionSeconds": 60,
+                "httpTimeoutSeconds": 10,
+                "crowdsecCapiMachineId": "login",
+                "crowdsecCapiPassword": "password",
+                "crowdsecCapiScenarios": [
+                    "crowdsecurity/http-path-traversal-probing",
+                    "crowdsecurity/http-xss-probing",
+                    "crowdsecurity/http-generic-bf",
+                ],
+            },
+        }
+    )
+}
 
 test_projects = [
     Project(

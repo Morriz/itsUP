@@ -444,32 +444,49 @@ components:
       description: Project model
     Service:
       properties:
-        name:
-          type: string
-          title: Name
-        port:
-          type: integer
-          title: Port
-          default: 8080
-        image:
-          type: string
-          title: Image
         command:
           type: string
           title: Command
+        env:
+          allOf:
+          - $ref: '#/components/schemas/Env'
+        image:
+          type: string
+          title: Image
+        labels:
+          items:
+            type: string
+          type: array
+          title: Labels
+          default: []
+        name:
+          type: string
+          title: Name
         passthrough:
           type: boolean
           title: Passthrough
           default: false
+        path_prefix:
+          type: string
+          title: Path Prefix
+        path_remove:
+          type: boolean
+          title: Path Remove
+          default: false
+        port:
+          type: integer
+          title: Port
+          default: 8080
+        proxyprotocol:
+          type: boolean
+          title: Proxyprotocol
+          default: true
         volumes:
           items:
             type: string
           type: array
           title: Volumes
           default: []
-        env:
-          allOf:
-          - $ref: '#/components/schemas/Env'
       type: object
       required:
       - name

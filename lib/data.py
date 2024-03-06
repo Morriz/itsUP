@@ -13,6 +13,16 @@ def get_db() -> Dict[str, List[Dict[str, Any]] | Dict[str, Any]]:
         return yaml.safe_load(f)
 
 
+def write_db(partial: Dict[str, List[Dict[str, Any]] | Dict[str, Any]]) -> None:
+    """Write the db"""
+    # get the db first
+    db = get_db()
+    # merge wwith partial
+    db = {**db, **partial}
+    with open("db.yml", "w", encoding="utf-8") as f:
+        yaml.dump(db, f)
+
+
 def validate_db() -> None:
     """Validate db.yml contents"""
     debug("Validating db.yml")
@@ -67,8 +77,7 @@ def write_projects(projects: List[Project]) -> None:
     """Write the projects to the db"""
     debug(f"Writing {len(projects)} projects to the db")
     projects_dump = [p.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True) for p in projects]
-    with open("db.yml", "w", encoding="utf-8") as f:
-        yaml.dump({"projects": projects_dump}, f)
+    write_db({"projects": projects_dump})
 
 
 def get_project(name: str, throw: bool = True) -> Project:
