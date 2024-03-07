@@ -2,7 +2,7 @@ plugins:
   crowdsec:
     enabled: false
     version: v1.2.0
-#    apikey:
+    apikey: ''
     options:
       logLevel: INFO
       updateIntervalSeconds: 60
@@ -27,7 +27,7 @@ projects:
     domain: itsup.example.com
     name: itsUP
     services:
-      - name: 172.17.0.1
+      - name: host.docker.internal
         port: 8888
   - description: test project to demonstrate inter service connectivity
     domain: hello.example.com
@@ -46,6 +46,8 @@ projects:
         name: informant
         env:
           TARGET: boss
+        additional_properties:
+          cpu_count: 2
   - description: whoami service
     domain: whoami.example.com
     entrypoint: web

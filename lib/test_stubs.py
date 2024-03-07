@@ -41,7 +41,7 @@ test_projects = [
         description="itsUP API running on the host",
         domain="itsup.example.com",
         services=[
-            Service(name="172.17.0.1", port=8888),
+            Service(name="host.docker.internal", port=8888),
         ],
     ),
     Project(
@@ -60,6 +60,7 @@ test_projects = [
                 env={"TARGET": "boss"},
                 image="otomi/nodejs-helloworld:v1.2.13",
                 name="informant",
+                additional_properties={"cpu_count": 2},
             ),
         ],
     ),

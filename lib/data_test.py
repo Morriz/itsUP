@@ -143,6 +143,7 @@ class TestCodeUnderTest(unittest.TestCase):
                 env=extra_env,
                 image="otomi/nodejs-helloworld:v1.2.13",
                 name="informant",
+                additional_properties={"cpu_count": 2},
             ),
         )
 

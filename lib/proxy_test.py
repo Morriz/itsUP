@@ -48,7 +48,7 @@ class TestProxy(TestCase):
 
         # Assert the result
         expected_map = {
-            "itsup.example.com": "172.17.0.1:8888",
+            "itsup.example.com": "host.docker.internal:8888",
             "hello.example.com": "test-master:8080",
             "whoami.example.com": "whoami-web:8080",
         }

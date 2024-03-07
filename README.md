@@ -115,6 +115,26 @@ Project and service configuration is explained below with the following scenario
 1. Add a project without `entrypoint:` and one service, which only need `name` and `domain`.
 2. Run `bin/apply.py` to roll out the changes.
 
+**Additional docker properties:**
+
+One can add additional docker properties to a service by adding them to the `additional_properties` dictionary:
+
+```yaml
+additional_properties:
+  cpu_count: 2
+```
+
+The following docker service properties exist at the service root level and MUST NOT be added via `additional_properties`:
+
+- command
+- env
+- image
+- port
+- name
+- volumes
+
+(Also see `lib/models.py`)
+
 ### Configure plugins
 
 You can enable and configure plugins in `db.yml`. Right now we support the following:
@@ -137,7 +157,7 @@ Now we can execute the command to get the key:
 docker compose exec crowdsec cscli bouncers add crowdsecBouncer
 ```
 
-Put the resulting api key in the plugin configuration in `db.yml` and apply with `bin/apply.py`.
+Put the resulting api key in the `plugins.crowdsec.apikey` configuration in `db.yml` and apply with `bin/apply.py`.
 Crowdsec is now running and wired up, but does not use any blocklists yet. Those can be managed manually, but preferable is to become part of the community by creating an account with CrowdSec to get access and contribute to the community blocklists, as well as view results in your account's dashboards.
 
 **Step 2: connect your instance with the CrowdSec console**
@@ -149,6 +169,13 @@ docker compose exec crowdsec cscli console enroll ${enrollment key}
 ```
 
 **Step 3: subscribe to 3rd party blocklists**
+
+In the [security-engines](https://app.crowdsec.net/security-engines) section select the "Blocklists" of your engine and choose some blocklists of interest.
+Example:
+
+- Free proxies list
+- Firehol SSL proxies list
+- Firehol cruzit.com list
 
 ### Using the Api & OpenApi spec
 

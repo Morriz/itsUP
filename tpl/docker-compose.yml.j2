@@ -49,12 +49,21 @@ services:
     restart: unless-stopped
   {%- if s.volumes %}
     volumes:
-    {%- for v in s.volumes %}
-      - .{{ v }}:{{ v }}
+    {%- for k, v in volumes[s.name].items() %}
+      - {{ k }}:{{ v }}
     {%- endfor %}
   {%- endif %}
   {%- for k, v in s.additional_properties.items() %}
     {{ k }}: {{ v }}
   {%- endfor %}
 {%- endfor %}
-      
+
+{% if volumes|length > 0 %}
+volumes:
+  {%- for s in project.services %}
+    {%- for k, v in volumes[s.name].items() %}
+  {{ k }}:
+    {%- endfor %}
+  {%- endfor %}
+{%- endif %}
+

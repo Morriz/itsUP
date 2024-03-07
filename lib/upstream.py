@@ -14,10 +14,20 @@ load_dotenv()
 def write_upstream(project: Project) -> None:
     with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
         tpl = f.read()
+    volumes = {}
+    for s in project.services:
+        vols = {}
+        for i, v in enumerate(s.volumes):
+            k = f"data_{s.name.replace('-', '_')}_{i}"
+            vols[k] = v
+        volumes[s.name] = vols
+
     if os.environ.get("PYTHON_ENV") != "production":
-        content = Template(tpl).render(project=project, domain=os.environ.get("TRAEFIK_DOMAIN"), env="development")
+        content = Template(tpl).render(
+            project=project, volumes=volumes, domain=os.environ.get("TRAEFIK_DOMAIN"), env="development"
+        )
     else:
-        content = Template(tpl).render(project=project, domain=project.domain)
+        content = Template(tpl).render(project=project, volumes=volumes, domain=project.domain)
     with open(f"upstream/{project.name}/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(content)
 
