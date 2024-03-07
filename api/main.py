@@ -114,10 +114,10 @@ def get_project_services_handler(
     return get_project(project, throw=True).services
 
 
-@app.get("/projects/{project}/services/{service}/env", response_model=Env)
-def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)) -> Dict[str, str]:
-    """Get the list of a project's service' env vars"""
-    return get_env(project, service)
+# @app.get("/projects/{project}/services/{service}/env", response_model=Env)
+# def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)) -> Dict[str, str]:
+#     """Get the list of a project's service' env vars"""
+#     return get_env(project, service)
 
 
 @app.post("/projects", tags=["Project"])
@@ -151,22 +151,30 @@ def upsert_service_handler(
     background_tasks.add_task(_after_config_change, project, service.name)
 
 
-@app.patch(
-    "/projects/{project}/services/{service}/env",
-    tags=["Env"],
-)
-def patch_env_handler(
-    project: str,
-    service: str,
-    env: Env,
-    background_tasks: BackgroundTasks,
-    _: None = Depends(verify_apikey),
-) -> None:
-    """Update env for a project service"""
-    upsert_env(project, service, env)
-    background_tasks.add_task(_after_config_change, project, service)
+# @app.patch(
+#     "/projects/{project}/services/{service}/env",
+#     tags=["Env"],
+# )
+# def patch_env_handler(
+#     project: str,
+#     service: str,
+#     env: Env,
+#     background_tasks: BackgroundTasks,
+#     _: None = Depends(verify_apikey),
+# ) -> None:
+#     """Update env for a project service"""
+#     upsert_env(project, service, env)
+#     background_tasks.add_task(_after_config_change, project, service)
 
 
 if __name__ == "__main__":
 
-    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug", reload_dirs=["."], log_config="api-log.conf.yaml")
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8888,
+        log_level="debug",
+        reload_dirs=["."],
+        log_config="api-log.conf.yaml",
+        proxy_headers=os.environ.get("PYTHON_ENV", "development") == "production",
+    )

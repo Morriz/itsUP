@@ -16,7 +16,7 @@ services:
   {%- if s.env %}
     environment:
     {%- for k, v in s.env %}
-      {{ k }}: {{ v }}
+      {{ k }}: "{{ v }}"
     {%- endfor %}
   {%- endif %}
   {%- if p.entrypoint == s.name %}
@@ -35,8 +35,8 @@ services:
       - traefik.http.middlewares.removeServiceSelector.stripPrefix.prefixes={{ path_prefix }}
     {%- endif %}
       - traefik.http.services.{{ p.name }}.loadbalancer.server.port={{ s.port }}
-    {%- for k, v in s.labels %}
-      - {{ k }}={{ v }}
+    {%- for l in s.labels %}
+      - {{ l }}
     {%- endfor %}    
   {%- endif %}
     networks:
@@ -53,5 +53,8 @@ services:
       - .{{ v }}:{{ v }}
     {%- endfor %}
   {%- endif %}
+  {%- for k, v in s.additional_properties.items() %}
+    {{ k }}: {{ v }}
+  {%- endfor %}
 {%- endfor %}
       

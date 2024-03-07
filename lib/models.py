@@ -54,6 +54,8 @@ class Service(BaseModel):
     """When set, the service will be exposed using the PROXY protocol version 2"""
     volumes: List[str] = []
     """A list of volumes to mount in the service"""
+    additional_properties: Dict[str, Any] = {}
+    """Additional docker compose properties to pass to the service"""
 
 
 class Project(BaseModel):
