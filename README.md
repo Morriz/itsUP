@@ -121,7 +121,7 @@ One can add additional docker properties to a service by adding them to the `add
 
 ```yaml
 additional_properties:
-  cpu_count: 2
+  cpus: 0.1
 ```
 
 The following docker service properties exist at the service root level and MUST NOT be added via `additional_properties`:

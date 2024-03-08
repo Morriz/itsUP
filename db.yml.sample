@@ -47,7 +47,7 @@ projects:
         env:
           TARGET: boss
         additional_properties:
-          cpu_count: 2
+          cpus: 0.1
   - description: whoami service
     domain: whoami.example.com
     entrypoint: web
