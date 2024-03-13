@@ -6,8 +6,20 @@ accessLog:
   #   headers:
   #     defaultMode: keep
 
-log:
-  level: DEBUG
+api:
+  insecure: false
+  dashboard: true
+  debug: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+{%- if le_staging %}    
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+{%- endif %}
+      email: {{ le_email }}
+      storage: /etc/acme/acme.json
+      tlsChallenge: {}
 
 entryPoints:
   web:
@@ -40,29 +52,6 @@ entryPoints:
 {%- if plugin_registry.crowdsec.enabled %}
         - crowdsec@file
 {%- endif %}
-api:
-  insecure: false
-  dashboard: true
-  debug: true
-
-providers:
-  docker:
-    exposedByDefault: false
-    endpoint: tcp://dockerproxy:2375
-    network: default
-  file:
-    filename: /etc/traefik/routers-web.yml
-    watch: true
-
-certificatesResolvers:
-  letsencrypt:
-    acme:
-{%- if le_staging %}    
-      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
-{%- endif %}
-      email: {{ le_email }}
-      storage: /etc/acme/acme.json
-      tlsChallenge: {}
 
 experimental:
   http3: true
@@ -78,6 +67,18 @@ experimental:
 
 global:
   sendAnonymousUsage: true
+
+log:
+  level: DEBUG
+
+providers:
+  docker:
+    exposedByDefault: false
+    endpoint: tcp://dockerproxy:2375
+    network: default
+  file:
+    filename: /etc/traefik/dynamic/routers-web.yml
+    watch: true
 
 tls:
   options:

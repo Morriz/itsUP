@@ -1,4 +1,6 @@
-accessLog: {}
+accessLog:
+  filePath: /var/log/traefik/access.log
+
 entryPoints:
   tcp:
     address: ':8080'
@@ -30,10 +32,29 @@ entryPoints:
         - {{ ip }}
 {%- endfor %}
 
+{%- for p in projects %}
+  {% for s in p.services %}
+  {{ Protocol(s.protocol).value }}-{{ s.hostport }}:
+    address: ':{{ s.hostport }}/{{ Protocol(s.protocol).value }}'
+    forwardedHeaders:
+      trustedIPs:
+        - 127.0.0.1/32
+    {%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+    {%- endfor %}
+    proxyProtocol:
+      trustedIPs:
+        - 127.0.0.0/32
+    {%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+    {%- endfor %}
+  {%- endfor %}
+{%- endfor %}
+
 log:
-  level: ERROR
+  level: DEBUG
 
 providers:
   file:
-    filename: /etc/traefik/routers-tcp.yml
+    directory: /etc/traefik/dynamic/
     watch: true

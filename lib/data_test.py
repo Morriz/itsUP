@@ -67,7 +67,7 @@ class TestCodeUnderTest(unittest.TestCase):
                 domain="hello.example.com",
                 entrypoint="master",
                 services=[
-                    test_projects[2].services[0],
+                    test_projects[3].services[0],
                 ],
             ),
         ]
@@ -125,8 +125,8 @@ class TestCodeUnderTest(unittest.TestCase):
         mock_write_projects.assert_called_once_with(test_projects + [new_project])
 
     # Upsert a project's service' env
-    @mock.patch("lib.data.get_project", return_value=test_projects[2].copy())
-    @mock.patch("lib.data.get_service", return_value=test_projects[2].services[1].copy())
+    @mock.patch("lib.data.get_project", return_value=test_projects[3].model_copy())
+    @mock.patch("lib.data.get_service", return_value=test_projects[3].services[1].model_copy())
     @mock.patch("lib.data.upsert_service")
     def test_upsert_env(self, mock_upsert_service: Mock, mock_get_service: Mock, mock_get_project: Mock) -> None:
 

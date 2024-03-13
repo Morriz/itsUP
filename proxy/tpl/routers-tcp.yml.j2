@@ -1,9 +1,8 @@
-{%- if projects %}
 tcp:
   routers:
-  {%- for p in projects %}
-    {%- set s = p.services[0] %}
-    {%- if s.passthrough %}
+{%- for p in projects %}
+  {%- set s = p.services[0] %}
+  {%- if s.passthrough %}
     {{ p.name }}:
       entryPoints:
         - tcp-secure
@@ -11,8 +10,8 @@ tcp:
       rule: 'HostSNI(`{{ p.domain }}`)'
       tls:
         passthrough: true
-    {%- endif %}
-  {%- endfor %}
+  {%- endif %}
+{%- endfor %}
     http:
       entryPoints:
         - tcp
@@ -26,20 +25,19 @@ tcp:
       tls:
         passthrough: true
   services:
-  {%- for p in projects %}
-    {%- set s = p.services[0] %}
-    {%- if s.passthrough %}
+{%- for p in projects %}
+  {%- set s = p.services[0] %}
+  {%- if s.passthrough %}
     {{ p.name }}:
       loadBalancer:
-      {%- if s.proxyprotocol %}
+    {%- if s.proxyprotocol %}
         proxyProtocol:
           version: 2
-      {%- endif %}
+    {%- endif %}
         servers:
           - address: {{ s.name }}:{{ s.port }}
-    {%- endif %}
-  {%- endfor %}
-{%- endif %}
+  {%- endif %}
+{%- endfor %}
     http:
       loadBalancer:
         proxyProtocol:

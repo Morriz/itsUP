@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_plugin_registry, get_project, get_projects
+from lib.models import Protocol
 from lib.utils import run_command
 
 load_dotenv()
@@ -77,13 +78,15 @@ def write_terminate() -> None:
 
 
 def write_routers() -> None:
-    projects = get_projects(filter=lambda p, s: not bool(p.entrypoint) or p.entrypoint == s.name)
+    projects_tcp = get_projects(
+        filter=lambda p, s: s.protocol == Protocol.tcp and (not bool(p.entrypoint) or p.entrypoint == s.name)
+    )
     with open("proxy/tpl/routers-web.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_web = Template(t)
     domain = os.environ.get("TRAEFIK_DOMAIN")
     routers_web = tpl_routers_web.render(
-        projects=projects,
+        projects=projects_tcp,
         traefik_rule=f"Host(`{domain}`)",
         traefik_admin=os.environ.get("TRAEFIK_ADMIN"),
         plugin_registry=get_plugin_registry(),
@@ -94,18 +97,27 @@ def write_routers() -> None:
     with open("proxy/tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_tcp = Template(t)
-    routers_tcp = tpl_routers_tcp.render(projects=projects, traefik_rule=f"HostSNI(`{domain}`)")
+    routers_tcp = tpl_routers_tcp.render(projects=projects_tcp, traefik_rule=f"HostSNI(`{domain}`)")
     with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
+        f.write(routers_tcp)
+    projects_udp = get_projects(filter=lambda _, s: s.protocol == Protocol.udp)
+    with open("proxy/tpl/routers-udp.yml.j2", encoding="utf-8") as f:
+        t = f.read()
+    tpl_routers_tcp = Template(t)
+    routers_tcp = tpl_routers_tcp.render(projects=projects_udp)
+    with open("proxy/traefik/routers-udp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
 
 
 def write_config() -> None:
-    with open("proxy/tpl/config-tcp.yml.j2", encoding="utf-8") as f:
+    with open("proxy/tpl/config-in.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_config_tcp = Template(t)
+    tpl_config_tcp.globals["Protocol"] = Protocol
     trusted_ips_cidrs = os.environ.get("TRUSTED_IPS_CIDRS").split(",")
-    config_tcp = tpl_config_tcp.render(trusted_ips_cidrs=trusted_ips_cidrs)
-    with open("proxy/traefik/config-tcp.yml", "w", encoding="utf-8") as f:
+    projects_hostport = get_projects(filter=lambda _, s: bool(s.hostport))
+    config_tcp = tpl_config_tcp.render(projects=projects_hostport, trusted_ips_cidrs=trusted_ips_cidrs)
+    with open("proxy/traefik/config-in.yml", "w", encoding="utf-8") as f:
         f.write(config_tcp)
     with open("proxy/tpl/config-web.yml.j2", encoding="utf-8") as f:
         t = f.read()
@@ -128,7 +140,9 @@ def write_compose() -> None:
     with open("proxy/tpl/docker-compose.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_compose = Template(t)
-    compose = tpl_compose.render(plugin_registry=plugin_registry)
+    tpl_compose.globals["Protocol"] = Protocol
+    projects_hostport = get_projects(filter=lambda _, s: bool(s.hostport))
+    compose = tpl_compose.render(projects=projects_hostport, plugin_registry=plugin_registry)
     with open("proxy/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(compose)
 

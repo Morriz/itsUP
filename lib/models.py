@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, Dict, List
 
 from github_webhooks.schemas import WebhookCommonPayload
@@ -30,13 +31,24 @@ class PluginRegistry(BaseModel):
     crowdsec: Plugin
 
 
+class Protocol(str, Enum):
+    """Protocol enum"""
+
+    tcp = "tcp"
+    udp = "udp"
+
+
 class Service(BaseModel):
     """Service model"""
 
+    additional_properties: Dict[str, Any] = {}
+    """Additional docker compose properties to pass to the service"""
     command: str = None
     """The command to run in the service"""
     env: Env = None
     """A dictionary of environment variables to pass to the service"""
+    hostport: int = None
+    """The port to expose on the host"""
     image: str = None
     """The image name plus tag to use for the service"""
     labels: List[str] = []
@@ -52,10 +64,12 @@ class Service(BaseModel):
     """When set, the service will be exposed on this domain."""
     proxyprotocol: bool = True
     """When set, the service will be exposed using the PROXY protocol version 2"""
+    protocol: Protocol = Protocol.tcp
+    """The protocol to use for the service"""
+    restart: str = "unless-stopped"
+    """The restart policy to use for the service"""
     volumes: List[str] = []
     """A list of volumes to mount in the service"""
-    additional_properties: Dict[str, Any] = {}
-    """Additional docker compose properties to pass to the service"""
 
 
 class Project(BaseModel):

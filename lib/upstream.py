@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_project, get_projects, get_service
-from lib.models import Project
+from lib.models import Project, Protocol
 from lib.utils import run_command
 
 load_dotenv()
@@ -13,11 +13,13 @@ load_dotenv()
 
 def write_upstream(project: Project) -> None:
     with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
-        tpl = f.read()
+        t = f.read()
+    tpl = Template(t)
+    tpl.globals["Protocol"] = Protocol
     if os.environ.get("PYTHON_ENV") != "production":
-        content = Template(tpl).render(project=project, domain=os.environ.get("TRAEFIK_DOMAIN"), env="development")
+        content = tpl.render(project=project, domain=os.environ.get("TRAEFIK_DOMAIN"), env="development")
     else:
-        content = Template(tpl).render(project=project, domain=project.domain)
+        content = tpl.render(project=project, domain=project.domain)
     with open(f"upstream/{project.name}/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(content)
 

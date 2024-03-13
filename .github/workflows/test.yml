@@ -29,3 +29,29 @@ jobs:
           bin/format.sh
           bin/lint.sh
           bin/test.sh
+
+      - name: Install OpenVPN
+        run: |
+          sudo apt update
+          sudo apt install -y openvpn openvpn-systemd-resolved
+
+      - name: Connect to VPN
+        uses: 'Morriz/github-openvpn-connect-action@v3'
+        with:
+          config_file: .github/workflows/client.ovpn
+          host: ${{ secrets.API_HOST }}
+          ca: '${{ secrets.OVPN_CA }}'
+          cert: '${{ secrets.OVPN_CERT }}'
+          client_key: '${{ secrets.OVPN_USER_KEY }}'
+          client_pass: '${{ secrets.OVPN_USER_PASS }}'
+          tls_auth_key: '${{ secrets.OVPN_TLS_AUTH_KEY }}'
+
+      - name: Use SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: '${{ secrets.SSH_PRIVATE_KEY }}'
+          passphrase: '${{ secrets.SSH_PASSPHRASE }}'
+          script: |
+            curl -v 'https://${{ secrets.API_HOST }}/update-upstream/itsUP?apikey=${{ secrets.API_KEY }}'

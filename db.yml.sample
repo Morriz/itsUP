@@ -29,25 +29,43 @@ projects:
     services:
       - name: host.docker.internal
         port: 8888
+  - description: VPN server
+    domain: vpn.example.com
+    entrypoint: openvpn
+    name: vpn
+    services:
+      - additional_properties:
+          cap_add:
+            - NET_ADMIN
+        # change tag to x86_64 if not on ARM:
+        hostport: 1194
+        hostport: 1194
+        image: nubacuk/docker-openvpn:aarch64
+        name: openvpn
+        port: 1194
+        protocol: udp
+        restart: always
+        volumes:
+          - /etc/openvpn
   - description: test project to demonstrate inter service connectivity
     domain: hello.example.com
     name: test
     entrypoint: master
     services:
-      - image: otomi/nodejs-helloworld:v1.2.13
-        name: master
-        env:
+      - env:
           TARGET: cost concerned people
           INFORMANT: http://test-informant:8080
+        image: otomi/nodejs-helloworld:v1.2.13
+        name: master
         volumes:
           - /data/bla
           - /etc/dida
-      - image: otomi/nodejs-helloworld:v1.2.13
-        name: informant
+      - additional_properties:
+          cpus: 0.1
         env:
           TARGET: boss
-        additional_properties:
-          cpus: 0.1
+        image: otomi/nodejs-helloworld:v1.2.13
+        name: informant
   - description: whoami service
     domain: whoami.example.com
     entrypoint: web

@@ -29,26 +29,44 @@ test_plugins = {
 
 test_projects = [
     Project(
-        name="home-assistant",
         description="Home Assistant passthrough",
         domain="home.example.com",
+        name="home-assistant",
         services=[
             Service(name="192.168.1.111", passthrough=True, port=443),
         ],
     ),
     Project(
-        name="itsUP",
         description="itsUP API running on the host",
         domain="itsup.example.com",
+        name="itsUP",
         services=[
             Service(name="host.docker.internal", port=8888),
         ],
     ),
     Project(
-        name="test",
+        description="VPN server",
+        domain="vpn.example.com",
+        entrypoint="openvpn",
+        name="vpn",
+        services=[
+            Service(
+                additional_properties={"cap_add": ["NET_ADMIN"]},
+                hostport=1194,
+                image="nubacuk/docker-openvpn:aarch64",
+                name="openvpn",
+                port=1194,
+                protocol="udp",
+                restart="always",
+                volumes=["/etc/openvpn"],
+            ),
+        ],
+    ),
+    Project(
         description="test project to demonstrate inter service connectivity",
         domain="hello.example.com",
         entrypoint="master",
+        name="test",
         services=[
             Service(
                 env={"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"},
@@ -65,10 +83,10 @@ test_projects = [
         ],
     ),
     Project(
-        name="whoami",
         description="whoami service",
         domain="whoami.example.com",
         entrypoint="web",
+        name="whoami",
         services=[
             Service(image="traefik/whoami:latest", name="web"),
         ],

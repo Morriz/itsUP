@@ -50,6 +50,7 @@ class TestProxy(TestCase):
         expected_map = {
             "itsup.example.com": "host.docker.internal:8888",
             "hello.example.com": "test-master:8080",
+            "vpn.example.com": "vpn-openvpn:1194",
             "whoami.example.com": "whoami-web:8080",
         }
         self.assertEqual(terminate_map, expected_map)

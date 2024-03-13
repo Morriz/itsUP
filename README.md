@@ -17,16 +17,22 @@ Still interested? Then read on...
   - [Managed service deployments \& updates](#managed-service-deployments--updates)
   - [\*Zero downtime?](#zero-downtime)
 - [Prerequisites](#prerequisites)
+- [Dev/ops tools](#devops-tools)
+  - [utility functions](#utility-functions)
+  - [Utility scripts](#utility-scripts)
 - [Howto](#howto)
   - [Install \& run](#install--run)
   - [Configure services](#configure-services)
   - [Configure plugins](#configure-plugins)
     - [CrowdSec](#crowdsec)
   - [Using the Api \& OpenApi spec](#using-the-api--openapi-spec)
-    - [Webhooks](#webhooks)
-- [Dev/ops tools](#devops-tools)
-  - [utility functions for dev workflow](#utility-functions-for-dev-workflow)
-  - [Utility scripts](#utility-scripts)
+  - [Webhooks](#webhooks)
+  - [OpenVPN server with SSH access](#openvpn-server-with-ssh-access)
+    - [1. Initialize the configuration files and certificates](#1-initialize-the-configuration-files-and-certificates)
+    - [2. Create a client file](#2-create-a-client-file)
+    - [3. Retrieve the client configuration with embedded certificates and place in github workflow folder](#3-retrieve-the-client-configuration-with-embedded-certificates-and-place-in-github-workflow-folder)
+    - [4. SSH access](#4-ssh-access)
+    - [5. Make sure port 1194 is portforwarding the UDP protocol.](#5-make-sure-port-1194-is-portforwarding-the-udp-protocol)
 - [Questions one might have](#questions-one-might-have)
   - [What about Nginx?](#what-about-nginx)
   - [Does this scale to more machines?](#does-this-scale-to-more-machines)
@@ -74,11 +80,34 @@ It is surely possible to deploy stateful services but beware that those might no
 
 - [docker](https://www.docker.com) daemon and client
 - docker [rollout](https://github.com/Wowu/docker-rollout) plugin
+- [openvpn](https://openvpn.net): for testing vpn access (optional)
 
 **Infra:**
 
 - Portforwarding of port `80` and `443` to the machine running this stack. This stack MUST overtake whatever routing you now have, but don't worry, as it supports your home assistant setup and forwards any traffic it expects to it (if you finish the pre-configured `home-assistant` project in `db.yml`)
 - A wildcard dns domain like `*.itsup.example.com` that points to your home ip. This allows to choose whatever subdomain for your services. You may of course choose and manage any domain in a similar fashion for a public service, but I suggest not going through such trouble for anything private.
+
+## Dev/ops tools
+
+### utility functions
+
+Source `lib/functions.sh` to get:
+
+- `dcp`: run a `docker compose` command targeting the proxy stack (`proxy` + `terminate` services): `dcp logs -f`
+- `dcu`: run a `docker compose` command targeting a specific upstream: `dcu test up`
+- `dca`: run a `docker compose` command targeting all upstreams: `dca ps`
+- `dcpx`: execute a command in one of the proxy containers: `dcpx traefik-web 'rm -rf /etc/acme/acme.json && shutdown' && dcp up`
+- `dcux`: execute a command in one of the upstream containers: `dcux test test-informant env`
+
+In effect these wrapper commands achieve the same as when going into an `upstream/\*`folder and running`docker compose` there.
+I don't want to switch folders/terminals all the time and want to keep a "project root" history of my commands so I choose this approach.
+
+### Utility scripts
+
+- `bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.
+- `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
+- `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
+- `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
 
 ## Howto
 
@@ -131,6 +160,7 @@ The following docker service properties exist at the service root level and MUST
 - image
 - port
 - name
+- restart
 - volumes
 
 (Also see `lib/models.py`)
@@ -187,7 +217,7 @@ All endpoints do auth and expect an incoming Bearer token to be set to `.env/API
 
 Exception: Only github webhook endpoints (check for annotation `@app.hooks.register(...`) get it from the `github_secret` header.
 
-#### Webhooks
+### Webhooks
 
 Webhooks are used for the following:
 
@@ -200,27 +230,78 @@ One GitHub webhook listening to `workflow_job`s is provided, which needs:
 
 I mainly use GitHub workflows and created webhooks for my individual projects, so I can just manage all webhooks in one place.
 
-## Dev/ops tools
+**NOTE:**
 
-### utility functions for dev workflow
+When using crowdsec this webhook is probably not coming in as it exits the Azure cloud (public IP range), which is also host to many malicious actors that spin up ephemeral intrusion tools. To still receive signals from github you can use a vpn setup as the one used in this repo (check `.github/workflows/test.yml`).
 
-Source `lib/functions.sh` to get:
+### OpenVPN server with SSH access
 
-- `dcp`: run a `docker compose` command targeting the proxy stack (`proxy` + `terminate` services): `dcp logs -f`
-- `dcu`: run a `docker compose` command targeting a specific upstream: `dcu test up`
-- `dca`: run a `docker compose` command targeting all upstreams: `dca ps`
-- `dcpx`: execute a command in one of the proxy containers: `dcpx traefik-web 'rm -rf /etc/acme/acme.json && shutdown' && dcp up`
-- `dcux`: execute a command in one of the upstream containers: `dcux test test-informant env`
+This setup contains a project called "vpn" which runs an openvpn service that gives ssh access. To bootstrap it:
 
-In effect these wrapper commands achieve the same as when going into an `upstream/\*`folder and running`docker compose` there.
-I don't want to switch folders/terminals all the time and want to keep a "project root" history of my commands so I choose this approach.
+#### 1. Initialize the configuration files and certificates
 
-### Utility scripts
+```
+dcu vpn run vpn-openvpn ovpn_genconfig -u udp4://vpn.itsup.example.com
+dcu vpn run vpn-openvpn ovpn_initpki
+```
 
-- `bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.
-- `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
-- `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
-- `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
+Save the signing passphrase you created.
+
+#### 2. Create a client file
+
+```
+export CLIENTNAME='github'
+dcu vpn run vpn-openvpn easyrsa build-client-full $CLIENTNAME
+```
+
+Save the client passphrase you created as it will be used for `OVPN_PASSWORD` below.
+
+#### 3. Retrieve the client configuration with embedded certificates and place in github workflow folder
+
+```
+dcu vpn run vpn-openvpn ovpn_getclient $CLIENTNAME combined > .github/workflows/client.ovpn
+```
+
+**IMPORTANT:** Now change `udp` to `udp4` in the `remote: ...` line to target UDP with IPv4 as docker is still not there.
+
+Test access (expects local `openvpn` installed):
+
+```
+sudo openvpn .github/workflows/client.ovpn
+```
+
+Now save the `$OVPN_USER_KEY` from `client.ovpn`'s `<key>$OVPN_USER_KEY</key>` and remove the `<key>...</key>`.
+Also save the `$OVPN_TLS_AUTH_KEY` from `<tls-auth...` section and remove it.
+
+Add the secrets to your github repo
+
+- `OVPN_USERNAME`: `github`
+- `OVPN_PASSWORD`: the client passphrase
+- `OVPN_USER_KEY`
+- `OVPN_TLS_AUTH_KEY`
+
+#### 4. SSH access
+
+In order for ssh access by github, create a private key and add the pub part to the `authorized_keys` on the host:
+
+```
+
+ssh-keygen -t ed25519 -C "your_email@example.com"
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+
+```
+
+Add the secrets to GitHub:
+
+- `SERVER_HOST`: the hostname of this repo's api server
+- `SERVER_USERNAME`: the username that has access to your host's ssh server
+- `SSH_PRIVATE_KEY`: the private key of the user
+
+#### 5. Make sure port 1194 is portforwarding the UDP protocol.
+
+Now we can start the server and expect all to work ok.
+
+If you wish to revoke a cert or do something else, please visit this page: [kylemanna/docker-openvpn/blob/master/docs/docker-compose.md](https://github.com/kylemanna/docker-openvpn/blob/master/docs/docker-compose.md)
 
 ## Questions one might have
 
@@ -237,3 +318,7 @@ In the future we might consider expanding this setup to use docker swarm, as it 
 **Don't blame this infra automation tooling for anything going wrong inside your containers!**
 
 I suggest you repeat that mantra now and then and question yourself when things go wrong: where lies the problem?
+
+```
+
+```

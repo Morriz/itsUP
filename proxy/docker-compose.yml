@@ -48,9 +48,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  traefik-tcp:
+  traefic-in:
     image: traefik:v2.11
-    container_name: traefik-tcp
+    container_name: traefic-in
     env_file:
       - ../.env
     networks:
@@ -58,9 +58,11 @@ services:
     ports:
       - 8080:8080
       - 8443:8443
+      - 1194:1194/udp
     volumes:
-      - ./traefik/config-tcp.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/routers-tcp.yml:/etc/traefik/routers-tcp.yml:ro
+      - ./traefik/config-in.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/routers-tcp.yml:/etc/traefik/dynamic/routers-tcp.yml:ro
+      - ./traefik/routers-udp.yml:/etc/traefik/dynamic/routers-udp.yml:ro
 
   traefik-web:
     image: traefik:v2.11
@@ -76,11 +78,11 @@ services:
     volumes:
       - logs:/var/log/traefik
       - ./traefik/config-web.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/routers-web.yml:/etc/traefik/routers-web.yml:ro
+      - ./traefik/routers-web.yml:/etc/traefik/dynamic/routers-web.yml:ro
       - ./traefik/acme:/etc/acme
     depends_on:
       - dockerproxy
-      - traefik-tcp
+      - traefic-in
       - crowdsec
   crowdsec:
     image: crowdsecurity/crowdsec:v1.6.0

@@ -21,7 +21,7 @@ services:
   {%- endif %}
   {%- if p.entrypoint == s.name %}
     expose:
-      - '{{ s.port }}'
+      - '{{ s.port }}/{{ Protocol[s.protocol].value }}'
   {%- endif %}
     image: {{ s.image }}
   {%- if p.entrypoint == s.name %}
@@ -46,7 +46,7 @@ services:
   {%- if p.entrypoint == s.name %}
       - proxynet
   {%- endif %}
-    restart: unless-stopped
+    restart: {{ s.restart }}
   {%- if s.volumes %}
     volumes:
     {%- for v in s.volumes %}
