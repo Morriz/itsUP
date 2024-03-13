@@ -55,3 +55,4 @@ jobs:
           passphrase: '${{ secrets.SSH_PASSPHRASE }}'
           script: |
             curl -v 'https://${{ secrets.API_HOST }}/update-upstream/itsUP?apikey=${{ secrets.API_KEY }}'
+            exit
