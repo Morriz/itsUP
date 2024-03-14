@@ -1,6 +1,8 @@
-from atexit import register
+import importlib
+import inspect
 from logging import debug, info
-from typing import Any, Callable, Dict, List, Union, cast
+from modulefinder import Module
+from typing import Any, Callable, Dict, List, cast
 
 import yaml
 
@@ -23,14 +25,25 @@ def write_db(partial: Dict[str, List[Dict[str, Any]] | Dict[str, Any]]) -> None:
         yaml.dump(db, f)
 
 
+def get_plugin_model(name: str) -> type[Plugin]:
+    """Get a model by name"""
+    cls = f"Plugin{name.capitalize()}"
+    try:
+        model = importlib.import_module(f"lib.models.{cls}")
+        return cast(type[Plugin], model)
+    except ModuleNotFoundError:
+        return Plugin
+
+
 def validate_db() -> None:
     """Validate db.yml contents"""
     debug("Validating db.yml")
     db = get_db()
     plugins_raw = cast(Dict[str, Any], db["plugins"])
     for name, plugin in plugins_raw.items():
+        model = get_plugin_model(name)
         p = {"name": name, **plugin}
-        Plugin.model_validate(p)
+        model.model_validate(p)
     for project in db["projects"]:
         Project.model_validate(project)
 
@@ -49,7 +62,8 @@ def get_plugins(filter: Callable[[Plugin], bool] = None) -> List[Plugin]:
     registry = get_plugin_registry()
     plugins = []
     for name, p in registry:
-        plugin = Plugin(name=name, **p)
+        model = get_plugin_model(name=name)
+        plugin = model(name=name, **p)
         if not filter or filter(plugin):
             plugins.append(plugin)
     return plugins

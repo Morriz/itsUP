@@ -12,23 +12,30 @@ class Env(BaseModel):
 class Plugin(BaseModel):
     """Plugin model"""
 
-    version: str
-    enabled: bool = False
-    """Wether or not the plugin is enabled"""
     apikey: str = None
     """The API key to use for the plugin, if the plugin requires one"""
-    name: str = None
-    """The name of the plugin"""
     description: str = None
     """A description of the plugin"""
+    enabled: bool = False
+    """Wether or not the plugin is enabled"""
+    name: str = None
+    """The name of the plugin"""
     options: Dict[str, Any] = {}
     """A dictionary of options to pass to the plugin"""
+    version: str
+
+
+class PluginCrowdsec(Plugin):
+    """Crowdsec plugin model"""
+
+    collections: List[str] = []
+    """A list of collections to use for the plugin"""
 
 
 class PluginRegistry(BaseModel):
     """Plugin registry"""
 
-    crowdsec: Plugin
+    crowdsec: PluginCrowdsec
 
 
 class Protocol(str, Enum):

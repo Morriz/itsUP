@@ -89,6 +89,7 @@ services:
       - dockerproxy
       - traefic-in
 {%- if plugin_registry.crowdsec.enabled %}
+  {%- set cs = plugin_registry.crowdsec %}
       - crowdsec
   crowdsec:
     image: crowdsecurity/crowdsec:v1.6.0
@@ -101,10 +102,10 @@ services:
       - '7422'
     environment:
       GID: ${GID-1000}
-      COLLECTIONS: crowdsecurity/linux crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/sshd crowdsecurity/whitelist-good-actors crowdsecurity/appsec-virtual-patching
+      COLLECTIONS: {{ cs.collections | join(' ') }}
       CUSTOM_HOSTNAME: crowdsec
-      {%- if plugin_registry.crowdsec.apikey %}
-      BOUNCER_KEY_TRAEFIK: {{ plugin_registry.crowdsec.apikey }}
+      {%- if cs.apikey %}
+      BOUNCER_KEY_TRAEFIK: {{ cs.apikey }}
       {%- endif %}
     volumes:
       - ./traefik/crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
