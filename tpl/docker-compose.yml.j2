@@ -9,6 +9,7 @@ networks:
 
 services:
 {%- for s in project.services %}
+  {%- set has_ingress = list(s.ingress | selectattr('domain')) | length > 0 %}
   {{ project.name }}-{{ s.name }}:
   {%- if s.command %}
     command: {{ s.command }}
@@ -24,29 +25,33 @@ services:
       - '{{ i.port }}/{{ Protocol[i.protocol].value }}'
   {%- endfor %}
     image: {{ s.image }}
-  {%- if s.ingress | length > 1 %}
+  {%- if has_ingress or (s.labels | length > 0) %}
     labels:
+    {%- if has_ingress %}
       - traefik.enable=true
       - traefik.docker.network=proxynet
-    {%- for i in s.ingress %}
-      {%- set name = project.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- for i in s.ingress %}
+        {%- if i.domain %}
+          {%- set name = project.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
       - traefik.http.routers.{{ name }}.entrypoints=web-secure
       - traefik.http.routers.{{ name }}.rule=Host(`{{ i.domain }}`){%- if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){%- endif %}
       - traefik.http.routers.{{ name }}.tls.certresolver=letsencrypt
-      {%- if i.path_prefix and i.path_remove %}
+          {%- if i.path_prefix and i.path_remove %}
       - traefik.http.middlewares.removeServiceSelector.stripPrefix.prefixes={{ i.path_prefix }}
-      {%- endif %}
+          {%- endif %}
       - traefik.http.services.{{ name }}.loadbalancer.server.port={{ i.port }}
-    {%- endfor %}
+        {%- endif %}
+      {%- endfor %}
+    {%- endif %}
     {%- for l in s.labels %}
       - {{ l }}
     {%- endfor %}    
-  {%- endif %}0
+  {%- endif %}
     networks:
   {%- if p.services | length > 1 %}
       - default
-  {%- endif %}  
-  {%- if s.ingress | length > 1 %}
+  {%- endif %}
+  {%- if has_ingress %}
       - proxynet
   {%- endif %}
     restart: {{ s.restart }}

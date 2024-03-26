@@ -82,19 +82,17 @@ def get_projects(
     for project in projects_raw:
         services = []
         p = Project(**project)
-        if not filter:
+        if not filter or filter.__code__.co_argcount == 1 and cast(Callable[[Project], bool], filter)(p):
             ret.append(p)
             continue
         for s in p.services.copy():
+            if filter.__code__.co_argcount == 2 and cast(Callable[[Project, Service], bool], filter)(p, s):
+                services.append(s)
+                continue
             ingress = []
             for i in s.ingress.copy():
-                if (
-                    (
-                        filter.__code__.co_argcount == 3
-                        and cast(Callable[[Project, Service, Ingress], bool], filter)(p, s, i)
-                    )
-                    or (filter.__code__.co_argcount == 2 and cast(Callable[[Project, Service], bool], filter)(p, s))
-                    or (filter.__code__.co_argcount == 1 and cast(Callable[[Project], bool], filter)(p))
+                if filter.__code__.co_argcount == 3 and cast(Callable[[Project, Service, Ingress], bool], filter)(
+                    p, s, i
                 ):
                     ingress.append(i)
             if len(ingress) > 0:

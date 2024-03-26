@@ -56,8 +56,8 @@ class ProxyProtocol(str, Enum):
 class Ingress(BaseModel):
     """Ingress model"""
 
-    domain: str
-    """The domain to use for the service"""
+    domain: str = None
+    """The domain to use for the service. If omitted, the service will not be publicly accessible."""
     hostport: int = None
     """The port to expose on the host"""
     passthrough: bool = False

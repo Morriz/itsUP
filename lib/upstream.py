@@ -17,11 +17,10 @@ def write_upstream(project: Project) -> None:
     tpl = Template(t)
     tpl.globals["Protocol"] = Protocol
     tpl.globals["isinstance"] = isinstance
+    tpl.globals["len"] = len
+    tpl.globals["list"] = list
     tpl.globals["str"] = str
-    if os.environ.get("PYTHON_ENV") != "production":
-        content = tpl.render(project=project, domain=os.environ.get("TRAEFIK_DOMAIN"), env="development")
-    else:
-        content = tpl.render(project=project, domain=project.domain)
+    content = tpl.render(project=project)
     with open(f"upstream/{project.name}/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(content)
 
