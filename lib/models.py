@@ -1,4 +1,5 @@
 from enum import Enum
+from gc import enable
 from typing import Any, Dict, List
 
 from github_webhooks.schemas import WebhookCommonPayload
@@ -45,6 +46,34 @@ class Protocol(str, Enum):
     udp = "udp"
 
 
+class ProxyProtocol(str, Enum):
+    """ProxyProtocol enum"""
+
+    v1 = 1
+    v2 = 2
+
+
+class Ingress(BaseModel):
+    """Ingress model"""
+
+    domain: str
+    """The domain to use for the service"""
+    hostport: int = None
+    """The port to expose on the host"""
+    passthrough: bool = False
+    """Wether or not traffic to this service is forwarded as-is (without terminating SSL)"""
+    path_prefix: str = None
+    """Should the service be exposed under a specific path?"""
+    path_remove: bool = False
+    """When set, the path prefix will be removed from the request before forwarding it to the service"""
+    port: int = 8080
+    """The port to use for the service. If not defined will default to parent service port[idx]"""
+    protocol: Protocol = Protocol.tcp
+    """The protocol to use for the port"""
+    proxyprotocol: ProxyProtocol | None = ProxyProtocol.v2
+    """When set, the service is expected to accept the given PROXY protocol version. Explicitly set to null to disable."""
+
+
 class Service(BaseModel):
     """Service model"""
 
@@ -54,25 +83,14 @@ class Service(BaseModel):
     """The command to run in the service"""
     env: Env = None
     """A dictionary of environment variables to pass to the service"""
-    hostport: int = None
-    """The port to expose on the host"""
     image: str = None
-    """The image name plus tag to use for the service"""
+    """The full container image uri of the service"""
+    ingress: List[Ingress] = []
+    """Ingress configuration for the service. If a string is passed, it will be used as the domain."""
     labels: List[str] = []
     """Extra labels to add to the service. Should not interfere with generated traefik labels for ingress."""
     name: str
-    passthrough: bool = False
-    """Wether or not traffic to this service is forwarded as-is (without terminating SSL)"""
-    path_prefix: str = None
-    """Should the service be exposed under a specific path?"""
-    path_remove: bool = False
-    """When set, the path prefix will be removed from the request before forwarding it to the service"""
-    port: int = 8080
-    """When set, the service will be exposed on this domain."""
-    proxyprotocol: bool = True
-    """When set, the service will be exposed using the PROXY protocol version 2"""
-    protocol: Protocol = Protocol.tcp
-    """The protocol to use for the service"""
+    """The name of the service"""
     restart: str = "unless-stopped"
     """The restart policy to use for the service"""
     volumes: List[str] = []
@@ -82,11 +100,9 @@ class Service(BaseModel):
 class Project(BaseModel):
     """Project model"""
 
-    name: str
     description: str = None
-    domain: str = None
-    entrypoint: str = None
-    """When "entrypoint" is set it should point to a service in the "services" list that has an image"""
+    enabled: bool = True
+    name: str
     services: List[Service] = []
 
 

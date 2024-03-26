@@ -58,13 +58,13 @@ example_test = """
     @mock.patch("os.scandir")
     @mock.patch("lib.upstream.update_upstream")
     def test_update_upstreams(self, mock_update_upstream: Mock, mock_scandir: Mock):
-        mock_scandir.return_value = [DirEntry("upstream/my_project")]
+        mock_scandir.return_value = [DirEntry("upstream/my-project")]
 
         # Call the function under test
         update_upstreams()
 
         mock_update_upstream.assert_called_once_with(
-            "my_project",
+            "my-project",
             False,
         )
 

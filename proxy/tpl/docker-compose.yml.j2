@@ -61,7 +61,9 @@ services:
       - 8443:8443
 {%- for p in projects %}
   {%- for s in p.services %}
-      - {{ s.hostport }}:{{ s.port }}/{{ Protocol(s.protocol).value }}
+    {%- for i in s.ingress %}
+      - {{ i.hostport }}:{{ i.port }}/{{ Protocol(i.protocol).value }}
+    {%- endfor %}
   {%- endfor %}
 {%- endfor %}
     volumes:
@@ -118,3 +120,4 @@ services:
 volumes:
   logs:
   crowdsec-db:
+  shared:

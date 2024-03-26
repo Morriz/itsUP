@@ -33,20 +33,23 @@ entryPoints:
 {%- endfor %}
 
 {%- for p in projects %}
-  {% for s in p.services %}
-  {{ Protocol(s.protocol).value }}-{{ s.hostport }}:
-    address: ':{{ s.hostport }}/{{ Protocol(s.protocol).value }}'
+  {%- for s in p.services %}
+    {%- for i in s.ingress %}
+      {%- set protocol = Protocol(i.protocol).value %}
+  {{ protocol }}-{{ i.hostport }}:
+    address: ':{{ i.hostport }}/{{ protocol }}'
     forwardedHeaders:
       trustedIPs:
         - 127.0.0.1/32
-    {%- for ip in trusted_ips_cidrs %}
+      {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
-    {%- endfor %}
+      {%- endfor %}
     proxyProtocol:
       trustedIPs:
         - 127.0.0.0/32
-    {%- for ip in trusted_ips_cidrs %}
+      {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
+      {%- endfor %}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}

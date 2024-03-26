@@ -2,11 +2,11 @@ import importlib
 import inspect
 from logging import debug, info
 from modulefinder import Module
-from typing import Any, Callable, Dict, List, cast
+from typing import Any, Callable, Dict, List, Union, cast
 
 import yaml
 
-from lib.models import Env, Plugin, PluginRegistry, Project, Service
+from lib.models import Env, Ingress, Plugin, PluginRegistry, Project, Service
 
 
 def get_db() -> Dict[str, List[Dict[str, Any]] | Dict[str, Any]]:
@@ -69,7 +69,11 @@ def get_plugins(filter: Callable[[Plugin], bool] = None) -> List[Plugin]:
     return plugins
 
 
-def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Project]:
+def get_projects(
+    filter: Union[
+        Callable[[Project, Service, Ingress], bool], Callable[[Project, Service], bool], Callable[[Project], bool]
+    ] = None,
+) -> List[Project]:
     """Get all projects. Optionally filter the results."""
     debug("Getting projects" + (f" with filter {filter}" if filter else ""))
     db = get_db()
@@ -78,8 +82,23 @@ def get_projects(filter: Callable[[Project, Service], bool] = None) -> List[Proj
     for project in projects_raw:
         services = []
         p = Project(**project)
+        if not filter:
+            ret.append(p)
+            continue
         for s in p.services.copy():
-            if not filter or filter(p, s):
+            ingress = []
+            for i in s.ingress.copy():
+                if (
+                    (
+                        filter.__code__.co_argcount == 3
+                        and cast(Callable[[Project, Service, Ingress], bool], filter)(p, s, i)
+                    )
+                    or (filter.__code__.co_argcount == 2 and cast(Callable[[Project, Service], bool], filter)(p, s))
+                    or (filter.__code__.co_argcount == 1 and cast(Callable[[Project], bool], filter)(p))
+                ):
+                    ingress.append(i)
+            if len(ingress) > 0:
+                s.ingress = ingress
                 services.append(s)
         if len(services) > 0:
             p.services = services
@@ -125,7 +144,7 @@ def upsert_project(project: Project) -> None:
 def get_services(project: str = None) -> List[Service]:
     """Get all services or just for a particular project."""
     debug(f"Getting services for project {project}" if project else "Getting all services")
-    return [s for p in get_projects(lambda p, _: not bool(project) or p.name == project) for s in p.services]
+    return [s for p in get_projects(lambda p: not bool(project) or p.name == project) for s in p.services]
 
 
 def get_service(project: str | Project, service: str, throw: bool = True) -> Service:

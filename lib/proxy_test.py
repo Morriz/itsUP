@@ -7,7 +7,7 @@ from unittest.mock import Mock, call
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import Service
-from lib.models import Project
+from lib.models import Ingress, Project
 from lib.proxy import (
     get_internal_map,
     get_passthrough_map,
@@ -50,6 +50,8 @@ class TestProxy(TestCase):
         expected_map = {
             "itsup.example.com": "host.docker.internal:8888",
             "hello.example.com": "test-master:8080",
+            "minio-api.example.com": "minio-app:9000",
+            "minio-ui.example.com": "minio-app:9001",
             "vpn.example.com": "vpn-openvpn:1194",
             "whoami.example.com": "whoami-web:8080",
         }
@@ -60,10 +62,10 @@ class TestProxy(TestCase):
         return_value=[
             Project(
                 name="testp",
-                domain="example.com",
-                entrypoint="bla",
                 services=[
-                    Service(name="my_service", port=8080, passthrough=True),
+                    Service(
+                        ingress=[Ingress(domain="some.example.com", port=8080, passthrough=True)], name="my-service"
+                    ),
                 ],
             ),
         ],
@@ -75,7 +77,7 @@ class TestProxy(TestCase):
 
         # Assert the result
         expected_map = {
-            "example.com": "my_service:8080",
+            "some.example.com": "my-service:8080",
         }
         self.assertEqual(passthrough_map, expected_map)
 
@@ -100,14 +102,14 @@ class TestProxy(TestCase):
 
         # Mock the get_passthrough_map function
         mock_get_passthrough_map.return_value = {
-            "example.com": "my_service:8080",
-            "example.org": "my_service:8080",
+            "example.com": "my-service:8080",
+            "example.org": "my-service:8080",
         }
 
         # Mock the get_terminate_map function
         mock_get_terminate_map.return_value = {
-            "example.com": "my_project-my_service:8080",
-            "example.org": "my_service:8080",
+            "example.com": "my-project-my-service:8080",
+            "example.org": "my-service:8080",
         }
 
         mock_template.return_value = {"render": Mock()}

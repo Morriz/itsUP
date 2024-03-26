@@ -1,3 +1,4 @@
+{%- set p = project %}
 ---
 version: '3.8'
 
@@ -8,7 +9,6 @@ networks:
 
 services:
 {%- for s in project.services %}
-  {%- set p = project %}
   {{ project.name }}-{{ s.name }}:
   {%- if s.command %}
     command: {{ s.command }}
@@ -19,31 +19,34 @@ services:
       {{ k }}: "{{ v }}"
     {%- endfor %}
   {%- endif %}
-  {%- if p.entrypoint == s.name %}
     expose:
-      - '{{ s.port }}/{{ Protocol[s.protocol].value }}'
-  {%- endif %}
+  {%- for i in s.ingress %}
+      - '{{ i.port }}/{{ Protocol[i.protocol].value }}'
+  {%- endfor %}
     image: {{ s.image }}
-  {%- if p.entrypoint == s.name %}
+  {%- if s.ingress | length > 1 %}
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxynet
-      - traefik.http.routers.{{ p.name }}.entrypoints=web-secure
-      - traefik.http.routers.{{ p.name }}.rule=Host(`{{ p.domain }}`){%- if s.path_prefix %} && PathPrefix(`{{ s.path_prefix }}`){%- endif %}
-      - traefik.http.routers.{{ p.name }}.tls.certresolver=letsencrypt
-    {%- if path_prefix and path_remove %}
-      - traefik.http.middlewares.removeServiceSelector.stripPrefix.prefixes={{ path_prefix }}
-    {%- endif %}
-      - traefik.http.services.{{ p.name }}.loadbalancer.server.port={{ s.port }}
+    {%- for i in s.ingress %}
+      {%- set name = project.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      - traefik.http.routers.{{ name }}.entrypoints=web-secure
+      - traefik.http.routers.{{ name }}.rule=Host(`{{ i.domain }}`){%- if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){%- endif %}
+      - traefik.http.routers.{{ name }}.tls.certresolver=letsencrypt
+      {%- if i.path_prefix and i.path_remove %}
+      - traefik.http.middlewares.removeServiceSelector.stripPrefix.prefixes={{ i.path_prefix }}
+      {%- endif %}
+      - traefik.http.services.{{ name }}.loadbalancer.server.port={{ i.port }}
+    {%- endfor %}
     {%- for l in s.labels %}
       - {{ l }}
     {%- endfor %}    
-  {%- endif %}
+  {%- endif %}0
     networks:
   {%- if p.services | length > 1 %}
       - default
   {%- endif %}  
-  {%- if p.entrypoint == s.name %}
+  {%- if s.ingress | length > 1 %}
       - proxynet
   {%- endif %}
     restart: {{ s.restart }}

@@ -1,6 +1,6 @@
 import yaml
 
-from lib.models import Plugin, Project, Service
+from lib.models import Ingress, Plugin, Project, Service
 
 with open("db.yml.sample", encoding="utf-8") as f:
     test_db = yaml.safe_load(f)
@@ -30,33 +30,59 @@ test_plugins = {
 test_projects = [
     Project(
         description="Home Assistant passthrough",
-        domain="home.example.com",
+        enabled=False,
         name="home-assistant",
         services=[
-            Service(name="192.168.1.111", passthrough=True, port=443),
+            Service(ingress=[Ingress(domain="home.example.com", passthrough=True, port=443)], name="192.168.1.111"),
         ],
     ),
     Project(
         description="itsUP API running on the host",
-        domain="itsup.example.com",
         name="itsUP",
         services=[
-            Service(name="host.docker.internal", port=8888),
+            Service(ingress=[Ingress(domain="itsup.example.com", port=8888)], name="host.docker.internal"),
+        ],
+    ),
+    Project(
+        description="Minio service",
+        enabled=False,
+        name="minio",
+        services=[
+            Service(
+                command='server --console-address ":9001" http://minio/data',
+                env={
+                    "MINIO_ROOT_USER": "root",
+                    "MINIO_ROOT_PASSWORD": "83b01a6b8f210b5f5862943f3ebe257d",
+                    "MINIO_DEFAULT_BUCKETS": "ai-assistant",
+                },
+                image="minio/minio:latest",
+                ingress=[
+                    Ingress(domain="minio-api.example.com", port=9000),
+                    Ingress(domain="minio-ui.example.com", port=9001),
+                ],
+                name="app",
+                volumes=["/data"],
+            ),
         ],
     ),
     Project(
         description="VPN server",
-        domain="vpn.example.com",
-        entrypoint="openvpn",
+        enabled=False,
         name="vpn",
         services=[
             Service(
                 additional_properties={"cap_add": ["NET_ADMIN"]},
                 hostport=1194,
                 image="nubacuk/docker-openvpn:aarch64",
+                ingress=[
+                    Ingress(
+                        domain="vpn.example.com",
+                        hostport=1194,
+                        port=1194,
+                        protocol="udp",
+                    )
+                ],
                 name="openvpn",
-                port=1194,
-                protocol="udp",
                 restart="always",
                 volumes=["/etc/openvpn"],
             ),
@@ -64,13 +90,12 @@ test_projects = [
     ),
     Project(
         description="test project to demonstrate inter service connectivity",
-        domain="hello.example.com",
-        entrypoint="master",
         name="test",
         services=[
             Service(
                 env={"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"},
                 image="otomi/nodejs-helloworld:v1.2.13",
+                ingress=[Ingress(domain="hello.example.com")],
                 name="master",
                 volumes=["/data/bla", "/etc/dida"],
             ),
@@ -84,11 +109,9 @@ test_projects = [
     ),
     Project(
         description="whoami service",
-        domain="whoami.example.com",
-        entrypoint="web",
         name="whoami",
         services=[
-            Service(image="traefik/whoami:latest", name="web"),
+            Service(image="traefik/whoami:latest", ingress=[Ingress(domain="whoami.example.com")], name="web"),
         ],
     ),
 ]

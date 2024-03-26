@@ -1,16 +1,20 @@
 tcp:
   routers:
 {%- for p in projects %}
-  {%- set s = p.services[0] %}
-  {%- if s.passthrough %}
-    {{ p.name }}:
+  {%- for s in p.services %}
+    {%- for i in s.ingress %}
+      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- if i.passthrough %}
+    {{ name }}:
       entryPoints:
         - tcp-secure
-      service: {{ p.name }}
-      rule: 'HostSNI(`{{ p.domain }}`)'
+      service: {{ name }}
+      rule: 'HostSNI(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
       tls:
         passthrough: true
-  {%- endif %}
+      {%- endif %}
+    {%- endfor %}
+  {%- endfor %}
 {%- endfor %}
     http:
       entryPoints:
@@ -26,17 +30,21 @@ tcp:
         passthrough: true
   services:
 {%- for p in projects %}
-  {%- set s = p.services[0] %}
-  {%- if s.passthrough %}
-    {{ p.name }}:
+  {%- for s in p.services %}
+    {%- for i in s.ingress %}
+      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- if i.passthrough %}
+    {{ name }}:
       loadBalancer:
-    {%- if s.proxyprotocol %}
+        {%- if i.proxyprotocol %}
         proxyProtocol:
-          version: 2
-    {%- endif %}
+          version: {{ ProxyProtocol(i.proxyprotocol).value }}
+        {%- endif %}
         servers:
-          - address: {{ s.name }}:{{ s.port }}
-  {%- endif %}
+          - address: {{ s.name }}:{{ i.port }}
+      {%- endif %}
+    {%- endfor %}
+  {%- endfor %}
 {%- endfor %}
     http:
       loadBalancer:

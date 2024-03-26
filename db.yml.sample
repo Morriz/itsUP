@@ -17,45 +17,66 @@ plugins:
 
 projects:
   - description: Home Assistant passthrough
-    domain: home.example.com
+    enabled: false
     name: home-assistant # keep this name as it also makes sure to forward port 80 for certbot
     services:
-      - name: 192.168.1.111
-        passthrough: true
-        port: 443
+      - ingress:
+        - domain: home.example.com
+          passthrough: true
+          port: 443
+        name: 192.168.1.111
   - description: itsUP API running on the host
-    domain: itsup.example.com
     name: itsUP
     services:
-      - name: host.docker.internal
-        port: 8888
+      - ingress:
+          - domain: itsup.example.com
+            port: 8888
+        name: host.docker.internal
+  - description: Minio service
+    enabled: false
+    name: minio
+    services:
+      - command: server --console-address ":9001" http://minio/data
+        env:
+          MINIO_ROOT_USER: root
+          MINIO_ROOT_PASSWORD: 83b01a6b8f210b5f5862943f3ebe257d
+          MINIO_DEFAULT_BUCKETS: ai-assistant
+        image: minio/minio:latest
+        ingress:
+          - domain: minio-api.example.com
+            port: 9000
+          - domain: minio-ui.example.com
+            port: 9001
+        name: app
+        volumes:
+          - /data
   - description: VPN server
-    domain: vpn.example.com
-    entrypoint: openvpn
+    enabled: false
     name: vpn
     services:
       - additional_properties:
           cap_add:
             - NET_ADMIN
         # change tag to x86_64 if not on ARM:
-        hostport: 1194
-        hostport: 1194
         image: nubacuk/docker-openvpn:aarch64
+        ingress:
+          - domain: vpn.example.com
+            hostport: 1194
+            port: 1194
+            protocol: udp
         name: openvpn
-        port: 1194
-        protocol: udp
         restart: always
         volumes:
           - /etc/openvpn
   - description: test project to demonstrate inter service connectivity
-    domain: hello.example.com
     name: test
-    entrypoint: master
     services:
       - env:
           TARGET: cost concerned people
           INFORMANT: http://test-informant:8080
         image: otomi/nodejs-helloworld:v1.2.13
+        ingress:
+          - domain: hello.example.com
         name: master
         volumes:
           - /data/bla
@@ -67,9 +88,9 @@ projects:
         image: otomi/nodejs-helloworld:v1.2.13
         name: informant
   - description: whoami service
-    domain: whoami.example.com
-    entrypoint: web
     name: whoami
     services:
       - image: traefik/whoami:latest
+        ingress:
+          - domain: whoami.example.com
         name: web

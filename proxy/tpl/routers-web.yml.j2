@@ -13,37 +13,41 @@ http:
       tls:
         certResolver: letsencrypt
 {%- for p in projects %}
-  {%- set s = p.services[0] %}
-  {%- if s.passthrough or s.name != p.entrypoint %}
-    {{ p.name}}:
-      service: {{ p.name }}
+  {%- for s in p.services %}
+    {%- for i in s.ingress %}
+      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+    {{ name}}:
+      service: {{ name }}
       entryPoints:
-    {%- if s.passthrough %}
+      {%- if i.passthrough %}
         - web
-      rule: 'Host(`{{ p.domain }}`) && PathPrefix(`/.well-known/acme-challenge/`)'
-    {%- else %}
+      rule: 'Host(`{{ i.domain }}`) && PathPrefix(`/.well-known/acme-challenge/`)'
+      {%- else %}
         - web-secure
-      rule: 'Host(`{{ p.domain }}`)'
+      rule: 'Host(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
       tls:
         certResolver: letsencrypt
-    {%- endif %}
-  {%- endif %}
+      {%- endif %}
+    {%- endfor %}
+  {%- endfor %}
 {%- endfor %}
   services:
 {%- for p in projects %}
-  {%- set s = p.services[0] %}
-  {%- if s.passthrough or s.name != p.entrypoint %}
-    {{ p.name}}:
+  {%- for s in p.services %}
+    {%- for i in s.ingress %}
+      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+    {{ name}}:
       loadBalancer:
         servers:
-    {%- if s.passthrough %}
+      {%- if i.passthrough %}
           # just forwarding port 80 for doing own http challenge:
           - url: http://{{ s.name }}:80/
-    {%- else %}
+      {%- else %}
           # routing to a service on the host:
-          - url: http://{{ s.name }}:{{ s.port }}/
-    {%- endif %}
-  {%- endif %}
+          - url: http://{{ s.name }}:{{ i.port }}/
+      {%- endif %}
+    {%- endfor %}
+  {%- endfor %}
 {%- endfor %}
   middlewares:
     removeServiceSelector:

@@ -16,6 +16,8 @@ def write_upstream(project: Project) -> None:
         t = f.read()
     tpl = Template(t)
     tpl.globals["Protocol"] = Protocol
+    tpl.globals["isinstance"] = isinstance
+    tpl.globals["str"] = str
     if os.environ.get("PYTHON_ENV") != "production":
         content = tpl.render(project=project, domain=os.environ.get("TRAEFIK_DOMAIN"), env="development")
     else:
@@ -31,8 +33,8 @@ def write_upstream_volume_folders(project: Project) -> None:
 
 
 def write_upstreams() -> None:
-    # iterate over projects that have an entrypoint;
-    for p in [project for project in get_projects() if project.entrypoint]:
+    projects = get_projects(filter=lambda p, s: p.enabled and s.image)
+    for p in projects:
         os.makedirs(f"upstream/{p.name}", exist_ok=True)
         write_upstream(p)
         write_upstream_volume_folders(p)
@@ -50,22 +52,26 @@ def check_upstream(project: str, service: str = None) -> None:
 
 
 def update_upstream(
-    project: str,
+    project: Project | str,
     service: str = None,
     rollout: bool = False,
 ) -> None:
     """Reload service(s) in a docker compose config"""
-    info(f"Updating upstream for project {project}")
-    run_command(["docker", "compose", "pull"], cwd=f"upstream/{project}")
-    run_command(["docker", "compose", "up", "-d"], cwd=f"upstream/{project}")
+    project = get_project(project, throw=True)
+    info(f"Updating upstream for project {project.name}")
+    if project.enabled:
+        run_command(["docker", "compose", "pull"], cwd=f"upstream/{project.name}")
+        run_command(["docker", "compose", "up", "-d"], cwd=f"upstream/{project.name}")
+    else:
+        run_command(["docker", "compose", "down"], cwd=f"upstream/{project.name}")
     if not rollout:
         return
     # filter out the project by name and its services that should have an image
-    projects = get_projects(filter=lambda p, s: p.name == project and bool(s.image))
+    projects = get_projects(filter=lambda p, s: p.enabled and p.name == project.name and bool(s.image))
     for p in projects:
         for s in p.services:
             if not service or s.name == service:
-                rollout_service(project, s.name)
+                rollout_service(project.name, s.name)
 
 
 def update_upstreams(rollout: bool = False) -> None:

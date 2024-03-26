@@ -109,3 +109,4 @@ services:
 volumes:
   logs:
   crowdsec-db:
+  shared:

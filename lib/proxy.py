@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_plugin_registry, get_project, get_projects
-from lib.models import Protocol
+from lib.models import Protocol, ProxyProtocol
 from lib.utils import run_command
 
 load_dotenv()
@@ -14,8 +14,13 @@ load_dotenv()
 
 def get_domains(project: str = None) -> List[str]:
     """Get all domains in use"""
-    projects = get_projects(filter=lambda p, s: not s.passthrough and (not project or project == p.name))
-    return [p.domain for p in projects if p.domain]
+    projects = get_projects(filter=lambda p, _, i: not i.passthrough and (not project or project == p.name))
+    domains = []
+    for p in projects:
+        for s in p.services:
+            for i in s.ingress:
+                domains.append(i.domain)
+    return domains
 
 
 def get_internal_map() -> Dict[str, str]:
@@ -24,19 +29,24 @@ def get_internal_map() -> Dict[str, str]:
 
 
 def get_terminate_map() -> Dict[str, str]:
-    filtered = get_projects(
-        filter=lambda p, s: bool(p.domain) and not s.passthrough and (not bool(p.entrypoint) or p.entrypoint == s.name)
-    )
-    return {
-        p.domain: (f"{p.name}-" if p.entrypoint == s.name else "") + f"{s.name}:{s.port}"
-        for p in filtered
-        for s in p.services
-    }
+    projects = get_projects(filter=lambda _, _2, i: not i.passthrough)
+    map = {}
+    for p in projects:
+        for s in p.services:
+            prefix = f"{p.name}-" if s.image else ""
+            for i in s.ingress:
+                map[i.domain] = f"{prefix}{s.name}:{i.port}"
+    return map
 
 
 def get_passthrough_map() -> Dict[str, str]:
-    filtered = get_projects(filter=lambda _, s: s.passthrough is True)
-    return {p.domain: f"{s.name}:{s.port}" for p in filtered for s in p.services}
+    projects = get_projects(filter=lambda _, _2, i: i.passthrough)
+    map = {}
+    for p in projects:
+        for s in p.services:
+            for i in s.ingress:
+                map[i.domain] = f"{s.name}:{i.port}"
+    return map
 
 
 def write_maps() -> None:
@@ -78,9 +88,7 @@ def write_terminate() -> None:
 
 
 def write_routers() -> None:
-    projects_tcp = get_projects(
-        filter=lambda p, s: s.protocol == Protocol.tcp and (not bool(p.entrypoint) or p.entrypoint == s.name)
-    )
+    projects_tcp = get_projects(filter=lambda _, _2, i: i.protocol == Protocol.tcp)
     with open("proxy/tpl/routers-web.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_web = Template(t)
@@ -97,10 +105,11 @@ def write_routers() -> None:
     with open("proxy/tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_tcp = Template(t)
+    tpl_routers_tcp.globals["ProxyProtocol"] = ProxyProtocol
     routers_tcp = tpl_routers_tcp.render(projects=projects_tcp, traefik_rule=f"HostSNI(`{domain}`)")
     with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
-    projects_udp = get_projects(filter=lambda _, s: s.protocol == Protocol.udp)
+    projects_udp = get_projects(filter=lambda _, _2, i: i.protocol == Protocol.udp)
     with open("proxy/tpl/routers-udp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_tcp = Template(t)
@@ -115,7 +124,7 @@ def write_config() -> None:
     tpl_config_tcp = Template(t)
     tpl_config_tcp.globals["Protocol"] = Protocol
     trusted_ips_cidrs = os.environ.get("TRUSTED_IPS_CIDRS").split(",")
-    projects_hostport = get_projects(filter=lambda _, s: bool(s.hostport))
+    projects_hostport = get_projects(filter=lambda _, _2, i: bool(i.hostport))
     config_tcp = tpl_config_tcp.render(projects=projects_hostport, trusted_ips_cidrs=trusted_ips_cidrs)
     with open("proxy/traefik/config-in.yml", "w", encoding="utf-8") as f:
         f.write(config_tcp)
@@ -141,7 +150,7 @@ def write_compose() -> None:
         t = f.read()
     tpl_compose = Template(t)
     tpl_compose.globals["Protocol"] = Protocol
-    projects_hostport = get_projects(filter=lambda _, s: bool(s.hostport))
+    projects_hostport = get_projects(filter=lambda _, _2, i: bool(i.hostport))
     compose = tpl_compose.render(projects=projects_hostport, plugin_registry=plugin_registry)
     with open("proxy/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(compose)
