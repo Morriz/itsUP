@@ -16,17 +16,12 @@ http:
   {%- for s in p.services %}
     {%- for i in s.ingress %}
       {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- if i.passthrough %}
     {{ name}}:
       service: {{ name }}
       entryPoints:
-      {%- if i.passthrough %}
         - web
       rule: 'Host(`{{ i.domain }}`) && PathPrefix(`/.well-known/acme-challenge/`)'
-      {%- else %}
-        - web-secure
-      rule: 'Host(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
-      tls:
-        certResolver: letsencrypt
       {%- endif %}
     {%- endfor %}
   {%- endfor %}
@@ -36,15 +31,12 @@ http:
   {%- for s in p.services %}
     {%- for i in s.ingress %}
       {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- if i.passthrough %}
     {{ name}}:
       loadBalancer:
         servers:
-      {%- if i.passthrough %}
           # just forwarding port 80 for doing own http challenge:
           - url: http://{{ s.name }}:80/
-      {%- else %}
-          # routing to a service on the host:
-          - url: http://{{ s.name }}:{{ i.port }}/
       {%- endif %}
     {%- endfor %}
   {%- endfor %}

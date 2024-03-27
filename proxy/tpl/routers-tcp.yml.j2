@@ -4,12 +4,12 @@ tcp:
   {%- for s in p.services %}
     {%- for i in s.ingress %}
       {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
-      {%- if i.passthrough %}
     {{ name }}:
       entryPoints:
         - tcp-secure
       service: {{ name }}
       rule: 'HostSNI(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
+      {%- if i.passthrough %}
       tls:
         passthrough: true
       {%- endif %}
@@ -33,7 +33,6 @@ tcp:
   {%- for s in p.services %}
     {%- for i in s.ingress %}
       {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
-      {%- if i.passthrough %}
     {{ name }}:
       loadBalancer:
         {%- if i.proxyprotocol %}
@@ -42,7 +41,6 @@ tcp:
         {%- endif %}
         servers:
           - address: {{ s.name }}:{{ i.port }}
-      {%- endif %}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}

@@ -48,17 +48,17 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  traefic-in:
+  traefik-in:
     image: traefik:v2.11
-    container_name: traefic-in
+    container_name: traefik-in
     env_file:
       - ../.env
     networks:
       - default
       - proxynet
     ports:
-      - 8080:8080
-      - 8443:8443
+      - 8080:8080/tcp
+      - 8443:8443/tcp
       - 1194:1194/udp
     volumes:
       - ./traefik/config-in.yml:/etc/traefik/traefik.yml:ro
@@ -77,13 +77,12 @@ services:
       - '8080'
       - '8443'
     volumes:
-      - logs:/var/log/traefik
       - ./traefik/config-web.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/routers-web.yml:/etc/traefik/dynamic/routers-web.yml:ro
       - ./traefik/acme:/etc/acme
     depends_on:
       - dockerproxy
-      - traefic-in
+      - traefik-in
       - crowdsec
   crowdsec:
     image: crowdsecurity/crowdsec:v1.6.0
@@ -101,12 +100,6 @@ services:
       BOUNCER_KEY_TRAEFIK: L9yZ1y2XagDm9915mRg2fg==
     volumes:
       - ./traefik/crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
-      - logs:/var/log/traefik:ro
-      - crowdsec-db:/var/lib/crowdsec/data/
+      - ../data/crowdsec:/var/lib/crowdsec/data/
     labels:
       - "traefik.enable=false"
-
-volumes:
-  logs:
-  crowdsec-db:
-  shared:

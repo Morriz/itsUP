@@ -33,9 +33,10 @@ services:
       {%- for i in s.ingress %}
         {%- if i.domain %}
           {%- set name = project.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
-      - traefik.http.routers.{{ name }}.entrypoints=web-secure
+      - traefik.http.routers.{{ name }}.entrypoints={% if i.hostport %}{{ Protocol(i.protocol).value }}-{{ i.hostport }}{% else %}web-secure{% endif %}
       - traefik.http.routers.{{ name }}.rule=Host(`{{ i.domain }}`){%- if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){%- endif %}
       - traefik.http.routers.{{ name }}.tls.certresolver=letsencrypt
+      - traefik.http.routers.{{ name }}.service={{ name }}
           {%- if i.path_prefix and i.path_remove %}
       - traefik.http.middlewares.removeServiceSelector.stripPrefix.prefixes={{ i.path_prefix }}
           {%- endif %}

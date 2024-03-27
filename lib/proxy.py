@@ -88,13 +88,13 @@ def write_terminate() -> None:
 
 
 def write_routers() -> None:
-    projects_tcp = get_projects(filter=lambda _, _2, i: i.protocol == Protocol.tcp)
+    projects_passthrough = get_projects(filter=lambda _, s, i: i.passthrough or not s.image)
     with open("proxy/tpl/routers-web.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_web = Template(t)
     domain = os.environ.get("TRAEFIK_DOMAIN")
     routers_web = tpl_routers_web.render(
-        projects=projects_tcp,
+        projects=projects_passthrough,
         traefik_rule=f"Host(`{domain}`)",
         traefik_admin=os.environ.get("TRAEFIK_ADMIN"),
         plugin_registry=get_plugin_registry(),
@@ -106,7 +106,7 @@ def write_routers() -> None:
         t = f.read()
     tpl_routers_tcp = Template(t)
     tpl_routers_tcp.globals["ProxyProtocol"] = ProxyProtocol
-    routers_tcp = tpl_routers_tcp.render(projects=projects_tcp, traefik_rule=f"HostSNI(`{domain}`)")
+    routers_tcp = tpl_routers_tcp.render(projects=projects_passthrough, traefik_rule=f"HostSNI(`{domain}`)")
     with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
     projects_udp = get_projects(filter=lambda _, _2, i: i.protocol == Protocol.udp)

@@ -1,10 +1,4 @@
-accessLog:
-  filePath: /var/log/traefik/access.log
-  # format: json
-  # fields:
-  #   defaultMode: keep
-  #   headers:
-  #     defaultMode: keep
+accessLog: {}
 
 api:
   insecure: false
@@ -69,7 +63,7 @@ global:
   sendAnonymousUsage: true
 
 log:
-  level: DEBUG
+  level: INFO
 
 providers:
   docker:

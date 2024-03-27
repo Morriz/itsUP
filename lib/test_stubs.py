@@ -53,7 +53,6 @@ test_projects = [
                 env={
                     "MINIO_ROOT_USER": "root",
                     "MINIO_ROOT_PASSWORD": "83b01a6b8f210b5f5862943f3ebe257d",
-                    "MINIO_DEFAULT_BUCKETS": "ai-assistant",
                 },
                 image="minio/minio:latest",
                 ingress=[

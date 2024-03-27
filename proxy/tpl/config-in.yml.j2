@@ -1,5 +1,4 @@
-accessLog:
-  filePath: /var/log/traefik/access.log
+accessLog: {}
 
 entryPoints:
   tcp:
@@ -55,7 +54,7 @@ entryPoints:
 {%- endfor %}
 
 log:
-  level: DEBUG
+  level: INFO
 
 providers:
   file:
