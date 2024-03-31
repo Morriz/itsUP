@@ -29,7 +29,7 @@ class TestRunCommand(unittest.TestCase):
         mock_open.assert_called_with("logs/error.log", "w", encoding="utf-8")
         # Assert the subprocess.run call was made correctly
         mock_run.assert_called_once_with(
-            ["ls"], check=True, cwd=None, stdout=mock_open.return_value, stderr=mock_open.return_value
+            ["ls"], check=True, cwd=None, env={}, stdout=mock_open.return_value, stderr=mock_open.return_value
         )
 
 

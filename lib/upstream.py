@@ -23,6 +23,10 @@ def write_upstream(project: Project) -> None:
     content = tpl.render(project=project)
     with open(f"upstream/{project.name}/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(content)
+    if project.env:
+        env_content = "\n".join([f"{k}={v}" for k, v in project.env])
+        with open(f"upstream/{project.name}/.env", "w", encoding="utf-8") as f:
+            f.write(env_content)
 
 
 def write_upstream_volume_folders(project: Project) -> None:

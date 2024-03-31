@@ -3,4 +3,6 @@ mypy
 pre-commit
 pylint
 pyproject-fmt
+requests
 types-PyYAML
+qdrant-client

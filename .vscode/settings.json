@@ -42,6 +42,7 @@
   "files.exclude": {
     "**/.history": true
   },
+  "jupyter.debugJustMyCode": false,
   "python.testing.unittestEnabled": true,
   "[dotenv]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"

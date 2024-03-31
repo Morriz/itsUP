@@ -104,7 +104,7 @@ I don't want to switch folders/terminals all the time and want to keep a "projec
 
 ### Utility scripts
 
-- `bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.
+- ~~`bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.~~ (Obsolete since migration to Treaefik)
 - `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
 - `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
 - `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
@@ -127,22 +127,71 @@ But before doing so please configure your stuff:
 1. Copy `.env.sample` to `.env` and set the correct info (comments should be self explanatory).
 2. Copy `db.yml.sample` to `db.yml` and edit your project and their services (see explanations below).
 
-Project and service configuration is explained below with the following scenarios:
+Project and service configuration is explained below with the following scenarios. Please also check `db.yml.sample` as it contains more examples.
 
 **Adding an upstream service that will be deployed and managed:**
 
-1. Edit `db.yml` and add your projects with their service(s), and make sure the project has `entrypoint: {the name of your entrypoint svc}`.
-2. Run `bin/apply.py` to write all artifacts and deploy/update relevant docker stacks.
+Edit `db.yml` and add your projects with their service(s). Any service that is given an `image: ` prop will be deployed with `docker compose`.
+Example:
+
+```yaml
+projects:
+  ...
+  - description: whoami service
+    name: whoami
+    services:
+      - image: traefik/whoami:latest
+        ingress:
+          - domain: whoami.example.com
+        name: web
+```
+
+Run `bin/apply.py` to write all artifacts and deploy/update relevant docker stacks.
 
 **Adding a passthrough endpoint:**
 
-1. Add a project without `entrypoint:` and one service, which now need `name`, `domain` and `passthrough: true`.
-2. Run `bin/apply.py` to roll out the changes.
+Add a service with ingress and set `passthrough: true`.
+Example:
+
+```yaml
+projects:
+  ...
+  - description: Home Assistant passthrough
+    enabled: false
+    name: home-assistant # keep this name as it also makes sure to forward port 80 for certbot
+    services:
+      - ingress:
+        - domain: home.example.com
+          passthrough: true
+          port: 443
+        name: 192.168.1.111
+```
+
+Run `bin/apply.py` to roll out the changes.
 
 **Adding a local (host) endpoint:**
 
-1. Add a project without `entrypoint:` and one service, which only need `name` and `domain`.
-2. Run `bin/apply.py` to roll out the changes.
+You can expose an existing service that is already running on the host by creating a service:
+
+- without an `image` prop
+- targeting the host from within docker
+- configuring it's ingress
+
+Example:
+
+```yaml
+projects:
+  ...
+  - description: itsUP API running on the host
+    name: itsUP
+    services:
+      - ingress:
+          - domain: itsup.example.com
+            port: 8888
+        name: host.docker.internal
+```
+
+Run `bin/apply.py` to roll out the changes.
 
 **Additional docker properties:**
 
@@ -156,6 +205,7 @@ additional_properties:
 The following docker service properties exist at the service root level and MUST NOT be added via `additional_properties`:
 
 - command
+- depends_on
 - env
 - image
 - port
@@ -318,7 +368,3 @@ In the future we might consider expanding this setup to use docker swarm, as it 
 **Don't blame this infra automation tooling for anything going wrong inside your containers!**
 
 I suggest you repeat that mantra now and then and question yourself when things go wrong: where lies the problem?
-
-```
-
-```

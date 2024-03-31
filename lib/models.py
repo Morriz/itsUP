@@ -81,6 +81,8 @@ class Service(BaseModel):
     """Additional docker compose properties to pass to the service"""
     command: str = None
     """The command to run in the service"""
+    depends_on: List[str] = []
+    """A list of services to depend on"""
     env: Env = None
     """A dictionary of environment variables to pass to the service"""
     image: str = None
@@ -101,9 +103,15 @@ class Project(BaseModel):
     """Project model"""
 
     description: str = None
+    """A description of the project"""
+    env: Env = None
+    """A dictionary of environment variables to pass that the services can use to construct their own vars with, but will not be exposed to the services themselves."""
     enabled: bool = True
+    """Wether or not the project is enabled"""
     name: str
+    """The name of the project"""
     services: List[Service] = []
+    """A list of services to run in the project"""
 
 
 class PingPayload(WebhookCommonPayload):

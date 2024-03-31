@@ -25,6 +25,7 @@ dc_() {
     cmd="$cmd -d"
   fi
   if [ "$part" = "up" ]; then
+    . bin/export-env.sh $project
     docker compose --project-directory $dir -p $project -f $dir/docker-compose.yml pull
     cmd="$cmd --remove-orphans"
   fi

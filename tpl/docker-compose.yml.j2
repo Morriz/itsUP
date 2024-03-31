@@ -14,15 +14,21 @@ services:
   {%- if s.command %}
     command: {{ s.command }}
   {%- endif %}
+  {%- if s.depends_on | length > 0 %}
+    depends_on:
+    {%- for dep in s.depends_on %}
+      - {{ project.name }}-{{ dep }}
+    {%- endfor %}
+  {%- endif %}
   {%- if s.env %}
     environment:
     {%- for k, v in s.env %}
-      {{ k }}: "{{ v }}"
+      {{ k }}: '{{ v }}'
     {%- endfor %}
   {%- endif %}
     expose:
   {%- for i in s.ingress %}
-      - '{{ i.port }}/{{ Protocol[i.protocol].value }}'
+      - {{ i.port }}/{{ Protocol[i.protocol].value }}
   {%- endfor %}
     image: {{ s.image }}
   {%- if has_ingress or (s.labels | length > 0) %}
@@ -59,7 +65,14 @@ services:
   {%- if s.volumes %}
     volumes:
     {%- for v in s.volumes %}
-      - .{{ v }}:{{ v }}
+      {%- if ':' in v %}
+        {%- set source = v.split(':')[0] %}
+        {%- set target = v.split(':')[1] %}
+      {%- else %}
+        {%- set source = v %}
+        {%- set target = v %}
+      {%- endif %}
+      - .{{ source }}:{{ target }}
     {%- endfor %}
   {%- endif %}
   {%- for k, v in s.additional_properties.items() %}
