@@ -21,12 +21,15 @@ entryPoints:
     forwardedHeaders:
       trustedIPs:
         - 172.0.0.0/8
-        - 192.168.0.0/16
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
     proxyProtocol:
       trustedIPs:
-        - 172.0.0.0/8
-        - 192.168.0.0/16
-
+        - 127.0.0.1/32
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
   web-secure:
     address: ':8443'
     http3:
@@ -34,11 +37,15 @@ entryPoints:
     forwardedHeaders:
       trustedIPs:
         - 172.0.0.0/8
-        - 192.168.0.0/16
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
     proxyProtocol:
       trustedIPs:
-        - 172.0.0.0/8
-        - 192.168.0.0/16
+        - 127.0.0.1/32
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
     http:
       middlewares:
         - default-headers@file
@@ -46,6 +53,28 @@ entryPoints:
 {%- if plugin_registry.crowdsec.enabled %}
         - crowdsec@file
 {%- endif %}
+
+{%- for p in projects %}
+  {%- for s in p.services %}
+    {%- for i in s.ingress %}
+      {%- set protocol = Protocol(i.protocol).value %}
+  {{ protocol }}-{{ i.hostport }}:
+    address: ':{{ i.hostport }}/{{ protocol }}'
+    forwardedHeaders:
+      trustedIPs:
+        - 127.0.0.1/32
+      {%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+      {%- endfor %}
+    proxyProtocol:
+      trustedIPs:
+        - 127.0.0.1/32
+      {%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+      {%- endfor %}
+    {%- endfor %}
+  {%- endfor %}
+{%- endfor %}
 
 experimental:
   http3: true
@@ -71,10 +100,16 @@ providers:
     endpoint: tcp://dockerproxy:2375
     network: default
   file:
-    filename: /etc/traefik/dynamic/routers-web.yml
+    directory: /etc/traefik/dynamic/
     watch: true
 
 tls:
+  stores:
+    default:
+      defaultgeneratedcert:
+        domain:
+          main: '*.{{ domain_suffix }}'
+        resolver: letsencrypt
   options:
     default:
       minVersion: VersionTLS12

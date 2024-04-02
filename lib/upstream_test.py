@@ -66,8 +66,8 @@ _ret_projects = [
         name="my-project",
         entrypoint="service1",
         services=[
-            Service(name="service1", port=8080),
-            Service(name="service2", port=8080),
+            Service(host="service1", port=8080),
+            Service(host="service2", port=8080),
         ],
     ),
     Project(
@@ -75,7 +75,7 @@ _ret_projects = [
         name="another-project",
         entrypoint="service1",
         services=[
-            Service(name="service1", port=8080),
+            Service(host="service1", port=8080),
         ],
     ),
 ]
@@ -93,12 +93,12 @@ class TestUpdateUpstream(TestCase):
             services=[
                 Service(
                     image="morriz/hello-world:main",
-                    name="master",
+                    host="master",
                     port=8080,
                     env=Env(**{"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"}),
                     volumes=["./data/bla:/data/bla", "./etc/dida:/etc/dida"],
                 ),
-                Service(image="morriz/hello-world:main", name="informant", port=8080, env=Env(**{"TARGET": "boss"})),
+                Service(image="morriz/hello-world:main", host="informant", port=8080, env=Env(**{"TARGET": "boss"})),
             ],
         )
 

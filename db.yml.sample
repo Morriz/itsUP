@@ -20,33 +20,45 @@ projects:
     enabled: false
     name: home-assistant # keep this name as it also makes sure to forward port 80 for certbot
     services:
-      - ingress:
-        - domain: home.example.com
-          passthrough: true
-          port: 443
-        name: 192.168.1.111
+      - host: 192.168.1.111
+        ingress:
+          - domain: home.example.com
+            passthrough: true
+            port: 443
+            router: tcp
+  - description: Home Assistant http passthrough for letsencrypt
+    enabled: false
+    name: home-assistant-challenge
+    services:
+      - host: 192.168.1.111
+        ingress:
+          - domain: home.example.com
+            passthrough: true
+            path_prefix: /.well-known/acme-challenge/
+            port: 80
   - description: itsUP API running on the host
     name: itsUP
     services:
-      - ingress:
+      - host: 172.17.0.1 # change this to host.docker.internal when on Docker Desktop
+        ingress:
           - domain: itsup.example.com
             port: 8888
-        name: host.docker.internal
   - description: Minio service
     enabled: false
     name: minio
     services:
-      - command: server --console-address ":9001" http://minio/data
+      - command: server --console-address ":9001" /data
         env:
           MINIO_ROOT_USER: root
-          MINIO_ROOT_PASSWORD: 83b01a6b8f210b5f5862943f3ebe257d
+          MINIO_ROOT_PASSWORD: xx
+        host: app
         image: minio/minio:latest
         ingress:
           - domain: minio-api.example.com
             port: 9000
+            router: tcp
           - domain: minio-ui.example.com
             port: 9001
-        name: app
         volumes:
           - /data
   - description: VPN server
@@ -57,13 +69,14 @@ projects:
           cap_add:
             - NET_ADMIN
         # change tag to x86_64 if not on ARM:
+        host: openvpn
         image: nubacuk/docker-openvpn:aarch64
         ingress:
           - domain: vpn.example.com
             hostport: 1194
             port: 1194
             protocol: udp
-        name: openvpn
+            router: udp
         restart: always
         volumes:
           - /etc/openvpn
@@ -73,10 +86,10 @@ projects:
       - env:
           TARGET: cost concerned people
           INFORMANT: http://test-informant:8080
+        host: master
         image: otomi/nodejs-helloworld:v1.2.13
         ingress:
           - domain: hello.example.com
-        name: master
         volumes:
           - /data/bla
           - /etc/dida
@@ -84,12 +97,12 @@ projects:
           cpus: 0.1
         env:
           TARGET: boss
+        host: informant
         image: otomi/nodejs-helloworld:v1.2.13
-        name: informant
   - description: whoami service
     name: whoami
     services:
-      - image: traefik/whoami:latest
+      - host: web
+        image: traefik/whoami:latest
         ingress:
           - domain: whoami.example.com
-        name: web

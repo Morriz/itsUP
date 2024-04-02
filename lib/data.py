@@ -146,11 +146,11 @@ def get_services(project: str = None) -> List[Service]:
 
 
 def get_service(project: str | Project, service: str, throw: bool = True) -> Service:
-    """Get a project's service by name"""
+    """Get a project's service by host"""
     debug(f"Getting service {service} in project {project.name if isinstance(project, Project) else project}")
     p = get_project(project, throw) if isinstance(project, str) else project
     for item in p.services:
-        if item.name == service:
+        if item.host == service:
             return item
     error = f"Service {service} not found in project {project}"
     info(error)
@@ -178,9 +178,9 @@ def upsert_env(project: str | Project, service: str, env: Env) -> None:
 def upsert_service(project: str | Project, service: Service) -> None:
     """Upsert a service"""
     p = get_project(project) if isinstance(project, str) else project
-    debug(f"Upserting service {service.name} in project {p.name}: {service}")
+    debug(f"Upserting service {service.host} in project {p.name}: {service}")
     for i, s in enumerate(p.services):
-        if s.name == service.name:
+        if s.host == service.host:
             p.services[i] = service
             break
     else:

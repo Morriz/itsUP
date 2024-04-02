@@ -15,13 +15,15 @@ http:
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
-      {%- if i.passthrough %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name}}:
       service: {{ name }}
       entryPoints:
-        - web
-      rule: 'Host(`{{ i.domain }}`) && PathPrefix(`/.well-known/acme-challenge/`)'
+        - web{% if i.port != 80 %}-secure{% endif %}
+      rule: 'Host(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
+      {%- if i.port != 80 %}
+      tls:
+        certResolver: letsencrypt
       {%- endif %}
     {%- endfor %}
   {%- endfor %}
@@ -30,14 +32,11 @@ http:
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
-      {%- if i.passthrough %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name}}:
       loadBalancer:
         servers:
-          # just forwarding port 80 for doing own http challenge:
-          - url: http://{{ s.name }}:80/
-      {%- endif %}
+          - url: http://{{ s.host }}:{{ i.port }}/
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
@@ -54,7 +53,6 @@ http:
     default-headers:
       headers:
         frameDeny: true
-        sslRedirect: true
         browserXssFilter: true
         contentTypeNosniff: true
         # HSTS - uncomment for HSTS

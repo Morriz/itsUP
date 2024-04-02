@@ -7,7 +7,7 @@ from unittest.mock import Mock, call
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import Service
-from lib.models import Ingress, Project
+from lib.models import Ingress, Project, Router
 from lib.proxy import (
     get_internal_map,
     get_passthrough_map,
@@ -48,7 +48,7 @@ class TestProxy(TestCase):
 
         # Assert the result
         expected_map = {
-            "itsup.example.com": "host.docker.internal:8888",
+            "itsup.example.com": "172.17.0.1:8888",
             "hello.example.com": "test-master:8080",
             "minio-api.example.com": "minio-app:9000",
             "minio-ui.example.com": "minio-app:9001",
@@ -64,7 +64,8 @@ class TestProxy(TestCase):
                 name="testp",
                 services=[
                     Service(
-                        ingress=[Ingress(domain="some.example.com", port=8080, passthrough=True)], name="my-service"
+                        ingress=[Ingress(domain="some.example.com", port=8080, passthrough=True, router=Router.tcp)],
+                        host="my-service",
                     ),
                 ],
             ),

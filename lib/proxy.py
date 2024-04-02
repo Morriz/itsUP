@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_plugin_registry, get_project, get_projects
-from lib.models import Protocol, ProxyProtocol
+from lib.models import Protocol, ProxyProtocol, Router
 from lib.utils import run_command
 
 load_dotenv()
@@ -35,7 +35,7 @@ def get_terminate_map() -> Dict[str, str]:
         for s in p.services:
             prefix = f"{p.name}-" if s.image else ""
             for i in s.ingress:
-                map[i.domain] = f"{prefix}{s.name}:{i.port}"
+                map[i.domain] = f"{prefix}{s.host}:{i.port}"
     return map
 
 
@@ -45,7 +45,7 @@ def get_passthrough_map() -> Dict[str, str]:
     for p in projects:
         for s in p.services:
             for i in s.ingress:
-                map[i.domain] = f"{s.name}:{i.port}"
+                map[i.domain] = f"{s.host}:{i.port}"
     return map
 
 
@@ -88,60 +88,63 @@ def write_terminate() -> None:
 
 
 def write_routers() -> None:
-    projects_passthrough = get_projects(filter=lambda _, s, i: i.passthrough or not s.image)
-    with open("proxy/tpl/routers-web.yml.j2", encoding="utf-8") as f:
+    # we only get the stuff with passthrough or hostport + domain as the port 80/443 containers
+    # have labels themselves and will be picked up dynamically
+    projects_http = get_projects(
+        filter=lambda _, s, i: i.router == Router.http and (i.passthrough or not s.image or (i.hostport and i.domain))
+    )
+    with open("proxy/tpl/routers-http.yml.j2", encoding="utf-8") as f:
         t = f.read()
-    tpl_routers_web = Template(t)
+    tpl_routers_http = Template(t)
     domain = os.environ.get("TRAEFIK_DOMAIN")
-    routers_web = tpl_routers_web.render(
-        projects=projects_passthrough,
+    routers_http = tpl_routers_http.render(
+        projects=projects_http,
         traefik_rule=f"Host(`{domain}`)",
         traefik_admin=os.environ.get("TRAEFIK_ADMIN"),
         plugin_registry=get_plugin_registry(),
         trusted_ips_cidrs=os.environ.get("TRUSTED_IPS_CIDRS").split(","),
     )
-    with open("proxy/traefik/routers-web.yml", "w", encoding="utf-8") as f:
-        f.write(routers_web)
+    with open("proxy/traefik/dynamic/routers-http.yml", "w", encoding="utf-8") as f:
+        f.write(routers_http)
+    projects_tcp = get_projects(
+        filter=lambda _, s, i: i.router == Router.tcp and (i.passthrough or not s.image or i.hostport)
+    )
     with open("proxy/tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_tcp = Template(t)
     tpl_routers_tcp.globals["ProxyProtocol"] = ProxyProtocol
-    routers_tcp = tpl_routers_tcp.render(projects=projects_passthrough, traefik_rule=f"HostSNI(`{domain}`)")
-    with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
+    routers_tcp = tpl_routers_tcp.render(projects=projects_tcp)
+    with open("proxy/traefik/dynamic/routers-tcp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
-    projects_udp = get_projects(filter=lambda _, _2, i: i.protocol == Protocol.udp)
+    projects_udp = get_projects(filter=lambda _, _2, i: i.router == Router.udp)
     with open("proxy/tpl/routers-udp.yml.j2", encoding="utf-8") as f:
         t = f.read()
-    tpl_routers_tcp = Template(t)
-    routers_tcp = tpl_routers_tcp.render(projects=projects_udp)
-    with open("proxy/traefik/routers-udp.yml", "w", encoding="utf-8") as f:
-        f.write(routers_tcp)
+    tpl_routers_udp = Template(t)
+    routers_udp = tpl_routers_udp.render(projects=projects_udp)
+    with open("proxy/traefik/dynamic/routers-udp.yml", "w", encoding="utf-8") as f:
+        f.write(routers_udp)
 
 
 def write_config() -> None:
-    with open("proxy/tpl/config-in.yml.j2", encoding="utf-8") as f:
+    with open("proxy/tpl/traefik.yml.j2", encoding="utf-8") as f:
         t = f.read()
-    tpl_config_tcp = Template(t)
-    tpl_config_tcp.globals["Protocol"] = Protocol
+    tpl_config_http = Template(t)
+    tpl_config_http.globals["Protocol"] = Protocol
     trusted_ips_cidrs = os.environ.get("TRUSTED_IPS_CIDRS").split(",")
-    projects_hostport = get_projects(filter=lambda _, _2, i: bool(i.hostport))
-    config_tcp = tpl_config_tcp.render(projects=projects_hostport, trusted_ips_cidrs=trusted_ips_cidrs)
-    with open("proxy/traefik/config-in.yml", "w", encoding="utf-8") as f:
-        f.write(config_tcp)
-    with open("proxy/tpl/config-web.yml.j2", encoding="utf-8") as f:
-        t = f.read()
-    tpl_config_web = Template(t)
+    projects_hostport = get_projects(filter=lambda _, _2, i: i.hostport)
     plugin_registry = get_plugin_registry()
     has_plugins = any(plugin.enabled for _, plugin in plugin_registry)
-    config_web = tpl_config_web.render(
-        trusted_ips_cidrs=trusted_ips_cidrs,
+    config_http = tpl_config_http.render(
+        has_plugins=has_plugins,
+        domain_suffix=os.environ.get("DOMAIN_SUFFIX"),
         le_email=os.environ.get("LETSENCRYPT_EMAIL"),
         le_staging=bool(os.environ.get("LETSENCRYPT_STAGING")),
         plugin_registry=plugin_registry,
-        has_plugins=has_plugins,
+        projects=projects_hostport,
+        trusted_ips_cidrs=trusted_ips_cidrs,
     )
-    with open("proxy/traefik/config-web.yml", "w", encoding="utf-8") as f:
-        f.write(config_web)
+    with open("proxy/traefik/traefik.yml", "w", encoding="utf-8") as f:
+        f.write(config_http)
 
 
 def write_compose() -> None:

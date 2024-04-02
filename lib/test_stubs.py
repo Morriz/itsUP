@@ -1,6 +1,6 @@
 import yaml
 
-from lib.models import Ingress, Plugin, Project, Service
+from lib.models import Ingress, Plugin, Project, Router, Service
 
 with open("db.yml.sample", encoding="utf-8") as f:
     test_db = yaml.safe_load(f)
@@ -33,14 +33,35 @@ test_projects = [
         enabled=False,
         name="home-assistant",
         services=[
-            Service(ingress=[Ingress(domain="home.example.com", passthrough=True, port=443)], name="192.168.1.111"),
+            Service(
+                ingress=[Ingress(domain="home.example.com", passthrough=True, port=443, router=Router.tcp)],
+                host="192.168.1.111",
+            ),
+        ],
+    ),
+    Project(
+        description="Home Assistant http passthrough for letsencrypt",
+        enabled=False,
+        name="home-assistant-challenge",
+        services=[
+            Service(
+                ingress=[
+                    Ingress(
+                        domain="home.example.com",
+                        path_prefix="/.well-known/acme-challenge/",
+                        passthrough=True,
+                        port=80,
+                    )
+                ],
+                host="192.168.1.111",
+            ),
         ],
     ),
     Project(
         description="itsUP API running on the host",
         name="itsUP",
         services=[
-            Service(ingress=[Ingress(domain="itsup.example.com", port=8888)], name="host.docker.internal"),
+            Service(ingress=[Ingress(domain="itsup.example.com", port=8888)], host="172.17.0.1"),
         ],
     ),
     Project(
@@ -49,17 +70,17 @@ test_projects = [
         name="minio",
         services=[
             Service(
-                command='server --console-address ":9001" http://minio/data',
+                command='server --console-address ":9001" /data',
                 env={
                     "MINIO_ROOT_USER": "root",
-                    "MINIO_ROOT_PASSWORD": "83b01a6b8f210b5f5862943f3ebe257d",
+                    "MINIO_ROOT_PASSWORD": "xx",
                 },
                 image="minio/minio:latest",
                 ingress=[
-                    Ingress(domain="minio-api.example.com", port=9000),
+                    Ingress(domain="minio-api.example.com", port=9000, router=Router.tcp),
                     Ingress(domain="minio-ui.example.com", port=9001),
                 ],
-                name="app",
+                host="app",
                 volumes=["/data"],
             ),
         ],
@@ -79,9 +100,10 @@ test_projects = [
                         hostport=1194,
                         port=1194,
                         protocol="udp",
+                        router="udp",
                     )
                 ],
-                name="openvpn",
+                host="openvpn",
                 restart="always",
                 volumes=["/etc/openvpn"],
             ),
@@ -95,13 +117,13 @@ test_projects = [
                 env={"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"},
                 image="otomi/nodejs-helloworld:v1.2.13",
                 ingress=[Ingress(domain="hello.example.com")],
-                name="master",
+                host="master",
                 volumes=["/data/bla", "/etc/dida"],
             ),
             Service(
                 env={"TARGET": "boss"},
                 image="otomi/nodejs-helloworld:v1.2.13",
-                name="informant",
+                host="informant",
                 additional_properties={"cpus": 0.1},
             ),
         ],
@@ -110,7 +132,7 @@ test_projects = [
         description="whoami service",
         name="whoami",
         services=[
-            Service(image="traefik/whoami:latest", ingress=[Ingress(domain="whoami.example.com")], name="web"),
+            Service(image="traefik/whoami:latest", ingress=[Ingress(domain="whoami.example.com")], host="web"),
         ],
     ),
 ]

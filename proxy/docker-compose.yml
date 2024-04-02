@@ -1,6 +1,4 @@
 ---
-version: '3.8'
-
 networks:
   proxynet:
     name: proxynet
@@ -27,7 +25,7 @@ services:
       # with this configuration socket-proxy acts similar to the tecnativa proxy. For additional hardening
       # please refer to the documentation of the wollomatic/socket-proxy image
       - '-loglevel=info' # set to debug for far more logging
-      - '-allowfrom=traefik-web'
+      - '-allowfrom=traefik'
       - '-listenip=0.0.0.0'
       - '-allowGET=/v1\..{1,2}/(version|containers/.*|events.*)' # this regexp allows readonly access only for requests that traefik needs
       - '-shutdowngracetime=5'
@@ -48,42 +46,28 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  traefik-in:
+  traefik:
     image: traefik:v2.11
-    container_name: traefik-in
-    env_file:
-      - ../.env
-    networks:
-      - default
-      - proxynet
-    ports:
-      - 8080:8080/tcp
-      - 8443:8443/tcp
-      - 1194:1194/udp
-    volumes:
-      - ./traefik/config-in.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/routers-tcp.yml:/etc/traefik/dynamic/routers-tcp.yml:ro
-      - ./traefik/routers-udp.yml:/etc/traefik/dynamic/routers-udp.yml:ro
-
-  traefik-web:
-    image: traefik:v2.11
-    container_name: traefik-web
-    env_file:
-      - ../.env
+    container_name: traefik
     networks:
       - default
       - proxynet
     expose:
       - '8080'
       - '8443'
+    ports:
+      - 8080:8080/tcp
+      - 8443:8443/tcp
+      - 1194:1194/udp
+      - 5432:5432/tcp
     volumes:
-      - ./traefik/config-web.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/routers-web.yml:/etc/traefik/dynamic/routers-web.yml:ro
-      - ./traefik/acme:/etc/acme
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ../data/acme:/etc/acme
     depends_on:
       - dockerproxy
-      - traefik-in
       - crowdsec
+
   crowdsec:
     image: crowdsecurity/crowdsec:v1.6.0
     container_name: crowdsec

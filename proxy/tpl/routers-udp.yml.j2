@@ -4,7 +4,7 @@ udp:
   {%- for p in projects %}
     {%- for s in p.services %}
       {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name }}:
       entryPoints:
         - udp-{{ i.hostport }}
@@ -16,11 +16,11 @@ udp:
   {%- for p in projects %}
     {%- for s in p.services %}
       {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name }}:
       loadBalancer:
         servers:
-          - address: {{ p.name }}-{{ s.name }}:{{ i.port }}
+          - address: {{ p.name }}-{{ s.host }}:{{ i.port }}
       {%- endfor %}
     {%- endfor %}
   {%- endfor %}

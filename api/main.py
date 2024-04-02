@@ -148,7 +148,7 @@ def upsert_service_handler(
 ) -> None:
     """Create or update a service"""
     upsert_service(project, service)
-    background_tasks.add_task(_after_config_change, project, service.name)
+    background_tasks.add_task(_after_config_change, project, service.host)
 
 
 # @app.patch(

@@ -1,16 +1,17 @@
-{%- set p = project %}
 ---
-version: '3.8'
-
 networks:
   proxynet:
     name: proxynet
     external: true
 
 services:
+{%- set p = project %}
 {%- for s in project.services %}
-  {%- set has_ingress = list(s.ingress | selectattr('domain')) | length > 0 %}
-  {{ project.name }}-{{ s.name }}:
+  {#- The service needs discovery labels when one of its ingress entries has a domain and is not using hostport #}
+  {#- (hostport services are handled by static routers) #}
+  {%- set needs_discovery = list(s.ingress | selectattr('domain')) | length > list(s.ingress | selectattr('domain') | selectattr('hostport')) | length %}
+  {%- set has_ingress = list(s.ingress | selectattr('domain')) | length > 0 or list(s.ingress | selectattr('hostport')) | length > 0 %}
+  {{ project.name }}-{{ s.host }}:
   {%- if s.command %}
     command: {{ s.command }}
   {%- endif %}
@@ -23,7 +24,7 @@ services:
   {%- if s.env %}
     environment:
     {%- for k, v in s.env %}
-      {{ k }}: '{{ v }}'
+      - '{{ k }}={{ (v ~ '').replace("'", "''") }}'
     {%- endfor %}
   {%- endif %}
     expose:
@@ -31,22 +32,25 @@ services:
       - {{ i.port }}/{{ Protocol[i.protocol].value }}
   {%- endfor %}
     image: {{ s.image }}
-  {%- if has_ingress or (s.labels | length > 0) %}
+  {%- if needs_discovery or (s.labels | length > 0) %}
     labels:
-    {%- if has_ingress %}
+    {%- if needs_discovery %}
       - traefik.enable=true
       - traefik.docker.network=proxynet
       {%- for i in s.ingress %}
         {%- if i.domain %}
-          {%- set name = project.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
-      - traefik.http.routers.{{ name }}.entrypoints={% if i.hostport %}{{ Protocol(i.protocol).value }}-{{ i.hostport }}{% else %}web-secure{% endif %}
-      - traefik.http.routers.{{ name }}.rule=Host(`{{ i.domain }}`){%- if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){%- endif %}
-      - traefik.http.routers.{{ name }}.tls.certresolver=letsencrypt
-      - traefik.http.routers.{{ name }}.service={{ name }}
-          {%- if i.path_prefix and i.path_remove %}
-      - traefik.http.middlewares.removeServiceSelector.stripPrefix.prefixes={{ i.path_prefix }}
+          {%- set name = project.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
+          {%- set router = Router(i.router).value %}
+      - traefik.{{ router }}.routers.{{ name }}.entrypoints={% if i.hostport %}{{ Protocol(i.protocol).value }}-{{ i.hostport }}{% else %}web-secure{% endif %}
+          {%- if i.router != Router.udp %}
+      - traefik.{{ router }}.routers.{{ name }}.rule=Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ i.domain }}`){%- if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){%- endif %}
+      - traefik.{{ router }}.routers.{{ name }}.tls.certresolver=letsencrypt
           {%- endif %}
-      - traefik.http.services.{{ name }}.loadbalancer.server.port={{ i.port }}
+      - traefik.{{ router }}.routers.{{ name }}.service={{ name }}
+          {%- if i.path_prefix and i.path_remove %}
+      - traefik.{{ router }}.middlewares.removeServiceSelector.stripPrefix.prefixes={{ i.path_prefix }}
+          {%- endif %}
+      - traefik.{{ router }}.services.{{ name }}.loadbalancer.server.port={{ i.port }}
         {%- endif %}
       {%- endfor %}
     {%- endif %}
@@ -72,7 +76,7 @@ services:
         {%- set source = v %}
         {%- set target = v %}
       {%- endif %}
-      - .{{ source }}:{{ target }}
+      - '.{{ source }}:{{ target }}'
     {%- endfor %}
   {%- endif %}
   {%- for k, v in s.additional_properties.items() %}

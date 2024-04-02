@@ -1,9 +1,10 @@
 from enum import Enum
 from gc import enable
-from typing import Any, Dict, List
+from typing import Any, ClassVar, Dict, List
 
 from github_webhooks.schemas import WebhookCommonPayload
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator, validator
+from pydantic_core import SchemaValidator
 
 
 class Env(BaseModel):
@@ -53,6 +54,14 @@ class ProxyProtocol(str, Enum):
     v2 = 2
 
 
+class Router(str, Enum):
+    """Router enum"""
+
+    http = "http"
+    tcp = "tcp"
+    udp = "udp"
+
+
 class Ingress(BaseModel):
     """Ingress model"""
 
@@ -72,6 +81,19 @@ class Ingress(BaseModel):
     """The protocol to use for the port"""
     proxyprotocol: ProxyProtocol | None = ProxyProtocol.v2
     """When set, the service is expected to accept the given PROXY protocol version. Explicitly set to null to disable."""
+    router: Router = Router.http
+    """The type of router to use for the service"""
+
+    @model_validator(mode="after")
+    @classmethod
+    def check_passthrough_tcp(cls, data: Any) -> Any:
+        if data.passthrough and not (data.port == 80 and data.path_prefix == "/.well-known/acme-challenge/"):
+            assert data.router == Router.tcp, "router should be of type 'tcp' if passthrough is enabled"
+        if data.router == Router.http and data.domain and data.port == 80 and data.passthrough:
+            assert (
+                data.path_prefix == "/.well-known/acme-challenge/"
+            ), "only path_prefix '/.well-known/acme-challenge/' is allowed when router is http and port is 80"
+        return data
 
 
 class Service(BaseModel):
@@ -85,14 +107,14 @@ class Service(BaseModel):
     """A list of services to depend on"""
     env: Env = None
     """A dictionary of environment variables to pass to the service"""
+    host: str
+    """The host (name/ip) of the service"""
     image: str = None
     """The full container image uri of the service"""
     ingress: List[Ingress] = []
     """Ingress configuration for the service. If a string is passed, it will be used as the domain."""
     labels: List[str] = []
     """Extra labels to add to the service. Should not interfere with generated traefik labels for ingress."""
-    name: str
-    """The name of the service"""
     restart: str = "unless-stopped"
     """The restart policy to use for the service"""
     volumes: List[str] = []

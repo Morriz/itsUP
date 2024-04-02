@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_project, get_projects, get_service
-from lib.models import Project, Protocol
+from lib.models import Project, Protocol, Router
 from lib.utils import run_command
 
 load_dotenv()
@@ -16,6 +16,7 @@ def write_upstream(project: Project) -> None:
         t = f.read()
     tpl = Template(t)
     tpl.globals["Protocol"] = Protocol
+    tpl.globals["Router"] = Router
     tpl.globals["isinstance"] = isinstance
     tpl.globals["len"] = len
     tpl.globals["list"] = list
@@ -73,8 +74,8 @@ def update_upstream(
     projects = get_projects(filter=lambda p, s: p.enabled and p.name == project.name and bool(s.image))
     for p in projects:
         for s in p.services:
-            if not service or s.name == service:
-                rollout_service(project.name, s.name)
+            if not service or s.host == service:
+                rollout_service(project.name, s.host)
 
 
 def update_upstreams(rollout: bool = False) -> None:

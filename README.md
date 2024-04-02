@@ -16,6 +16,7 @@ Still interested? Then read on...
   - [Managed proxy setup](#managed-proxy-setup)
   - [Managed service deployments \& updates](#managed-service-deployments--updates)
   - [\*Zero downtime?](#zero-downtime)
+- [Apps included](#apps-included)
 - [Prerequisites](#prerequisites)
 - [Dev/ops tools](#devops-tools)
   - [utility functions](#utility-functions)
@@ -23,6 +24,11 @@ Still interested? Then read on...
 - [Howto](#howto)
   - [Install \& run](#install--run)
   - [Configure services](#configure-services)
+    - [Scenario 1: Adding an upstream service that will be deployed and managed](#scenario-1-adding-an-upstream-service-that-will-be-deployed-and-managed)
+    - [Scenario 2: Adding a TLS passthrough endpoint](#scenario-2-adding-a-tls-passthrough-endpoint)
+    - [Scenario 3: Adding a TCP endpoint](#scenario-3-adding-a-tcp-endpoint)
+    - [Scenario 4: Adding a local (host) endpoint](#scenario-4-adding-a-local-host-endpoint)
+    - [Additional docker properties](#additional-docker-properties)
   - [Configure plugins](#configure-plugins)
     - [CrowdSec](#crowdsec)
   - [Using the Api \& OpenApi spec](#using-the-api--openapi-spec)
@@ -47,10 +53,11 @@ This means abstractions are used which means a trade off between flexibility and
 
 ### Managed proxy setup
 
-itsUP generates and manages `proxy/docker-compose.yml` that runs two proxies in series (tcp -> web), with only the first exposing ports, to be able to:
+itsUP generates and manages `proxy/docker-compose.yml` which operates traefik to be able to do all one wants from a routing solution:
 
-1. do TLS passthrough to existing endpoints (most people have secure Home Assistant setups already)
-2. terminate TLS and forward securely to managed endpoints over an encrypted `proxynet` docker network
+1. Terminate TLS and forward tcp/udp traffic over an encrypted network to listening endpoints.
+   ææ2. Passthrough TLS to endpoints (most people have secure Home Assistant setups already).
+2. Open host ports if needed to choose a new port (openvpn service does exactly that)
 
 ### Managed service deployments & updates
 
@@ -74,6 +81,13 @@ _What about stateful services?_
 
 It is surely possible to deploy stateful services but beware that those might not be good candidates for the `docker rollout` automation. In order to update those services it is strongly advised to first read the upgrade documentation for the newer version and follow the prescribed steps. More mature databases might have integrated these steps in the runtime, but expect that to be an exception. So, to garner correct results you are on your own and will have to read up on your chosen solutions.
 
+## Apps included
+
+- minio/minio: S3 storage
+- [nubacuk/docker-openvpn](https://github.com/nuBacuk/docker-openvpn): vpn access to the host running this stack
+- traefik/whoami: to check if headers are correctly passed along
+- morriz/hello-world
+
 ## Prerequisites
 
 **Tools:**
@@ -96,7 +110,7 @@ Source `lib/functions.sh` to get:
 - `dcp`: run a `docker compose` command targeting the proxy stack (`proxy` + `terminate` services): `dcp logs -f`
 - `dcu`: run a `docker compose` command targeting a specific upstream: `dcu test up`
 - `dca`: run a `docker compose` command targeting all upstreams: `dca ps`
-- `dcpx`: execute a command in one of the proxy containers: `dcpx traefik-web 'rm -rf /etc/acme/acme.json && shutdown' && dcp up`
+- `dcpx`: execute a command in one of the proxy containers: `dcpx traefik 'rm -rf /etc/acme/acme.json && shutdown' && dcp up`
 - `dcux`: execute a command in one of the upstream containers: `dcux test test-informant env`
 
 In effect these wrapper commands achieve the same as when going into an `upstream/\*`folder and running`docker compose` there.
@@ -118,7 +132,7 @@ These are the scripts to install everything and start the proxy and api so that 
 1. `bin/install.sh`: creates a local `.venv` and installs all python project deps.
 2. `bin/start-all.sh`: starts the proxy (docker compose) and the api server (uvicorn).
 3. `bin/apply.py`: applies all of `db.yml`.
-4. `bin/api-logs.sh`: tails the output of the api server. (The
+4. `bin/api-logs.sh`: tails the output of the api server.
 
 But before doing so please configure your stuff:
 
@@ -129,7 +143,7 @@ But before doing so please configure your stuff:
 
 Project and service configuration is explained below with the following scenarios. Please also check `db.yml.sample` as it contains more examples.
 
-**Adding an upstream service that will be deployed and managed:**
+#### Scenario 1: Adding an upstream service that will be deployed and managed
 
 Edit `db.yml` and add your projects with their service(s). Any service that is given an `image: ` prop will be deployed with `docker compose`.
 Example:
@@ -143,12 +157,12 @@ projects:
       - image: traefik/whoami:latest
         ingress:
           - domain: whoami.example.com
-        name: web
+        host: web
 ```
 
 Run `bin/apply.py` to write all artifacts and deploy/update relevant docker stacks.
 
-**Adding a passthrough endpoint:**
+#### Scenario 2: Adding a TLS passthrough endpoint
 
 Add a service with ingress and set `passthrough: true`.
 Example:
@@ -157,19 +171,58 @@ Example:
 projects:
   ...
   - description: Home Assistant passthrough
-    enabled: false
-    name: home-assistant # keep this name as it also makes sure to forward port 80 for certbot
+    enabled: true
+    name: home-assistant
     services:
       - ingress:
         - domain: home.example.com
           passthrough: true
           port: 443
-        name: 192.168.1.111
+        host: 192.168.1.111
 ```
 
-Run `bin/apply.py` to roll out the changes.
+If you also need port 80 to listen for http challenges for your endpoint (home-assistant may do its own), then you may also add:
 
-**Adding a local (host) endpoint:**
+```yaml
+  ...
+      - ingress:
+        ...
+        - domain: home.example.com
+          passthrough: true
+          path_prefix: /.well-known/acme-challenge/
+          port: 80
+```
+
+(Port 80 is disallowed for any other other cases.)
+
+#### Scenario 3: Adding a TCP endpoint
+
+Add a service with ingress and set `router: tcp`.
+Example:
+
+```yaml
+projects:
+  ...
+  - description: Minio service
+    name: minio
+    services:
+      - command: server --console-address ":9001" /data
+        env:
+          MINIO_ROOT_USER: root
+          MINIO_ROOT_PASSWORD: xx
+        host: app
+        image: minio/minio:latest
+        ingress:
+          - domain: minio-api.example.com
+            port: 9000
+            router: tcp
+          - domain: minio-ui.example.com
+            port: 9001
+        volumes:
+          - /data
+```
+
+#### Scenario 4: Adding a local (host) endpoint
 
 You can expose an existing service that is already running on the host by creating a service:
 
@@ -188,12 +241,10 @@ projects:
       - ingress:
           - domain: itsup.example.com
             port: 8888
-        name: host.docker.internal
+        host: 172.17.0.1 # change this to host.docker.internal when on Docker Desktop
 ```
 
-Run `bin/apply.py` to roll out the changes.
-
-**Additional docker properties:**
+#### Additional docker properties
 
 One can add additional docker properties to a service by adding them to the `additional_properties` dictionary:
 

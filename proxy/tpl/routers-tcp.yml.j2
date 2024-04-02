@@ -3,36 +3,36 @@ tcp:
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name }}:
       entryPoints:
-        - tcp-secure
+      {%- if i.hostport %}
+        - tcp-{{ i.hostport }}
+      {%- else %}
+        - web-secure
+      {%- endif %}
       service: {{ name }}
+      {%- if i.domain %}
       rule: 'HostSNI(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
+      {%- else %}
+      rule: 'HostSNI(`*`)'
+      {%- endif %}
       {%- if i.passthrough %}
       tls:
         passthrough: true
+      {%- elif i.domain %}
+      tls:
+        certresolver: letsencrypt
       {%- endif %}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
-    http:
-      entryPoints:
-        - tcp
-      service: http
-      rule: 'HostSNI(`*`)'
-    https:
-      entryPoints:
-        - tcp-secure
-      service: https
-      rule: 'HostSNI(`*`)'
-      tls:
-        passthrough: true
+
   services:
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.name.replace('.', '-') ~ '-' ~ i.port %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name }}:
       loadBalancer:
         {%- if i.proxyprotocol %}
@@ -40,19 +40,7 @@ tcp:
           version: {{ ProxyProtocol(i.proxyprotocol).value }}
         {%- endif %}
         servers:
-          - address: {{ s.name }}:{{ i.port }}
+          - address: {% if i.hostport %}{{ p.name }}-{% endif %}{{ s.host }}:{{ i.port }}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
-    http:
-      loadBalancer:
-        proxyProtocol:
-          version: 2
-        servers:
-          - address: traefik-web:8080
-    https:
-      loadBalancer:
-        proxyProtocol:
-          version: 2
-        servers:
-          - address: traefik-web:8443

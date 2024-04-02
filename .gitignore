@@ -9,6 +9,7 @@ certs/*
 db.yml
 proxy/docker-compose.yml
 proxy/nginx/*.conf
+proxy/traefik/dynamic/*.yml
 proxy/traefik/*.yml
 upstream
 acme.json
