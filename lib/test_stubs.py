@@ -110,25 +110,6 @@ test_projects = [
         ],
     ),
     Project(
-        description="test project to demonstrate inter service connectivity",
-        name="test",
-        services=[
-            Service(
-                env={"TARGET": "cost concerned people", "INFORMANT": "http://test-informant:8080"},
-                image="otomi/nodejs-helloworld:v1.2.13",
-                ingress=[Ingress(domain="hello.example.com")],
-                host="master",
-                volumes=["/data/bla", "/etc/dida"],
-            ),
-            Service(
-                env={"TARGET": "boss"},
-                image="otomi/nodejs-helloworld:v1.2.13",
-                host="informant",
-                additional_properties={"cpus": 0.1},
-            ),
-        ],
-    ),
-    Project(
         description="whoami service",
         name="whoami",
         services=[

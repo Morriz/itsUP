@@ -47,7 +47,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   traefik:
-    image: traefik:v2.11
+    image: v2.11
     container_name: traefik
     networks:
       - default
@@ -59,7 +59,6 @@ services:
       - 8080:8080/tcp
       - 8443:8443/tcp
       - 1194:1194/udp
-      - 5432:5432/tcp
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro

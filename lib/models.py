@@ -105,7 +105,7 @@ class Service(BaseModel):
     """The command to run in the service"""
     depends_on: List[str] = []
     """A list of services to depend on"""
-    env: Env = None
+    env: Env = Env()
     """A dictionary of environment variables to pass to the service"""
     host: str
     """The host (name/ip) of the service"""

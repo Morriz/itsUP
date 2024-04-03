@@ -16,7 +16,7 @@ from lib.data import (
     write_db,
     write_projects,
 )
-from lib.models import Env, Project, Service
+from lib.models import Env, Ingress, Project, Service
 from lib.test_stubs import test_db, test_projects
 
 
@@ -37,7 +37,12 @@ class TestData(unittest.TestCase):
 
         # Assert that the mock functions were called correctly
         mock_yaml.dump.assert_called_once_with(
-            {"plugins": test_db["plugins"], "projects": test_db["projects"]}, mock_open()
+            {
+                "versions": {"traefik": "v2.11", "crowdsec": "v1.6.0"},
+                "plugins": test_db["plugins"],
+                "projects": test_db["projects"],
+            },
+            mock_open(),
         )
 
     @mock.patch("lib.data.write_db")
@@ -57,17 +62,15 @@ class TestData(unittest.TestCase):
     def test_get_projects_with_filter(self, _: Mock) -> None:
 
         # Call the function under test
-        result = get_projects(lambda p, s: p.name == "test" and s.ingress)
+        result = get_projects(lambda p, s: p.name == "whoami" and s.ingress)
 
         # Assert the result
         expected_result = [
             Project(
-                name="test",
-                description="test project to demonstrate inter service connectivity",
-                domain="hello.example.com",
-                entrypoint="master",
+                description="whoami service",
+                name="whoami",
                 services=[
-                    test_projects[5].services[0],
+                    Service(image="traefik/whoami:latest", ingress=[Ingress(domain="whoami.example.com")], host="web"),
                 ],
             ),
         ]
@@ -127,24 +130,24 @@ class TestData(unittest.TestCase):
 
     # Upsert a project's service' env
     @mock.patch("lib.data.get_project", return_value=test_projects[5].model_copy())
-    @mock.patch("lib.data.get_service", return_value=test_projects[5].services[1].model_copy())
+    @mock.patch("lib.data.get_service", return_value=test_projects[5].services[0].model_copy())
     @mock.patch("lib.data.upsert_service")
     def test_upsert_env(self, mock_upsert_service: Mock, mock_get_service: Mock, mock_get_project: Mock) -> None:
 
-        extra_env = Env(**{"TARGET": "sir", "x": 1, "y": 2})
+        extra_env = Env(**{"OKI": "doki"})
         # Call the function under test
-        upsert_env(project="test", service="informant", env=extra_env)
+        upsert_env(project="whoami", service="web", env=extra_env)
 
         # Assert that the mock functions were called correctly
         mock_get_project.assert_called_once()
         mock_get_service.assert_called_once()
         mock_upsert_service.assert_called_once_with(
-            "test",
+            "whoami",
             Service(
                 env=extra_env,
-                image="otomi/nodejs-helloworld:v1.2.13",
-                host="informant",
-                additional_properties={"cpus": 0.1},
+                image="traefik/whoami:latest",
+                ingress=[Ingress(domain="whoami.example.com")],
+                host="web",
             ),
         )
 

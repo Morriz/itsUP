@@ -1,3 +1,7 @@
+versions:
+  traefik: v2.11
+  crowdsec: v1.6.0
+
 plugins:
   crowdsec:
     enabled: false
@@ -80,25 +84,6 @@ projects:
         restart: always
         volumes:
           - /etc/openvpn
-  - description: test project to demonstrate inter service connectivity
-    name: test
-    services:
-      - env:
-          TARGET: cost concerned people
-          INFORMANT: http://test-informant:8080
-        host: master
-        image: otomi/nodejs-helloworld:v1.2.13
-        ingress:
-          - domain: hello.example.com
-        volumes:
-          - /data/bla
-          - /etc/dida
-      - additional_properties:
-          cpus: 0.1
-        env:
-          TARGET: boss
-        host: informant
-        image: otomi/nodejs-helloworld:v1.2.13
   - description: whoami service
     name: whoami
     services:

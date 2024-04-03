@@ -47,7 +47,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   traefik:
-    image: traefik:v2.11
+    image: traefik:{{ versions.traefik }}
     container_name: traefik
     networks:
       - default
@@ -76,7 +76,7 @@ services:
       - crowdsec
 
   crowdsec:
-    image: crowdsecurity/crowdsec:v1.6.0
+    image: crowdsecurity/crowdsec:{{ versions.crowdsec }}
     container_name: crowdsec
     restart: unless-stopped
     networks:

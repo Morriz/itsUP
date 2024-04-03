@@ -5,7 +5,7 @@ from typing import Dict, List
 from dotenv import load_dotenv
 from jinja2 import Template
 
-from lib.data import get_plugin_registry, get_project, get_projects
+from lib.data import get_plugin_registry, get_project, get_projects, get_versions
 from lib.models import Protocol, ProxyProtocol, Router
 from lib.utils import run_command
 
@@ -149,12 +149,13 @@ def write_config() -> None:
 
 def write_compose() -> None:
     plugin_registry = get_plugin_registry()
+    versions = get_versions()
     with open("proxy/tpl/docker-compose.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_compose = Template(t)
     tpl_compose.globals["Protocol"] = Protocol
     projects_hostport = get_projects(filter=lambda _, _2, i: bool(i.hostport))
-    compose = tpl_compose.render(projects=projects_hostport, plugin_registry=plugin_registry)
+    compose = tpl_compose.render(versions=versions, projects=projects_hostport, plugin_registry=plugin_registry)
     with open("proxy/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(compose)
 

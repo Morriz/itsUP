@@ -48,6 +48,13 @@ def validate_db() -> None:
         Project.model_validate(project)
 
 
+def get_versions() -> Dict[str, Any]:
+    """Get versions of all images used in proxy setup"""
+    debug("Getting proxy image versions")
+    db = get_db()
+    return cast(Dict[str, Any], db["versions"])
+
+
 def get_plugin_registry() -> PluginRegistry:
     """Get plugin registry."""
     debug("Getting plugin registry")
