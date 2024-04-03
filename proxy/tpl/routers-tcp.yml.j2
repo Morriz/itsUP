@@ -17,6 +17,7 @@ tcp:
       {%- else %}
       rule: 'HostSNI(`*`)'
       {%- endif %}
+      rulesyntax: v2
       {%- if i.passthrough %}
       tls:
         passthrough: true

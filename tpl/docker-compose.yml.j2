@@ -21,7 +21,7 @@ services:
       - {{ project.name }}-{{ dep }}
     {%- endfor %}
   {%- endif %}
-  {%- if s.env %}
+  {%- if s.env.model_dump() | length > 0 %}
     environment:
     {%- for k, v in s.env %}
       - '{{ k }}={{ (v ~ '').replace("'", "''") }}'
@@ -44,7 +44,10 @@ services:
       - traefik.{{ router }}.routers.{{ name }}.entrypoints={% if i.hostport %}{{ Protocol(i.protocol).value }}-{{ i.hostport }}{% else %}web-secure{% endif %}
           {%- if i.router != Router.udp %}
       - traefik.{{ router }}.routers.{{ name }}.rule=Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ i.domain }}`){%- if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){%- endif %}
-      - traefik.{{ router }}.routers.{{ name }}.tls.certresolver=letsencrypt
+      - traefik.{{ router }}.routers.{{ name }}.rulesyntax=v2
+            {%- if i.router == Router.tcp %}
+      - traefik.tcp.routers.{{ name }}.tls.certresolver=letsencrypt
+            {%- endif %}
           {%- endif %}
       - traefik.{{ router }}.routers.{{ name }}.service={{ name }}
           {%- if i.path_prefix and i.path_remove %}
