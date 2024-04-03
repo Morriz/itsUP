@@ -21,6 +21,7 @@ http:
       entryPoints:
         - web{% if i.port != 80 %}-secure{% endif %}
       rule: 'Host(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
+      rulesyntax: v2
       {%- if i.port != 80 %}
       tls:
         certResolver: letsencrypt

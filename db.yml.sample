@@ -1,5 +1,5 @@
 versions:
-  traefik: v2.11
+  traefik: v3
   crowdsec: v1.6.0
 
 plugins:

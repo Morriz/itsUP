@@ -76,9 +76,8 @@ entryPoints:
   {%- endfor %}
 {%- endfor %}
 
-experimental:
-  http3: true
 {%- if has_plugins %}  
+experimental:
   plugins:
   {%- if plugin_registry.crowdsec.enabled %}
     {%- set p = plugin_registry.crowdsec %}
@@ -92,7 +91,7 @@ global:
   sendAnonymousUsage: true
 
 log:
-  level: INFO
+  level: DEBUG
 
 providers:
   docker:
