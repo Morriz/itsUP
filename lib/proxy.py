@@ -24,8 +24,8 @@ def get_domains(filter: Callable[[Plugin], bool] = None) -> List[str]:
                 if i.tls:
                     domains.append(i.tls.main)
                     if i.tls.sans:
-                        for s in i.tls.sans:
-                            domains.append(s)
+                        for sans in i.tls.sans:
+                            domains.append(sans)
     return domains
 
 
