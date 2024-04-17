@@ -38,7 +38,7 @@ class TestData(unittest.TestCase):
         # Assert that the mock functions were called correctly
         mock_yaml.dump.assert_called_once_with(
             {
-                "versions": {"traefik": "v2.11", "crowdsec": "v1.6.0"},
+                "versions": {"traefik": "v3", "crowdsec": "v1.6.0"},
                 "plugins": test_db["plugins"],
                 "projects": test_db["projects"],
             },

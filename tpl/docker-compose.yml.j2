@@ -49,7 +49,7 @@ services:
       - traefik.{{ router }}.routers.{{ name }}.rule={% for d in domains %}Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ d }}`){% if not loop.last %} || {% endif %}{% endfor %}{% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}
             {%- if i.tls %}
       - traefik.{{ router }}.routers.{{ name }}.tls.certresolver=letsencrypt
-              {%- if i.tls.main %}{# TODO: re-enable when we make challenge type configurable #}
+              {%- if i.tls.main %}
       - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].main={{ i.tls.main }}
                 {%- for s in i.tls.sans %}
       - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].sans[{{ loop.index0 }}]={{ s }}
