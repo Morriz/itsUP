@@ -33,6 +33,12 @@ def write_upstream(project: Project) -> None:
 def write_upstream_volume_folders(project: Project) -> None:
     for s in project.services:
         for path in s.volumes:
+            # strip parts such as :ro and :rw from the end first
+            path = path.rsplit(":", 1)[0]
+            # check if it still has a colon, if so, split it and get the first part, else use the whole path
+            path = path.split(":", 1)[0] if ":" in path else path
+            # remove leading dot
+            path = path[1:] if path.startswith(".") else path
             os.makedirs(f"upstream/{project.name}{path}", exist_ok=True)
 
 

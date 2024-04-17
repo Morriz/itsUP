@@ -7,10 +7,10 @@ networks:
 services:
 {%- set p = project %}
 {%- for s in project.services %}
-  {#- The service needs discovery labels when one of its ingress entries has a domain and is not using hostport #}
-  {#- (hostport services are handled by static routers) #}
-  {%- set needs_discovery = list(s.ingress | selectattr('domain')) | length > list(s.ingress | selectattr('domain') | selectattr('hostport')) | length %}
-  {%- set has_ingress = list(s.ingress | selectattr('domain')) | length > 0 or list(s.ingress | selectattr('hostport')) | length > 0 %}
+  {#- The service needs discovery labels when one of its ingress entries has a domain or tls and is not using hostport #}
+  {#- (hostport services are handled by static routers because of their need to restart anyway for new entrypoints) #}
+  {%- set needs_discovery = (list(s.ingress | selectattr('domain')) + list(s.ingress | selectattr('tls'))) | length > list(s.ingress | selectattr('domain') | selectattr('hostport')) | length %}
+  {%- set has_ingress = list(s.ingress | selectattr('domain')) | length > 0 or list(s.ingress | selectattr('tls')) | length > 0 or list(s.ingress | selectattr('hostport')) | length > 0 %}
   {{ project.name }}-{{ s.host }}:
   {%- if s.command %}
     command: {{ s.command }}
@@ -27,10 +27,12 @@ services:
       - '{{ k }}={{ (v ~ '').replace("'", "''") }}'
     {%- endfor %}
   {%- endif %}
+  {%- if s.ingress | length > 0 %}
     expose:
-  {%- for i in s.ingress %}
+    {%- for i in s.ingress %}
       - {{ i.port }}/{{ Protocol[i.protocol].value }}
-  {%- endfor %}
+    {%- endfor %}
+  {%- endif %}
     image: {{ s.image }}
   {%- if needs_discovery or (s.labels | length > 0) %}
     labels:
@@ -38,15 +40,21 @@ services:
       - traefik.enable=true
       - traefik.docker.network=proxynet
       {%- for i in s.ingress %}
-        {%- if i.domain %}
+        {%- if not i.hostport and (i.domain or (i.tls and i.tls.main)) %}
           {%- set name = project.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
           {%- set router = Router(i.router).value %}
       - traefik.{{ router }}.routers.{{ name }}.entrypoints={% if i.hostport %}{{ Protocol(i.protocol).value }}-{{ i.hostport }}{% else %}web-secure{% endif %}
           {%- if i.router != Router.udp %}
-      - traefik.{{ router }}.routers.{{ name }}.rule=Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ i.domain }}`){%- if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){%- endif %}
-      - traefik.{{ router }}.routers.{{ name }}.rulesyntax=v2
-            {%- if i.router == Router.tcp %}
-      - traefik.tcp.routers.{{ name }}.tls.certresolver=letsencrypt
+            {%- set domains = ([i.tls.main] + i.tls.sans) if (i.tls and i.tls.main) else [i.domain] %}
+      - traefik.{{ router }}.routers.{{ name }}.rule={% for d in domains %}Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ d }}`){% if not loop.last %} || {% endif %}{% endfor %}{% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}
+            {%- if i.tls %}
+      - traefik.{{ router }}.routers.{{ name }}.tls.certresolver=letsencrypt
+              {%- if i.tls.main %}{# TODO: re-enable when we make challenge type configurable #}
+      - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].main={{ i.tls.main }}
+                {%- for s in i.tls.sans %}
+      - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].sans[{{ loop.index0 }}]={{ s }}
+                {%- endfor %}
+              {%- endif %}
             {%- endif %}
           {%- endif %}
       - traefik.{{ router }}.routers.{{ name }}.service={{ name }}
@@ -73,13 +81,12 @@ services:
     volumes:
     {%- for v in s.volumes %}
       {%- if ':' in v %}
-        {%- set source = v.split(':')[0] %}
-        {%- set target = v.split(':')[1] %}
+      - '{{ v }}'
       {%- else %}
-        {%- set source = v %}
+        {%- set source = '.' ~ v %}
         {%- set target = v %}
+      - '{{ source }}:{{ target }}'
       {%- endif %}
-      - '.{{ source }}:{{ target }}'
     {%- endfor %}
   {%- endif %}
   {%- for k, v in s.additional_properties.items() %}

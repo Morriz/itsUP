@@ -175,6 +175,7 @@ if __name__ == "__main__":
         port=8888,
         log_level="debug",
         reload_dirs=["."],
+        forwarded_allow_ips="*",
         log_config="api-log.conf.yaml",
         proxy_headers=os.environ.get("PYTHON_ENV", "development") == "production",
     )

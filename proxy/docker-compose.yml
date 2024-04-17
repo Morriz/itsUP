@@ -59,10 +59,14 @@ services:
       - 8080:8080/tcp
       - 8443:8443/tcp
       - 1194:1194/udp
+      - 9000:9000/tcp
+      - 5432:5432/tcp
+      - 25:25/tcp
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ../data/acme:/etc/acme
+      - ../logs:/var/log/traefik
     depends_on:
       - dockerproxy
       - crowdsec
@@ -84,5 +88,6 @@ services:
     volumes:
       - ./traefik/crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
       - ../data/crowdsec:/var/lib/crowdsec/data/
+      - ../logs:/var/log/traefik
     labels:
       - "traefik.enable=false"

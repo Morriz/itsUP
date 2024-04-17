@@ -17,6 +17,19 @@
       }
     },
     {
+      "name": "Python: certs",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "bin/update-certs.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceRoot}"
+      },
+      "args": [ "mailforwarder" ]
+    },
+    {
       "name": "Python: write artifacts",
       "type": "debugpy",
       "request": "launch",

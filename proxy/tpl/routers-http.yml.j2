@@ -17,18 +17,23 @@ http:
     {%- for i in s.ingress %}
       {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name}}:
-      service: {{ name }}
       entryPoints:
+      {%- if i.hostport %}
+        - http-{{ i.hostport }}
+      {%- else %}
         - web{% if i.port != 80 %}-secure{% endif %}
+      {%- endif %}
       rule: 'Host(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
       rulesyntax: v2
-      {%- if i.port != 80 %}
+      service: {{ name }}
+      {%- if i.port != 80 and (i.domain or i.tls) %}
       tls:
         certResolver: letsencrypt
       {%- endif %}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
+
   services:
 {%- for p in projects %}
   {%- for s in p.services %}
@@ -37,7 +42,7 @@ http:
     {{ name}}:
       loadBalancer:
         servers:
-          - url: http://{{ s.host }}:{{ i.port }}/
+          - url: http://{% if s.image %}{{ p.name }}-{% endif %}{{ s.host }}:{{ i.port }}/
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
@@ -53,7 +58,7 @@ http:
         users: {{ traefik_admin }}
     default-headers:
       headers:
-        frameDeny: true
+        # frameDeny: true
         browserXssFilter: true
         contentTypeNosniff: true
         # HSTS - uncomment for HSTS
@@ -85,3 +90,30 @@ http:
           crowdsecLapiScheme: http
           crowdsecLapiTLSInsecureVerify: false
 {%- endif %}
+
+tls:
+  # stores:
+  #   default:
+  #     defaultGeneratedCert:
+  #       domain:
+  #         main: {{ domain_suffix }}
+  #         sans: 
+  #           - '*.{{ domain_suffix }}'
+  #       resolver: letsencrypt
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+        - TLS_AES_128_GCM_SHA256
+        - TLS_AES_256_GCM_SHA384
+        - TLS_CHACHA20_POLY1305_SHA256
+      curvePreferences:
+        - CurveP521
+        - CurveP384

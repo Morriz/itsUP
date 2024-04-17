@@ -1,17 +1,19 @@
 import os
 from logging import debug, info
+from typing import Callable
 
+from lib.models import Plugin
 from lib.proxy import get_domains
 from lib.utils import run_command
 
 
-def get_certs(project: str = None) -> bool:
+def get_certs(filter: Callable[[Plugin], bool] = None) -> bool:
     """Get certificates for all or one project"""
-    debug("Getting certificates" + (f" for project {project}" if project else ""))
     email = os.getenv("LETSENCRYPT_EMAIL")
     if email is None:
         raise ValueError("LETSENCRYPT_EMAIL environment variable is not set")
-    domains = get_domains(project)
+    domains = get_domains(filter)
+    debug("Getting certificates" + (" for project(s)" + ", ".join(domains)) if filter else "")
     change_file = "/data/changed"
     changed = False
 

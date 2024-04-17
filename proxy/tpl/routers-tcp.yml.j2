@@ -11,17 +11,17 @@ tcp:
       {%- else %}
         - web-secure
       {%- endif %}
-      service: {{ name }}
       {%- if i.domain %}
       rule: 'HostSNI(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
       {%- else %}
       rule: 'HostSNI(`*`)'
       {%- endif %}
       rulesyntax: v2
+      service: {{ name }}
       {%- if i.passthrough %}
       tls:
         passthrough: true
-      {%- elif i.domain %}
+      {%- elif i.domain or i.tls %}
       tls:
         certresolver: letsencrypt
       {%- endif %}
@@ -41,7 +41,7 @@ tcp:
           version: {{ ProxyProtocol(i.proxyprotocol).value }}
         {%- endif %}
         servers:
-          - address: {% if i.hostport %}{{ p.name }}-{% endif %}{{ s.host }}:{{ i.port }}
+          - address: {% if s.image %}{{ p.name }}-{% endif %}{{ s.host }}:{{ i.port }}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}

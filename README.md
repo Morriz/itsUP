@@ -83,7 +83,7 @@ It is surely possible to deploy stateful services but beware that those might no
 
 ## Apps included
 
-- [traefik/traefik](https://github.com/traefik/traefik): the famous L7 routing proxy
+- [traefik/traefik](https://github.com/traefik/traefik): the famous L7 routing proxy that manages letsencrypt certificates
 - [minio/minio](https://github.com/minio/minio): S3 storage
 - [nubacuk/docker-openvpn](https://github.com/nuBacuk/docker-openvpn): vpn access to the host running this stack
 - [traefik/whoami](https://github.com/traefik/whoami): to demonstrate that headers are correctly passed along

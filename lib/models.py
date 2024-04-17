@@ -62,11 +62,20 @@ class Router(str, Enum):
     udp = "udp"
 
 
+class TLS(BaseModel):
+    """TLS model"""
+
+    main: str = None
+    """The main domain"""
+    sans: List[str] = []
+    """A list of SANs for the domain"""
+
+
 class Ingress(BaseModel):
     """Ingress model"""
 
     domain: str = None
-    """The domain to use for the service. If omitted, the service will not be publicly accessible."""
+    """The domain to use for the service. If omitted, the service will not be publicly accessible. When set TLS termination is done for this domain only."""
     hostport: int = None
     """The port to expose on the host"""
     passthrough: bool = False
@@ -83,6 +92,8 @@ class Ingress(BaseModel):
     """When set, the service is expected to accept the given PROXY protocol version. Explicitly set to null to disable."""
     router: Router = Router.http
     """The type of router to use for the service"""
+    tls: TLS = None
+    """TLS settings that will be used instead of 'domain'"""
 
     @model_validator(mode="after")
     @classmethod

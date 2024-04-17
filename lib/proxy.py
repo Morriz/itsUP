@@ -1,25 +1,31 @@
 import os
 from logging import info
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 from dotenv import load_dotenv
 from jinja2 import Template
 
 from lib.data import get_plugin_registry, get_project, get_projects, get_versions
-from lib.models import Protocol, ProxyProtocol, Router
+from lib.models import Plugin, Protocol, ProxyProtocol, Router
 from lib.utils import run_command
 
 load_dotenv()
 
 
-def get_domains(project: str = None) -> List[str]:
+def get_domains(filter: Callable[[Plugin], bool] = None) -> List[str]:
     """Get all domains in use"""
-    projects = get_projects(filter=lambda p, _, i: not i.passthrough and (not project or project == p.name))
+    projects = get_projects(filter)
     domains = []
     for p in projects:
         for s in p.services:
             for i in s.ingress:
-                domains.append(i.domain)
+                if i.domain:
+                    domains.append(i.domain)
+                if i.tls:
+                    domains.append(i.tls.main)
+                    if i.tls.sans:
+                        for s in i.tls.sans:
+                            domains.append(s)
     return domains
 
 
@@ -91,17 +97,19 @@ def write_routers() -> None:
     # we only get the stuff with passthrough or hostport + domain as the port 80/443 containers
     # have labels themselves and will be picked up dynamically
     projects_http = get_projects(
-        filter=lambda _, s, i: i.router == Router.http and (i.passthrough or not s.image or (i.hostport and i.domain))
+        filter=lambda _, s, i: i.router == Router.http
+        and (i.passthrough or not s.image or (i.hostport and (i.domain or i.tls)))
     )
     with open("proxy/tpl/routers-http.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_http = Template(t)
     domain = os.environ.get("TRAEFIK_DOMAIN")
     routers_http = tpl_routers_http.render(
-        projects=projects_http,
-        traefik_rule=f"Host(`{domain}`)",
-        traefik_admin=os.environ.get("TRAEFIK_ADMIN"),
+        domain_suffix=os.environ.get("DOMAIN_SUFFIX"),
         plugin_registry=get_plugin_registry(),
+        projects=projects_http,
+        traefik_admin=os.environ.get("TRAEFIK_ADMIN"),
+        traefik_rule=f"Host(`{domain}`)",
         trusted_ips_cidrs=os.environ.get("TRUSTED_IPS_CIDRS").split(","),
     )
     with open("proxy/traefik/dynamic/routers-http.yml", "w", encoding="utf-8") as f:
@@ -113,7 +121,9 @@ def write_routers() -> None:
         t = f.read()
     tpl_routers_tcp = Template(t)
     tpl_routers_tcp.globals["ProxyProtocol"] = ProxyProtocol
-    routers_tcp = tpl_routers_tcp.render(projects=projects_tcp)
+    routers_tcp = tpl_routers_tcp.render(
+        projects=projects_tcp,
+    )
     with open("proxy/traefik/dynamic/routers-tcp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
     projects_udp = get_projects(filter=lambda _, _2, i: i.router == Router.udp)
@@ -130,13 +140,13 @@ def write_config() -> None:
         t = f.read()
     tpl_config_http = Template(t)
     tpl_config_http.globals["Protocol"] = Protocol
+    tpl_config_http.globals["Router"] = Router
     trusted_ips_cidrs = os.environ.get("TRUSTED_IPS_CIDRS").split(",")
     projects_hostport = get_projects(filter=lambda _, _2, i: i.hostport)
     plugin_registry = get_plugin_registry()
     has_plugins = any(plugin.enabled for _, plugin in plugin_registry)
     config_http = tpl_config_http.render(
         has_plugins=has_plugins,
-        domain_suffix=os.environ.get("DOMAIN_SUFFIX"),
         le_email=os.environ.get("LETSENCRYPT_EMAIL"),
         le_staging=bool(os.environ.get("LETSENCRYPT_STAGING")),
         plugin_registry=plugin_registry,

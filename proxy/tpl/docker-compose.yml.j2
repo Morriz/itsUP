@@ -69,6 +69,7 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ../data/acme:/etc/acme
+      - ../logs:/var/log/traefik
     depends_on:
       - dockerproxy
 {%- if plugin_registry.crowdsec.enabled %}
@@ -94,6 +95,7 @@ services:
     volumes:
       - ./traefik/crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
       - ../data/crowdsec:/var/lib/crowdsec/data/
+      - ../logs:/var/log/traefik
     labels:
       - "traefik.enable=false"      
 {%- endif %}

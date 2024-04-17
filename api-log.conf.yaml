@@ -9,7 +9,7 @@ handlers:
   default:
     formatter: default
     class: logging.FileHandler
-    filename: logs/error.log
+    filename: logs/api.log
     encoding: utf8
     mode: a
   access:
@@ -19,12 +19,12 @@ handlers:
     encoding: utf8
     mode: a
 loggers:
-  uvicorn.error:
+  default:
     level: INFO
     handlers:
       - default
     propagate: no
-  uvicorn.access:
+  access:
     level: INFO
     handlers:
       - access
@@ -32,5 +32,5 @@ loggers:
 root:
   level: DEBUG
   handlers:
-    - access
+    - default
   propagate: no
