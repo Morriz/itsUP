@@ -114,7 +114,7 @@ class Service(BaseModel):
     """Additional docker compose properties to pass to the service"""
     command: str = None
     """The command to run in the service"""
-    depends_on: List[str] = []
+    depends_on: List[str] | Dict[str, Any] = []
     """A list of services to depend on"""
     env: Env = Env()
     """A dictionary of environment variables to pass to the service"""

@@ -15,11 +15,18 @@ services:
   {%- if s.command %}
     command: {{ s.command }}
   {%- endif %}
-  {%- if s.depends_on | length > 0 %}
+  {%- if s.depends_on %}
     depends_on:
-    {%- for dep in s.depends_on %}
+    {%- if s.depends_on is mapping %}
+      {%- for key, dep in s.depends_on.items() %}
+      {{ project.name }}-{{ key }}:
+        {{ dep }}
+      {%- endfor %}
+    {%- else %}
+      {%- for dep in s.depends_on %}
       - {{ project.name }}-{{ dep }}
-    {%- endfor %}
+      {%- endfor %}
+    {%- endif %}
   {%- endif %}
   {%- if s.env.model_dump() | length > 0 %}
     environment:
@@ -47,14 +54,11 @@ services:
           {%- if i.router != Router.udp %}
             {%- set domains = ([i.tls.main] + i.tls.sans) if (i.tls and i.tls.main) else [i.domain] %}
       - traefik.{{ router }}.routers.{{ name }}.rule={% for d in domains %}Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ d }}`){% if not loop.last %} || {% endif %}{% endfor %}{% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}
-            {%- if i.tls %}
-      - traefik.{{ router }}.routers.{{ name }}.tls.certresolver=letsencrypt
-              {%- if i.tls.main %}
+            {%- if i.tls and i.tls.main %}
       - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].main={{ i.tls.main }}
-                {%- for s in i.tls.sans %}
+              {%- for s in i.tls.sans %}
       - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].sans[{{ loop.index0 }}]={{ s }}
-                {%- endfor %}
-              {%- endif %}
+              {%- endfor %}
             {%- endif %}
           {%- endif %}
       - traefik.{{ router }}.routers.{{ name }}.service={{ name }}
@@ -69,12 +73,14 @@ services:
       - {{ l }}
     {%- endfor %}    
   {%- endif %}
+  {%- if has_ingress or p.services | length > 1 %}
     networks:
-  {%- if p.services | length > 1 %}
+    {%- if p.services | length > 1 %}
       - default
-  {%- endif %}
-  {%- if has_ingress %}
+    {%- endif %}
+    {%- if has_ingress %}
       - proxynet
+    {%- endif %}
   {%- endif %}
     restart: {{ s.restart }}
   {%- if s.volumes %}
