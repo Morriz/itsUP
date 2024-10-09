@@ -54,7 +54,8 @@ services:
           {%- if i.router != Router.udp %}
             {%- set domains = ([i.tls.main] + i.tls.sans) if (i.tls and i.tls.main) else [i.domain] %}
       - traefik.{{ router }}.routers.{{ name }}.rule={% for d in domains %}Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ d }}`){% if not loop.last %} || {% endif %}{% endfor %}{% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}
-            {%- if i.tls and i.tls.main %}
+      - traefik.{{ router }}.routers.{{ name }}.tls.certresolver=letsencrypt
+            {%- if i.tls.main %}
       - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].main={{ i.tls.main }}
               {%- for s in i.tls.sans %}
       - traefik.{{ router }}.routers.{{ name }}.tls.domains[0].sans[{{ loop.index0 }}]={{ s }}
