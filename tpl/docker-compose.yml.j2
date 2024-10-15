@@ -50,7 +50,7 @@ services:
         {%- if not i.hostport and (i.domain or (i.tls and i.tls.main)) %}
           {%- set name = project.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
           {%- set router = Router(i.router).value %}
-      - traefik.{{ router }}.routers.{{ name }}.entrypoints={% if i.hostport %}{{ Protocol(i.protocol).value }}-{{ i.hostport }}{% else %}web,web-secure{% endif %}
+      - traefik.{{ router }}.routers.{{ name }}.entrypoints={% if i.hostport %}{{ Protocol(i.protocol).value }}-{{ i.hostport }}{% else %}web-secure{% endif %}
           {%- if i.router != Router.udp %}
             {%- set domains = ([i.tls.main] + i.tls.sans) if (i.tls and i.tls.main) else [i.domain] %}
       - traefik.{{ router }}.routers.{{ name }}.rule={% for d in domains %}Host{% if i.router == Router.tcp %}SNI{% endif %}(`{{ d }}`){% if not loop.last %} || {% endif %}{% endfor %}{% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}

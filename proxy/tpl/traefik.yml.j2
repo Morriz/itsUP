@@ -35,8 +35,14 @@ entryPoints:
 {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
+    http:
+      redirections:
+        entryPoint:
+          to: ':443'
+          scheme: https
   web-secure:
     address: ':8443'
+    asDefault: true
     http3:
       advertisedPort: 8443
     forwardedHeaders:
