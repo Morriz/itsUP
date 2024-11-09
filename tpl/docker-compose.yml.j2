@@ -1,3 +1,21 @@
+{%- macro treedot(dict,string) %}
+    {%- for key, value in dict.items() -%}
+        {%- if value is mapping -%}
+            {%- if string -%}
+                {%- set str = string ~ '.' ~ key  -%}
+            {%- else -%}
+                {%- set str = key  -%}
+            {%- endif -%}
+            {{ treedot(value,str) }}
+        {%- else -%}
+            {%- if string %}
+                {{ string ~ '.' ~ key }} = {{ value }}
+            {%- else %}
+                {{ key }} = {{ value }}
+            {%- endif -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endmacro -%}
 ---
 networks:
   proxynet:
@@ -10,7 +28,7 @@ services:
   {#- The service needs discovery labels when one of its ingress entries has a domain or tls and is not using hostport #}
   {#- (hostport services are handled by static routers because of their need to restart anyway for new entrypoints) #}
   {%- set needs_discovery = (list(s.ingress | selectattr('domain')) + list(s.ingress | selectattr('tls'))) | length > list(s.ingress | selectattr('domain') | selectattr('hostport')) | length %}
-  {%- set has_ingress = list(s.ingress | selectattr('domain')) | length > 0 or list(s.ingress | selectattr('tls')) | length > 0 or list(s.ingress | selectattr('hostport')) | length > 0 %}
+  {%- set has_ingress = list(s.ingress | selectattr('domain')) | length > 0 or list(s.ingress | selectattr('tls')) | length > 0 or list(s.ingress | selectattr('hostport')) or list(s.ingress | selectattr('expose')) | length > 0 %}
   {{ project.name }}-{{ s.host }}:
   {%- if s.command %}
     command: {{ s.command }}
@@ -65,6 +83,9 @@ services:
       - traefik.{{ router }}.routers.{{ name }}.service={{ name }}
           {%- if i.path_prefix and i.path_remove %}
       - traefik.{{ router }}.middlewares.removeServiceSelector.stripPrefix.prefixes={{ i.path_prefix }}
+          {%- endif %}
+          {%- if i.middlewares %}
+      - traefik.{{ router }}.routers.{{ name }}.middlewares={{ i.middlewares | join(',') }}
           {%- endif %}
       - traefik.{{ router }}.services.{{ name }}.loadbalancer.server.port={{ i.port }}
         {%- endif %}

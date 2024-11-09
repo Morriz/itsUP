@@ -94,6 +94,8 @@ class Ingress(BaseModel):
     """The type of router to use for the service"""
     tls: TLS = None
     """TLS settings that will be used instead of 'domain'"""
+    expose: bool = False
+    """Expose the service to any other internal service"""
 
     @model_validator(mode="after")
     @classmethod
