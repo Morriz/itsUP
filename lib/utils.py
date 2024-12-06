@@ -3,9 +3,9 @@ import subprocess
 from typing import Dict, List
 
 
-# functhan that reads .env file into a dictionary
+# func that reads .env file into a dictionary
 def read_env_file(file: str) -> Dict[str, str]:
-    with open(file, "r") as f:
+    with open(file, "r", encoding="utf-8") as f:
         return dict(line.strip().split("=", 1) for line in f if not line.strip().startswith("#") and "=" in line)
 
 

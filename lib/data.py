@@ -1,7 +1,5 @@
 import importlib
-import inspect
 from logging import debug, info
-from modulefinder import Module
 from typing import Any, Callable, Dict, List, Union, cast
 
 import yaml
@@ -85,30 +83,49 @@ def get_projects(
     debug("Getting projects" + (f" with filter {filter}" if filter else ""))
     db = get_db()
     projects_raw = cast(List[Dict[str, Any]], db["projects"])
-    ret = []
-    for project in projects_raw:
-        services = []
-        p = Project(**project)
-        if not filter or filter.__code__.co_argcount == 1 and cast(Callable[[Project], bool], filter)(p):
-            ret.append(p)
+    filtered_projects = []
+    for project_dict in projects_raw:
+        # Convert raw dictionary to Project object
+        project = Project(**project_dict)
+
+        # If no filter or filter matches project
+        if not filter or filter.__code__.co_argcount == 1 and cast(Callable[[Project], bool], filter)(project):
+            project.services = []
+            for service_dict in project_dict["services"]:
+                service = Service(**service_dict)
+                service.ingress = [Ingress(**ingress) for ingress in service_dict["ingress"]]
+                project.services.append(service)
+            filtered_projects.append(project)
             continue
-        for s in p.services.copy():
-            if filter.__code__.co_argcount == 2 and cast(Callable[[Project, Service], bool], filter)(p, s):
-                services.append(s)
+
+        # Process services
+        filtered_services = []
+        for service_dict in project_dict["services"]:
+            service = Service(**service_dict)
+
+            if filter.__code__.co_argcount == 2 and cast(Callable[[Project, Service], bool], filter)(project, service):
+                service.ingress = [Ingress(**ingress) for ingress in service_dict["ingress"]]
+                filtered_services.append(service)
                 continue
-            ingress = []
-            for i in s.ingress.copy():
+
+            filtered_ingress = []
+            for ingress_dict in service_dict["ingress"] or []:
+                ingress = Ingress(**ingress_dict)
+
                 if filter.__code__.co_argcount == 3 and cast(Callable[[Project, Service, Ingress], bool], filter)(
-                    p, s, i
+                    project, service, ingress
                 ):
-                    ingress.append(i)
-            if len(ingress) > 0:
-                s.ingress = ingress
-                services.append(s)
-        if len(services) > 0:
-            p.services = services
-            ret.append(p)
-    return ret
+                    filtered_ingress.append(ingress)
+
+            if len(filtered_ingress) > 0:
+                service.ingress = filtered_ingress
+                filtered_services.append(service)
+
+        if len(filtered_services) > 0:
+            project.services = filtered_services
+            filtered_projects.append(project)
+
+    return filtered_projects
 
 
 def write_projects(projects: List[Project]) -> None:

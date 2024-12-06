@@ -9,7 +9,6 @@ from lib.models import Env, Project
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import Service
-from lib.test_stubs import test_db
 from lib.upstream import update_upstream, update_upstreams, write_upstream
 
 

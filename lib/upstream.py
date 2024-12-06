@@ -37,7 +37,8 @@ def write_upstream_volume_folders(project: Project) -> None:
             if path.count(":") > 1:
                 # strip parts such as :ro and :rw from the end first
                 path = path.rsplit(":", 1)[0]
-            # if path still contains colon, and starts with '/' or '../', then we know its an existing host path, so skip
+            # if path still contains colon, and starts with '/' or '../',
+            # then we know its an existing host path, so skip
             if ":" in path and path.startswith("/") or path.startswith("../"):
                 continue
             # check if it still has a colon, if so, split it and get the first part, else use the whole path

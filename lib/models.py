@@ -1,10 +1,8 @@
 from enum import Enum
-from gc import enable
-from typing import Any, ClassVar, Dict, List
+from typing import Any, Dict, List
 
 from github_webhooks.schemas import WebhookCommonPayload
-from pydantic import BaseModel, ConfigDict, model_validator, validator
-from pydantic_core import SchemaValidator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class Env(BaseModel):
@@ -75,7 +73,8 @@ class Ingress(BaseModel):
     """Ingress model"""
 
     domain: str = None
-    """The domain to use for the service. If omitted, the service will not be publicly accessible. When set TLS termination is done for this domain only."""
+    """The domain to use for the service. If omitted, the service will not be publicly accessible. 
+    When set TLS termination is done for this domain only."""
     hostport: int = None
     """The port to expose on the host"""
     passthrough: bool = False
@@ -89,7 +88,8 @@ class Ingress(BaseModel):
     protocol: Protocol = Protocol.tcp
     """The protocol to use for the port"""
     proxyprotocol: ProxyProtocol | None = ProxyProtocol.v2
-    """When set, the service is expected to accept the given PROXY protocol version. Explicitly set to null to disable."""
+    """When set, the service is expected to accept the given PROXY protocol version. 
+    Explicitly set to null to disable."""
     router: Router = Router.http
     """The type of router to use for the service"""
     tls: TLS = None
@@ -100,13 +100,8 @@ class Ingress(BaseModel):
     @model_validator(mode="after")
     @classmethod
     def check_passthrough_tcp(cls, data: Any) -> Any:
-        if data.passthrough and not (data.port == 80 and data.path_prefix == "/.well-known/acme-challenge/"):
-            assert data.router == Router.tcp, "router should be of type 'tcp' if passthrough is enabled"
-        if data.router == Router.http and data.domain and data.port == 80 and data.passthrough:
-            assert (
-                data.path_prefix == "/.well-known/acme-challenge/"
-            ), "only path_prefix '/.well-known/acme-challenge/' is allowed when router is http and port is 80"
-        return data
+        if data.passthrough and data.port == 80 and not data.path_prefix == "/.well-known/acme-challenge/":
+            raise ValueError("Passthrough is only allowed for ACME challenge on port 80.")
 
 
 class Service(BaseModel):
@@ -124,10 +119,12 @@ class Service(BaseModel):
     """The host (name/ip) of the service"""
     image: str = None
     """The full container image uri of the service"""
-    ingress: List[Ingress] = []
-    """Ingress configuration for the service. If a string is passed, it will be used as the domain."""
+    ingress: List[Ingress] = None
+    """Ingress configuration for the service. If a string is passed, 
+    it will be used as the domain."""
     labels: List[str] = []
-    """Extra labels to add to the service. Should not interfere with generated traefik labels for ingress."""
+    """Extra labels to add to the service. Should not interfere with 
+    generated traefik labels for ingress."""
     restart: str = "unless-stopped"
     """The restart policy to use for the service"""
     volumes: List[str] = []
@@ -140,7 +137,9 @@ class Project(BaseModel):
     description: str = None
     """A description of the project"""
     env: Env = None
-    """A dictionary of environment variables to pass that the services can use to construct their own vars with, but will not be exposed to the services themselves."""
+    """A dictionary of environment variables to pass that the services 
+    can use to construct their own vars with, but will not be exposed 
+    to the services themselves."""
     enabled: bool = True
     """Wether or not the project is enabled"""
     name: str

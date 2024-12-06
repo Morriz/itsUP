@@ -11,17 +11,15 @@ from github_webhooks import create_app
 
 from lib.auth import verify_apikey
 from lib.data import (
-    get_env,
     get_project,
     get_projects,
     get_service,
     get_services,
-    upsert_env,
     upsert_project,
     upsert_service,
 )
 from lib.git import update_repo
-from lib.models import Env, PingPayload, Project, Service, WorkflowJobPayload
+from lib.models import PingPayload, Project, Service, WorkflowJobPayload
 from lib.proxy import update_proxy, write_proxies
 from lib.upstream import check_upstream, update_upstream, write_upstreams
 

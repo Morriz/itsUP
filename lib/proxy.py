@@ -15,18 +15,21 @@ load_dotenv()
 def get_domains(filter: Callable[[Plugin], bool] = None) -> List[str]:
     """Get all domains in use"""
     projects = get_projects(filter)
-    domains = []
-    for p in projects:
-        for s in p.services:
-            for i in s.ingress:
-                if i.domain:
-                    domains.append(i.domain)
-                if i.tls:
-                    domains.append(i.tls.main)
-                    if i.tls.sans:
-                        for sans in i.tls.sans:
-                            domains.append(sans)
-    return domains
+    domains = set()
+
+    for project in projects:
+        for service in project.services:
+            for ingress in service.ingress:
+                if ingress.domain:
+                    domains.add(ingress.domain)
+
+                if ingress.tls:
+                    domains.add(ingress.tls.main)
+
+                    if ingress.tls.sans:
+                        domains.update(ingress.tls.sans)
+
+    return list(domains)
 
 
 def get_internal_map() -> Dict[str, str]:
@@ -51,7 +54,7 @@ def get_passthrough_map() -> Dict[str, str]:
     for p in projects:
         for s in p.services:
             for i in s.ingress:
-                map[i.domain] = f"{s.host}:{i.port}"
+                map[i.domain] = f"{s.host}:{i.port if 'port' in i else 8080}"
     return map
 
 
