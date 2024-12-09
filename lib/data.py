@@ -93,7 +93,9 @@ def get_projects(
             project.services = []
             for service_dict in project_dict["services"]:
                 service = Service(**service_dict)
-                service.ingress = [Ingress(**ingress) for ingress in service_dict["ingress"]]
+                service.ingress = [
+                    Ingress(**ingress) for ingress in (service_dict["ingress"] if "ingress" in service_dict else [])
+                ]
                 project.services.append(service)
             filtered_projects.append(project)
             continue
@@ -104,12 +106,14 @@ def get_projects(
             service = Service(**service_dict)
 
             if filter.__code__.co_argcount == 2 and cast(Callable[[Project, Service], bool], filter)(project, service):
-                service.ingress = [Ingress(**ingress) for ingress in service_dict["ingress"]]
+                service.ingress = [
+                    Ingress(**ingress) for ingress in (service_dict["ingress"] if "ingress" in service_dict else [])
+                ]
                 filtered_services.append(service)
                 continue
 
             filtered_ingress = []
-            for ingress_dict in service_dict["ingress"] or []:
+            for ingress_dict in service_dict["ingress"] if "ingress" in service_dict else []:
                 ingress = Ingress(**ingress_dict)
 
                 if filter.__code__.co_argcount == 3 and cast(Callable[[Project, Service, Ingress], bool], filter)(
