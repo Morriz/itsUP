@@ -28,6 +28,7 @@ services:
   {#- The service needs discovery labels when one of its ingress entries has a domain or tls and is not using hostport #}
   {#- (hostport services are handled by static routers because of their need to restart anyway for new entrypoints) #}
   {%- set needs_discovery = (list(s.ingress | selectattr('domain')) + list(s.ingress | selectattr('tls'))) | length > list(s.ingress | selectattr('domain') | selectattr('hostport')) | length %}
+  {%- set has_ingress = s.ingress | length > 0 %}
   {{ project.name }}-{{ s.host }}:
   {%- if s.command %}
     command: {{ s.command }}
@@ -94,7 +95,7 @@ services:
       - {{ l }}
     {%- endfor %}    
   {%- endif %}
-  {%- if s.ingress | length > 0 or p.services | length > 1 %}
+  {%- if has_ingress or p.services | length > 1 %}
     networks:
     {%- if p.services | length > 1 %}
       - default
