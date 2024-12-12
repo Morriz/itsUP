@@ -2,12 +2,14 @@
 import os
 from functools import cache
 from logging import info
-from typing import Any, Dict, List
+from typing import List
 
 import dotenv
 import uvicorn
 from fastapi import BackgroundTasks, Depends
+from fastapi.datastructures import QueryParams
 from github_webhooks import create_app
+from github_webhooks.schemas import WebhookHeaders
 
 from lib.auth import verify_apikey
 from lib.data import (
@@ -71,8 +73,7 @@ def get_hook_handler(
 
 @app.hooks.register("ping", PingPayload)
 async def github_ping_handler(
-    payload: PingPayload,
-    **_: Any,
+    payload: PingPayload, headers: WebhookHeaders, query_params: QueryParams, background_tasks: BackgroundTasks
 ) -> str:
     """Handle incoming github webhook requests for ping events to notify callers we're up"""
     info(f"Got ping message: {payload.zen}")
@@ -81,7 +82,10 @@ async def github_ping_handler(
 
 @app.hooks.register("workflow_job", WorkflowJobPayload)
 async def github_workflow_job_handler(
-    payload: WorkflowJobPayload, query_params: Dict[str, str], background_tasks: BackgroundTasks, **_: Any
+    payload: WorkflowJobPayload,
+    headers: WebhookHeaders,
+    query_params: QueryParams,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Handle incoming github webhook requests for workflow_job events to update ourselves or an upstream"""
     if payload.workflow_job.status == "completed" and payload.workflow_job.conclusion == "success":

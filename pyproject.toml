@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "itsUP"
-version = "0.1.1"
+version = "0.1.2"
 license = { text = "GPL-3.0-only" }
 authors = [{ name = "Maurice Faber", email = "morriz@idiotz.nl" }]
 description = "Lean, automated, poor man's infra for lightweight services running in docker."
@@ -71,7 +71,7 @@ max-line-length = 120
 [tool.pyproject-fmt]
 indent = 4
 keep_full_version = false
-max_supported_python = "3.12"
+max_supported_python = "3.13"
 
 
 

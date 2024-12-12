@@ -16,6 +16,8 @@
   "isort.importStrategy": "fromEnvironment",
   "mypy-type-checker.importStrategy": "fromEnvironment",
   "mypy-type-checker.reportingScope": "workspace",
+  "mypy-type-checker.args": [ "--config-file", "pyproject.toml" ],
+  "mypy-type-checker.path": [ ".venv/bin/mypy" ],
   "pylint.importStrategy": "fromEnvironment",
   "pylint.severity": {
     "convention": "Information",
