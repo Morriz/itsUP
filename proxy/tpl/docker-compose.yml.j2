@@ -58,14 +58,14 @@ services:
     ports:
       - 8080:8080/tcp
       - 8443:8443/tcp
-    restart: always
-{%- for p in projects %}
+{% for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
       - {{ i.hostport }}:{{ i.port }}/{{ Protocol(i.protocol).value }}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
+    restart: always
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
