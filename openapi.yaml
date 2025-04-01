@@ -228,7 +228,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/Service-Output'
         '422':
           description: Validation Error
           content:
@@ -265,7 +265,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Service'
+                  $ref: '#/components/schemas/Service-Output'
                 title: Response Get Project Services Handler Projects  Project  Services
                   Get
         '422':
@@ -291,7 +291,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Service'
+                  $ref: '#/components/schemas/Service-Output'
                 title: Response Get Services Handler Services Get
     put:
       tags:
@@ -315,7 +315,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Service'
+              $ref: '#/components/schemas/Service-Input'
       responses:
         '200':
           description: Successful Response
@@ -350,7 +350,49 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Service'
+              $ref: '#/components/schemas/Service-Input'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /projects/{project}/services/{service}/env:
+    patch:
+      tags:
+      - Env
+      summary: Patch Env Handler
+      description: Update env for a project service
+      operationId: patch_env_handler_projects__project__services__service__env_patch
+      security:
+      - APIKeyQuery: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: project
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project
+      - name: service
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Env'
       responses:
         '200':
           description: Successful Response
@@ -379,76 +421,14 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
-    Project-Input:
+    Ingress:
       properties:
-        name:
-          type: string
-          title: Name
-        description:
-          type: string
-          title: Description
         domain:
           type: string
           title: Domain
-        entrypoint:
-          type: string
-          title: Entrypoint
-        services:
-          items:
-            $ref: '#/components/schemas/Service'
-          type: array
-          title: Services
-          default: []
-      type: object
-      required:
-      - name
-      title: Project
-      description: Project model
-    Project-Output:
-      properties:
-        name:
-          type: string
-          title: Name
-        description:
-          type: string
-          title: Description
-        domain:
-          type: string
-          title: Domain
-        entrypoint:
-          type: string
-          title: Entrypoint
-        services:
-          items:
-            $ref: '#/components/schemas/Service'
-          type: array
-          title: Services
-          default: []
-      type: object
-      required:
-      - name
-      title: Project
-      description: Project model
-    Service:
-      properties:
-        command:
-          type: string
-          title: Command
-        env:
-          allOf:
-          - $ref: '#/components/schemas/Env'
-        image:
-          type: string
-          title: Image
-        labels:
-          items:
-            type: string
-          type: array
-          title: Labels
-          default: []
-        name:
-          type: string
-          title: Name
+        hostport:
+          type: integer
+          title: Hostport
         passthrough:
           type: boolean
           title: Passthrough
@@ -464,10 +444,147 @@ components:
           type: integer
           title: Port
           default: 8080
+        protocol:
+          allOf:
+          - $ref: '#/components/schemas/Protocol'
+          default: tcp
         proxyprotocol:
+          anyOf:
+          - $ref: '#/components/schemas/ProxyProtocol'
+          - type: 'null'
+          default: '2'
+        router:
+          allOf:
+          - $ref: '#/components/schemas/Router'
+          default: http
+        tls:
+          allOf:
+          - $ref: '#/components/schemas/TLS'
+        expose:
           type: boolean
-          title: Proxyprotocol
+          title: Expose
+          default: false
+      type: object
+      title: Ingress
+      description: Ingress model
+    Project-Input:
+      properties:
+        description:
+          type: string
+          title: Description
+        env:
+          allOf:
+          - $ref: '#/components/schemas/Env'
+        enabled:
+          type: boolean
+          title: Enabled
           default: true
+        name:
+          type: string
+          title: Name
+        services:
+          items:
+            $ref: '#/components/schemas/Service-Input'
+          type: array
+          title: Services
+          default: []
+      type: object
+      required:
+      - name
+      title: Project
+      description: Project model
+    Project-Output:
+      properties:
+        description:
+          type: string
+          title: Description
+        env:
+          allOf:
+          - $ref: '#/components/schemas/Env'
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+        name:
+          type: string
+          title: Name
+        services:
+          items:
+            $ref: '#/components/schemas/Service-Output'
+          type: array
+          title: Services
+          default: []
+      type: object
+      required:
+      - name
+      title: Project
+      description: Project model
+    Protocol:
+      type: string
+      enum:
+      - tcp
+      - udp
+      title: Protocol
+      description: Protocol enum
+    ProxyProtocol:
+      type: string
+      enum:
+      - '1'
+      - '2'
+      title: ProxyProtocol
+      description: ProxyProtocol enum
+    Router:
+      type: string
+      enum:
+      - http
+      - tcp
+      - udp
+      title: Router
+      description: Router enum
+    Service-Input:
+      properties:
+        additional_properties:
+          type: object
+          title: Additional Properties
+          default: {}
+        command:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Command
+        depends_on:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: object
+          title: Depends On
+          default: []
+        env:
+          allOf:
+          - $ref: '#/components/schemas/Env'
+          default: {}
+        host:
+          type: string
+          title: Host
+        image:
+          type: string
+          title: Image
+        ingress:
+          items:
+            $ref: '#/components/schemas/Ingress'
+          type: array
+          title: Ingress
+        labels:
+          items:
+            type: string
+          type: array
+          title: Labels
+          default: []
+        restart:
+          type: string
+          title: Restart
+          default: unless-stopped
         volumes:
           items:
             type: string
@@ -476,9 +593,78 @@ components:
           default: []
       type: object
       required:
-      - name
+      - host
       title: Service
       description: Service model
+    Service-Output:
+      properties:
+        additional_properties:
+          type: object
+          title: Additional Properties
+          default: {}
+        command:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Command
+        depends_on:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: object
+          title: Depends On
+          default: []
+        env:
+          allOf:
+          - $ref: '#/components/schemas/Env'
+          default: {}
+        host:
+          type: string
+          title: Host
+        image:
+          type: string
+          title: Image
+        ingress:
+          items:
+            $ref: '#/components/schemas/Ingress'
+          type: array
+          title: Ingress
+        labels:
+          items:
+            type: string
+          type: array
+          title: Labels
+          default: []
+        restart:
+          type: string
+          title: Restart
+          default: unless-stopped
+        volumes:
+          items:
+            type: string
+          type: array
+          title: Volumes
+          default: []
+      type: object
+      required:
+      - host
+      title: Service
+      description: Service model
+    TLS:
+      properties:
+        main:
+          type: string
+          title: Main
+        sans:
+          items:
+            type: string
+          type: array
+          title: Sans
+          default: []
+      type: object
+      title: TLS
+      description: TLS model
     ValidationError:
       properties:
         loc:

@@ -187,7 +187,20 @@ def get_service(project: str | Project, service: str, throw: bool = True) -> Ser
     return None
 
 
-def get_env(project: str | Project, service: str) -> Dict[str, str]:
+def upsert_service(project: str | Project, service: Service) -> None:
+    """Upsert a service"""
+    p = get_project(project) if isinstance(project, str) else project
+    debug(f"Upserting service {service.host} in project {p.name}: {service}")
+    for i, s in enumerate(p.services):
+        if s.host == service.host:
+            p.services[i] = service
+            break
+    else:
+        p.services.append(service)
+    upsert_project(p)
+
+
+def get_env(project: str | Project, service: str) -> Env:
     """Get a project's env by name"""
     debug(f"Getting env for service {service} in project {project.name if isinstance(project, Project) else project}")
     service = get_service(project, service)
@@ -201,16 +214,3 @@ def upsert_env(project: str | Project, service: str, env: Env) -> None:
     s = get_service(p, service)
     s.env = Env(**(s.env.model_dump() | env.model_dump()))
     upsert_service(project, s)
-
-
-def upsert_service(project: str | Project, service: Service) -> None:
-    """Upsert a service"""
-    p = get_project(project) if isinstance(project, str) else project
-    debug(f"Upserting service {service.host} in project {p.name}: {service}")
-    for i, s in enumerate(p.services):
-        if s.host == service.host:
-            p.services[i] = service
-            break
-    else:
-        p.services.append(service)
-    upsert_project(p)

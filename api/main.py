@@ -17,11 +17,12 @@ from lib.data import (
     get_projects,
     get_service,
     get_services,
+    upsert_env,
     upsert_project,
     upsert_service,
 )
 from lib.git import update_repo
-from lib.models import PingPayload, Project, Service, WorkflowJobPayload
+from lib.models import Env, PingPayload, Project, Service, WorkflowJobPayload
 from lib.proxy import update_proxy, write_proxies
 from lib.upstream import check_upstream, update_upstream, write_upstreams
 
@@ -153,20 +154,20 @@ def upsert_service_handler(
     background_tasks.add_task(_after_config_change, project, service.host)
 
 
-# @app.patch(
-#     "/projects/{project}/services/{service}/env",
-#     tags=["Env"],
-# )
-# def patch_env_handler(
-#     project: str,
-#     service: str,
-#     env: Env,
-#     background_tasks: BackgroundTasks,
-#     _: None = Depends(verify_apikey),
-# ) -> None:
-#     """Update env for a project service"""
-#     upsert_env(project, service, env)
-#     background_tasks.add_task(_after_config_change, project, service)
+@app.patch(
+    "/projects/{project}/services/{service}/env",
+    tags=["Env"],
+)
+def patch_env_handler(
+    project: str,
+    service: str,
+    env: Env,
+    background_tasks: BackgroundTasks,
+    _: None = Depends(verify_apikey),
+) -> None:
+    """Update env for a project service"""
+    upsert_env(project, service, env)
+    background_tasks.add_task(_after_config_change, project, service)
 
 
 if __name__ == "__main__":

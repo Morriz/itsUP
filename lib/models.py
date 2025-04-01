@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from github_webhooks.schemas import WebhookCommonPayload
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -109,7 +109,7 @@ class Service(BaseModel):
 
     additional_properties: Dict[str, Any] = {}
     """Additional docker compose properties to pass to the service"""
-    command: str = None
+    command: Optional[str] = None
     """The command to run in the service"""
     depends_on: List[str] | Dict[str, Any] = []
     """A list of services to depend on"""
