@@ -1,3 +1,4 @@
+boto3
 fastapi
 github-webhooks-framework2
 jinja2-cli

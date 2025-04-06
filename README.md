@@ -33,6 +33,12 @@ Still interested? Then read on...
     - [CrowdSec](#crowdsec)
   - [Using the Api \& OpenApi spec](#using-the-api--openapi-spec)
   - [Webhooks](#webhooks)
+  - [Backup and restore](#backup-and-restore)
+    - [How the backup system works](#how-the-backup-system-works)
+    - [Configure S3 backup settings](#configure-s3-backup-settings)
+    - [Perform a manual backup](#perform-a-manual-backup)
+    - [Set up scheduled backups](#set-up-scheduled-backups)
+    - [Restore from a backup](#restore-from-a-backup)
   - [OpenVPN server with SSH access](#openvpn-server-with-ssh-access)
     - [1. Initialize the configuration files and certificates](#1-initialize-the-configuration-files-and-certificates)
     - [2. Create a client file](#2-create-a-client-file)
@@ -314,7 +320,13 @@ The API allows openapi compatible clients to do management on this stack (ChatGP
 
 Generate the spec with `api/extract-openapi.py`.
 
-All endpoints do auth and expect an incoming Bearer token to be set to `.env/API_KEY`.
+All endpoints do auth and expect either:
+
+- an incoming Bearer token
+- `X-API-KEY` header
+- `apikey` query param
+
+to be set to `.env/API_KEY`.
 
 Exception: Only github webhook endpoints (check for annotation `@app.hooks.register(...`) get it from the `github_secret` header.
 
@@ -334,6 +346,62 @@ I mainly use GitHub workflows and created webhooks for my individual projects, s
 **NOTE:**
 
 When using crowdsec this webhook is probably not coming in as it exits the Azure cloud (public IP range), which is also host to many malicious actors that spin up ephemeral intrusion tools. To still receive signals from github you can use a vpn setup as the one used in this repo (check `.github/workflows/test.yml`).
+
+### Backup and restore
+
+itsUP includes a robust backup system that archives your service configurations and uploads them to S3-compatible storage for safekeeping. The backup functionality is implemented in `bin/backup.py`.
+
+#### How the backup system works
+
+The backup system:
+
+1. Creates a tarball (`itsup.tar.gz`) of your `upstream` directory, which contains all your service configurations
+2. Excludes any folders specified in the `BACKUP_EXCLUDE` environment variable
+3. Uploads the tarball to an S3-compatible storage service
+4. Implements backup rotation, keeping only the 10 most recent backups
+5. Automatically adds timestamps to backup filenames for versioning
+
+#### Configure S3 backup settings
+
+To use the backup functionality, you need to configure the following environment variables in your `.env` file:
+
+```
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_S3_HOST=your_s3_host
+AWS_S3_REGION=your_s3_region
+AWS_S3_BUCKET=your_bucket_name
+BACKUP_EXCLUDE=folder1,folder2  # Optional: comma-separated list of folders to exclude from backup
+```
+
+#### Perform a manual backup
+
+To manually run a backup:
+
+```sh
+bin/backup.py
+```
+
+#### Set up scheduled backups
+
+For automated backups, you can set up a cron job. For example, to run a backup daily at 2 AM:
+
+```
+0 2 * * * cd /path/to/itsup && .venv/bin/python bin/backup.py
+```
+
+#### Restore from a backup
+
+To restore from a backup, you'll need to:
+
+1. Download the desired backup from your S3 bucket
+2. Extract the tarball to restore your configurations:
+
+```sh
+tar -xzf itsup.tar.gz.{timestamp} -C /path/to/itsup/
+```
+
+3. Run `bin/apply.py` to apply the restored configurations
 
 ### OpenVPN server with SSH access
 
