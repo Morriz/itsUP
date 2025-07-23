@@ -118,7 +118,7 @@ def write_routers() -> None:
     with open("proxy/traefik/dynamic/routers-http.yml", "w", encoding="utf-8") as f:
         f.write(routers_http)
     projects_tcp = get_projects(
-        filter=lambda _, s, i: i.router == Router.tcp and (i.passthrough or not s.image or i.hostport)
+        filter=lambda _, s, i: (not i.router or i.router == Router.tcp) and (i.passthrough or not s.image or i.hostport)
     )
     with open("proxy/tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
         t = f.read()

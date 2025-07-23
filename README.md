@@ -314,6 +314,13 @@ Example:
 - Firehol SSL proxies list
 - Firehol cruzit.com list
 
+**Step 4: add ip (or cidr) to whitelist**
+
+```
+dcpx crowdsec 'cscli allowlists create me -d "my dev ips"'
+dcpx crowdsec csli allowlists add me 123.123.123.0/24
+```
+
 ### Using the Api & OpenApi spec
 
 The API allows openapi compatible clients to do management on this stack (ChatGPT works wonders).
@@ -366,12 +373,14 @@ The backup system:
 To use the backup functionality, you need to configure the following environment variables in your `.env` file:
 
 ```
+
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_S3_HOST=your_s3_host
 AWS_S3_REGION=your_s3_region
 AWS_S3_BUCKET=your_bucket_name
-BACKUP_EXCLUDE=folder1,folder2  # Optional: comma-separated list of folders to exclude from backup
+BACKUP_EXCLUDE=folder1,folder2 # Optional: comma-separated list of folders to exclude from backup
+
 ```
 
 #### Perform a manual backup
@@ -379,7 +388,7 @@ BACKUP_EXCLUDE=folder1,folder2  # Optional: comma-separated list of folders to e
 To manually run a backup:
 
 ```sh
-bin/backup.py
+sudo .venv/bin/python bin/backup.py
 ```
 
 #### Set up scheduled backups
@@ -387,7 +396,7 @@ bin/backup.py
 For automated backups, you can set up a cron job. For example, to run a backup daily at 2 AM:
 
 ```
-0 2 * * * cd /path/to/itsup && .venv/bin/python bin/backup.py
+0 5 * * * cd /path/to/itsup && .venv/bin/python bin/backup.py
 ```
 
 #### Restore from a backup
