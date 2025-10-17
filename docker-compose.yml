@@ -1,0 +1,30 @@
+services:
+  dns-honeypot:
+    image: alpine:latest
+    container_name: dns-honeypot
+    hostname: dns-honeypot
+    command: >
+      sh -c "apk add --no-cache dnsmasq &&
+             echo 'log-queries' > /etc/dnsmasq.conf &&
+             echo 'log-facility=-' >> /etc/dnsmasq.conf &&
+             echo 'port=53' >> /etc/dnsmasq.conf &&
+             echo 'no-hosts' >> /etc/dnsmasq.conf &&
+             echo 'no-poll' >> /etc/dnsmasq.conf &&
+             echo 'cache-size=0' >> /etc/dnsmasq.conf &&
+             echo 'dns-forward-max=1000' >> /etc/dnsmasq.conf &&
+             echo 'server=192.168.1.1' >> /etc/dnsmasq.conf &&
+             echo 'strict-order' >> /etc/dnsmasq.conf &&
+             dnsmasq --no-daemon --conf-file=/etc/dnsmasq.conf"
+    networks:
+      proxynet:
+        ipv4_address: 172.30.0.253
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  proxynet:
+    external: true

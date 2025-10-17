@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  dns-honeypot:
+    image: alpine:latest
+    container_name: dns-honeypot
+    restart: unless-stopped
+    networks:
+      proxynet:
+        ipv4_address: 172.30.0.20
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    command: >
+      sh -c "
+      apk add --no-cache dnsmasq &&
+      mkdir -p /opt &&
+      cp /usr/sbin/dnsmasq /opt/dnsmasq &&
+      chmod +x /opt/dnsmasq &&
+      exec /opt/dnsmasq -k -q --log-queries --log-facility=- --no-hosts --no-resolv --server=127.0.0.11 --port=53 --bind-interfaces --interface=eth0 --except-interface=lo 2>&1 | while read line; do echo \"\$(date +\"%Y-%m-%d %H:%M:%S\") \$line\"; done
+      "
+
+networks:
+  proxynet:
+    external: true
+    name: proxynet

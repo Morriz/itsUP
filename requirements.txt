@@ -1,7 +1,9 @@
 boto3
 fastapi
 github-webhooks-framework2
+ipwhois
 jinja2-cli
 python-dotenv
 pyyaml
+requests
 uvicorn[standard]

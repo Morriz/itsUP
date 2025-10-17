@@ -1,4 +1,5 @@
 black
+ipwhois
 mypy
 pre-commit
 pylint

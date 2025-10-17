@@ -104,6 +104,8 @@ services:
       - proxynet
     {%- endif %}
   {%- endif %}
+    dns:
+      - 172.30.0.20
     restart: {{ s.restart }}
   {%- if s.volumes %}
     volumes:

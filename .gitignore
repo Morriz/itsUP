@@ -1,11 +1,11 @@
 __pycache__
-.aider*
 *.bak*
 .env
 .history
 .mypy_cache
 .venv
 certs/*
+data/
 db.yml
 proxy/docker-compose.yml
 proxy/nginx/*.conf
@@ -13,3 +13,4 @@ proxy/traefik/dynamic/*.yml
 proxy/traefik/*.yml
 upstream
 acme.json
+reports/

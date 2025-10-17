@@ -129,6 +129,78 @@ I don't want to switch folders/terminals all the time and want to keep a "projec
 - `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
 - `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
 
+### Makefile
+
+A comprehensive Makefile is provided for common operations. Run `make help` to see all available targets:
+
+```bash
+make help              # Show all available commands
+make install           # Install dependencies
+make test              # Run all tests
+make lint              # Run linter
+make format            # Format code
+make validate          # Validate db.yml
+make apply             # Apply configuration changes
+make rollout           # Apply with zero-downtime rollout
+make backup            # Backup upstream directory to S3
+```
+
+**DNS Honeypot management:**
+
+```bash
+make dns-up            # Start DNS honeypot
+make dns-down          # Stop DNS honeypot
+make dns-restart       # Restart DNS honeypot
+make dns-logs          # Tail DNS honeypot logs
+```
+
+**Container Security Monitor:**
+
+```bash
+make monitor-start     # Start container security monitor and tail logs
+make monitor-stop      # Stop container security monitor
+make monitor-cleanup   # Run cleanup mode to review blacklist
+make monitor-logs      # Tail security monitor logs
+make monitor-report    # Generate threat intelligence report
+```
+
+### DNS Honeypot
+
+All container DNS traffic is routed through a DNS honeypot (`dns-honeypot` container) that logs all queries and responses. This is essential for the container security monitoring system.
+
+The DNS honeypot is managed via `proxy/docker-compose-dns.yml` and runs dnsmasq with query logging enabled. It integrates with the proxy network to intercept all container DNS requests.
+
+### Container Security Monitor
+
+The `bin/docker_monitor.py` script provides real-time monitoring of container security by correlating DNS queries with OpenSnitch firewall blocks:
+
+**Features:**
+- Monitors ARPA reverse DNS lookups blocked by OpenSnitch
+- Correlates blocked IPs with container DNS history (5-second window)
+- Auto-whitelists IPs that have legitimate forward DNS (false positives)
+- Auto-blacklists IPs with no forward DNS history (hardcoded IPs - likely malware)
+- Blocks suspicious IPs at iptables level for all containers
+- Logs all events with microsecond precision
+
+**Files:**
+- `/etc/opensnitchd/blacklists/blacklist-outbound-ips.txt` - Blocked IPs (real threats)
+- `/etc/opensnitchd/whitelists/whitelist-outbound-ips.txt` - Allowed IPs (false positives)
+- `/var/log/compromised_container.log` - Monitor logs
+
+**Running:**
+```bash
+# Start monitor (requires root for iptables)
+sudo python3 bin/docker_monitor.py
+
+# Run cleanup mode to review existing blacklist
+sudo python3 bin/docker_monitor.py --cleanup
+```
+
+**Testing:**
+```bash
+python3 bin/docker_monitor_test.py
+```
+
 ## Howto
 
 ### Install & run
@@ -411,6 +483,49 @@ tar -xzf itsup.tar.gz.{timestamp} -C /path/to/itsup/
 ```
 
 3. Run `bin/apply.py` to apply the restored configurations
+
+### Threat Intelligence Reports
+
+itsUP includes automated threat analysis that correlates blacklisted IPs with threat intelligence from AbuseIPDB, performing reverse DNS lookups and WHOIS queries to identify potential threat actors.
+
+#### Configure AbuseIPDB API
+
+To enable threat intelligence lookups, add your AbuseIPDB API key to `.env`:
+
+```
+ABUSEIPDB_API_KEY=your_api_key_here
+```
+
+Get a free API key at https://www.abuseipdb.com/register (1,000 checks/day on free tier).
+
+#### Generate threat report manually
+
+```bash
+make monitor-report
+```
+
+This generates `reports/potential_threat_actors.csv` with:
+- Network ranges and abuse confidence scores
+- Organization details and contact information
+- Usage type (Datacenter, Hosting, ISP, etc.)
+- Tor exit node detection
+- Last reported timestamp
+
+The script is incremental - it only analyzes NEW IPs not already in the report.
+
+#### Set up automated daily reports
+
+Add to root's crontab to run daily at 4 AM:
+
+```bash
+sudo crontab -e
+```
+
+Add this line:
+
+```
+0 4 * * * cd /path/to/itsup && make monitor-report >> /var/log/threat_analysis.log 2>&1
+```
 
 ### OpenVPN server with SSH access
 
