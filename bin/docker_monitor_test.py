@@ -35,14 +35,22 @@ class TestContainerMonitor(unittest.TestCase):
         self.patcher_whitelist = patch('docker_monitor.WHITELIST_FILE', self.temp_whitelist.name)
         self.patcher_log = patch('docker_monitor.LOG_FILE', self.temp_log.name)
 
+        # Mock iptables operations
+        self.patcher_iptables_block = patch('docker_monitor.ContainerMonitor.block_ip_in_iptables')
+        self.patcher_iptables_remove = patch('docker_monitor.ContainerMonitor.remove_ip_from_iptables')
+
         self.patcher_blacklist.start()
         self.patcher_whitelist.start()
         self.patcher_log.start()
+        self.patcher_iptables_block.start()
+        self.patcher_iptables_remove.start()
 
     def tearDown(self):
         self.patcher_blacklist.stop()
         self.patcher_whitelist.stop()
         self.patcher_log.stop()
+        self.patcher_iptables_block.stop()
+        self.patcher_iptables_remove.stop()
 
         os.unlink(self.temp_blacklist.name)
         os.unlink(self.temp_whitelist.name)

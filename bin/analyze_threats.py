@@ -11,7 +11,6 @@ import os
 import requests
 from collections import defaultdict
 from ipaddress import IPv4Address, IPv4Network, ip_address
-from pathlib import Path
 from ipwhois import IPWhois
 from ipwhois.exceptions import IPDefinedError
 from dotenv import load_dotenv
@@ -19,9 +18,10 @@ from dotenv import load_dotenv
 # Ensure dotenv variables take precedence over existing environment variables
 load_dotenv(override=True)
 
-BLACKLIST_FILE = "/etc/opensnitchd/blacklists/blacklist-outbound-ips.txt"
-REPORTS_DIR = Path(__file__).parent.parent / "reports"
-OUTPUT_CSV = REPORTS_DIR / "potential_threat_actors.csv"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BLACKLIST_FILE = os.path.join(PROJECT_ROOT, "data", "blacklist-outbound-ips.txt")
+REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")
+OUTPUT_CSV = os.path.join(REPORTS_DIR, "potential_threat_actors.csv")
 ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY", "")
 
 # Global flag for cancellation
@@ -56,7 +56,7 @@ def read_existing_report():
     analyzed_ips = set()
     existing_rows = []
 
-    if not OUTPUT_CSV.exists():
+    if not os.path.exists(OUTPUT_CSV):
         return analyzed_ips, existing_rows
 
     try:
@@ -350,7 +350,7 @@ def analyze_group(network, ip_list):
 
 def generate_report(grouped, existing_rows):
     """Generate CSV report with new entries only"""
-    REPORTS_DIR.mkdir(exist_ok=True)
+    os.makedirs(REPORTS_DIR, exist_ok=True)
 
     new_rows = []
 

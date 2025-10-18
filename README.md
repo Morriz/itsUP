@@ -183,8 +183,8 @@ The `bin/docker_monitor.py` script provides real-time monitoring of container se
 - Logs all events with microsecond precision
 
 **Files:**
-- `/etc/opensnitchd/blacklists/blacklist-outbound-ips.txt` - Blocked IPs (real threats)
-- `/etc/opensnitchd/whitelists/whitelist-outbound-ips.txt` - Allowed IPs (false positives)
+- `data/blacklist-outbound-ips.txt` - Blocked IPs (real threats)
+- `data/whitelist-outbound-ips.txt` - Allowed IPs (false positives)
 - `/var/log/compromised_container.log` - Monitor logs
 
 **Running:**

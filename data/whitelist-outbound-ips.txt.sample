@@ -1,0 +1,18 @@
+# google dns
+8.8.8.8
+1.1.1.1
+# quad9 dns
+9.9.9.9
+# npm registry
+104.16.3.35
+104.16.26.34
+# wordpress api
+198.143.164.251
+# crowdsec api servers
+3.248.131.20
+52.209.176.52  # aws ireland
+52.50.45.156  # aws ireland
+52.202.124.165  # aws us-east
+54.165.17.151  # aws us-east
+63.32.23.222  # aws ireland
+52.212.79.72. # aws ireland
