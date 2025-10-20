@@ -175,19 +175,23 @@ The DNS honeypot is managed via `proxy/docker-compose-dns.yml` and runs dnsmasq 
 The `bin/docker_monitor.py` script provides real-time monitoring of container security by correlating DNS queries with OpenSnitch firewall blocks:
 
 **Features:**
+
 - Monitors ARPA reverse DNS lookups blocked by OpenSnitch
-- Correlates blocked IPs with container DNS history (5-second window)
+- Correlates blocked IPs with container DNS history (indefinite cache)
 - Auto-whitelists IPs that have legitimate forward DNS (false positives)
 - Auto-blacklists IPs with no forward DNS history (hardcoded IPs - likely malware)
+- DNS cache kept indefinitely per session to prevent false positives
 - Blocks suspicious IPs at iptables level for all containers
 - Logs all events with microsecond precision
 
 **Files:**
+
 - `data/blacklist-outbound-ips.txt` - Blocked IPs (real threats)
-- `data/whitelist-outbound-ips.txt` - Allowed IPs (false positives)
+- `data/whitelist/whitelist-outbound-ips.txt` - Allowed IPs (false positives)
 - `/var/log/compromised_container.log` - Monitor logs
 
 **Running:**
+
 ```bash
 # Start monitor (requires root for iptables)
 sudo python3 bin/docker_monitor.py
@@ -197,6 +201,7 @@ sudo python3 bin/docker_monitor.py --cleanup
 ```
 
 **Testing:**
+
 ```bash
 python3 bin/docker_monitor_test.py
 ```
@@ -505,6 +510,7 @@ make monitor-report
 ```
 
 This generates `reports/potential_threat_actors.csv` with:
+
 - Network ranges and abuse confidence scores
 - Organization details and contact information
 - Usage type (Datacenter, Hosting, ISP, etc.)

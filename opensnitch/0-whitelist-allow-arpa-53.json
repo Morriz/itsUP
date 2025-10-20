@@ -1,0 +1,33 @@
+{
+  "created": "2025-10-18T00:00:00+00:00",
+  "updated": "2025-10-18T00:00:00+00:00",
+  "name": "0-whitelist-allow-arpa-53",
+  "description": "Allow reverse DNS lookups (ARPA queries) for whitelisted IPs. This rule must have higher precedence (comes before) the deny-always-arpa-53 rule to allow legitimate services to perform reverse DNS while still blocking malware. The '0-' prefix ensures it's processed first.",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "list",
+    "data": "",
+    "type": "list",
+    "list": [
+      {
+        "operand": "dest.host",
+        "data": "^(\\d{1,3}\\.){4}in-addr\\.arpa$",
+        "type": "regexp",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "lists.ips",
+        "data": "/home/morriz/srv/data/whitelist",
+        "type": "lists",
+        "list": null,
+        "sensitive": false
+      }
+    ],
+    "sensitive": false
+  },
+  "enabled": true,
+  "precedence": true,
+  "nolog": false
+}

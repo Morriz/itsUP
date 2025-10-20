@@ -14,6 +14,32 @@ services:
   #     - traefik
   #   restart: always
 
+  dns:
+    image: alpine:latest
+    container_name: dns-honeypot
+    restart: unless-stopped
+    networks:
+      proxynet:
+        ipv4_address: 172.30.0.253
+    dns:
+      - 1.1.1.1
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    command:
+      - sh
+      - -c
+      - |
+        echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main" > /etc/apk/repositories &&
+        echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/community" >> /etc/apk/repositories &&
+        apk add --no-cache dnsmasq bind-tools &&
+        dnsmasq -k -q --log-queries --log-facility=- --no-hosts --no-resolv --server=127.0.0.11 --port=53 --bind-interfaces --interface=eth0 --except-interface=lo 2>&1 | while read line; do echo "$$(date +'%Y-%m-%d %H:%M:%S') $$line"; done
+    healthcheck:
+      test: ["CMD", "sh", "-c", "pidof dnsmasq"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   dockerproxy:
     image: wollomatic/socket-proxy:1 # see https://github.com/wollomatic/simple-traefik for reference
     container_name: dockerproxy
@@ -45,6 +71,8 @@ services:
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["NONE"]
 
   traefik:
     image: traefik:{{ versions.traefik }}
@@ -52,6 +80,8 @@ services:
     networks:
       - default
       - proxynet
+    dns:
+      - 172.30.0.253
     expose:
       - '8080'
       - '8443'
@@ -72,10 +102,14 @@ services:
       - ../data/acme:/etc/acme
       - ../logs:/var/log/traefik
     depends_on:
-      - dockerproxy
+      dns:
+        condition: service_healthy
+      dockerproxy:
+        condition: service_started
 {%- if plugin_registry.crowdsec.enabled %}
   {%- set cs = plugin_registry.crowdsec %}
-      - crowdsec
+      crowdsec:
+        condition: service_healthy
 
   crowdsec:
     image: crowdsecurity/crowdsec:{{ versions.crowdsec }}
@@ -83,6 +117,12 @@ services:
     restart: unless-stopped
     networks:
       - default
+      - proxynet
+    depends_on:
+      dns:
+        condition: service_healthy
+    dns:
+      - 172.30.0.253
     expose:
       - '8080'
       - '7422'
@@ -98,5 +138,11 @@ services:
       - ../data/crowdsec:/var/lib/crowdsec/data/
       - ../logs:/var/log/traefik
     labels:
-      - "traefik.enable=false"      
+      - "traefik.enable=false"
+    healthcheck:
+      test: ["CMD", "cscli", "version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 {%- endif %}

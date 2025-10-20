@@ -43,6 +43,19 @@ The system has three main layers:
         └── docker-compose.yml # Generated - do not edit manually
 ```
 
+## CRITICAL RULES (ADHERE AT ALL COSTS!)
+
+🚨 **NEVER DELETE ENTRIES FROM OPENSNITCH DATABASE** 🚨
+- OpenSnitch database (`/var/lib/opensnitch/opensnitch.sqlite3`) is the **permanent security audit log**
+- NEVER run DELETE queries against this database for ANY reason
+- Historical block data is critical for security analysis and forensics
+- False positives should be handled by:
+  - Adding IPs to whitelist files (`data/whitelist/whitelist-outbound-ips.txt`)
+  - Removing from blacklist files (`data/blacklist/blacklist-outbound-ips.txt`)
+  - Clearing iptables rules
+- OpenSnitch entries are **read-only** for analysis purposes
+- If you need to "reset" threat detection, clear blacklist/whitelist files and iptables, NEVER touch OpenSnitch DB
+
 ## Common Development Commands
 
 ### Setup and Installation

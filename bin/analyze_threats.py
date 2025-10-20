@@ -1,6 +1,6 @@
 #!.venv/bin/python
 """
-Analyze blacklisted IPs, group by network ranges, perform reverse DNS lookups,
+Analyze blacklisted IPs individually, track subnet membership, perform reverse DNS lookups,
 whois lookups, and generate a threat actor report. Only analyzes NEW IPs not in existing report.
 """
 import socket
@@ -9,6 +9,7 @@ import signal
 import sys
 import os
 import requests
+from datetime import datetime, timezone
 from collections import defaultdict
 from ipaddress import IPv4Address, IPv4Network, ip_address
 from ipwhois import IPWhois
@@ -19,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BLACKLIST_FILE = os.path.join(PROJECT_ROOT, "data", "blacklist-outbound-ips.txt")
+BLACKLIST_FILE = os.path.join(PROJECT_ROOT, "data", "blacklist", "blacklist-outbound-ips.txt")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")
 OUTPUT_CSV = os.path.join(REPORTS_DIR, "potential_threat_actors.csv")
 ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY", "")
@@ -52,84 +53,59 @@ def read_blacklist():
 
 
 def read_existing_report():
-    """Read existing report and return set of already-analyzed IPs"""
-    analyzed_ips = set()
-    existing_rows = []
+    """Read existing report and return dict of IP -> row data"""
+    analyzed_ips = {}
 
     if not os.path.exists(OUTPUT_CSV):
-        return analyzed_ips, existing_rows
+        return analyzed_ips
+
+    # Define expected fields
+    expected_fields = [
+        "ip", "domain", "subnet",
+        "org_name", "country", "abuse_score", "total_reports",
+        "usage_type", "is_tor", "last_reported",
+        "emails", "phone", "description",
+        "first_seen", "last_updated", "reported_to_abuseipdb"
+    ]
 
     try:
         with open(OUTPUT_CSV, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                existing_rows.append(row)
-                network_str = row["network"]
-
-                # Parse network field to extract IPs
-                # Format: "1.2.3.4" or "1.2.3.0/24 (5 IPs)"
-                if " (" in network_str:
-                    network_str = network_str.split(" (")[0]
-
-                try:
-                    if "/" in network_str:
-                        # It's a network range
-                        network = IPv4Network(network_str)
-                        analyzed_ips.update(network.hosts())
-                        analyzed_ips.add(network.network_address)
-                        analyzed_ips.add(network.broadcast_address)
-                    else:
-                        # Single IP
-                        analyzed_ips.add(IPv4Address(network_str))
-                except ValueError:
-                    pass
+                ip_str = row.get("ip", "")
+                if ip_str:
+                    try:
+                        # Only keep fields that are in expected_fields
+                        filtered_row = {k: row.get(k, '') for k in expected_fields}
+                        analyzed_ips[IPv4Address(ip_str)] = filtered_row
+                    except ValueError:
+                        pass
 
         print(f"📋 Found existing report with {len(analyzed_ips)} already-analyzed IPs")
     except Exception as e:
         print(f"⚠️  Could not read existing report: {e}")
 
-    return analyzed_ips, existing_rows
+    return analyzed_ips
 
 
-def group_by_ranges(ips):
+def identify_subnets(ips):
     """
-    Group IPs by network ranges. If multiple IPs from same /24 or /16, group them.
-    Returns: {network: [ips]} where network is IPv4Network or single IP
+    Get /16 subnet for each IP.
+    Returns: dict mapping each IP to its /16 subnet (only if 2+ IPs share it)
     """
-    # Count IPs per /24 and /16
-    net24_count = defaultdict(list)
+    # Count IPs per /16 subnet
     net16_count = defaultdict(list)
-
     for ip in ips:
-        net24 = IPv4Network(f"{ip}/24", strict=False)
         net16 = IPv4Network(f"{ip}/16", strict=False)
-        net24_count[net24].append(ip)
         net16_count[net16].append(ip)
 
-    # Determine grouping strategy
-    grouped = {}
-    processed = set()
-
-    # First pass: group /16 ranges with 3+ IPs
-    for net16, ip_list in net16_count.items():
-        if len(ip_list) >= 3:
-            grouped[net16] = ip_list
-            processed.update(ip_list)
-
-    # Second pass: group /24 ranges with 2+ IPs (not already in /16)
-    for net24, ip_list in net24_count.items():
-        if len(ip_list) >= 2:
-            remaining = [ip for ip in ip_list if ip not in processed]
-            if len(remaining) >= 2:
-                grouped[net24] = remaining
-                processed.update(remaining)
-
-    # Third pass: individual IPs
+    # Build subnet mapping - only show if 2+ IPs share it
+    subnet_map = {}
     for ip in ips:
-        if ip not in processed:
-            grouped[ip] = [ip]
+        net16 = IPv4Network(f"{ip}/16", strict=False)
+        subnet_map[ip] = str(net16) if len(net16_count[net16]) > 1 else ''
 
-    return grouped
+    return subnet_map
 
 
 def reverse_dns_lookup(ip):
@@ -294,47 +270,28 @@ def abuseipdb_lookup(ip):
         }
 
 
-def analyze_group(network, ip_list):
+def analyze_ip(ip, subnet):
     """
-    Analyze a group of IPs (range or single).
-    Returns: dict with network_str, domain, ip_count, whois info
+    Analyze a single IP.
+    Returns: dict with IP info, domain, subnet info, whois data, abuse data
     """
-    # Do reverse DNS on first IP and a sample
-    sample_size = min(3, len(ip_list))
-    sample_ips = ip_list[:sample_size]
+    # Reverse DNS lookup
+    domain = reverse_dns_lookup(ip)
+    domain_str = domain if domain else "(no reverse DNS)"
 
-    domains = []
-    for ip in sample_ips:
-        domain = reverse_dns_lookup(ip)
-        if domain:
-            domains.append(domain)
+    # Whois lookup
+    whois_info = whois_lookup(ip)
 
-    # Determine network string
-    if isinstance(network, IPv4Network):
-        network_str = str(network)
-    else:
-        network_str = str(network)
+    # AbuseIPDB lookup
+    abuse_info = abuseipdb_lookup(ip)
 
-    # Determine domain string
-    if not domains:
-        domain_str = "(no reverse DNS)"
-    elif len(set(domains)) == 1:
-        # All domains are the same
-        domain_str = domains[0]
-    else:
-        # Multiple different domains
-        domain_str = ", ".join(set(domains))
-
-    # Do whois lookup on first IP
-    whois_info = whois_lookup(ip_list[0])
-
-    # Do AbuseIPDB lookup on first IP
-    abuse_info = abuseipdb_lookup(ip_list[0])
+    # Get current timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
 
     return {
-        'network_str': network_str,
+        'ip': str(ip),
         'domain': domain_str,
-        'ip_count': len(ip_list),
+        'subnet': subnet,
         'org_name': whois_info['org_name'],
         'country': whois_info['country'],
         'emails': whois_info['emails'],
@@ -344,69 +301,57 @@ def analyze_group(network, ip_list):
         'total_reports': abuse_info['total_reports'],
         'usage_type': abuse_info['usage_type'],
         'is_tor': abuse_info['is_tor'],
-        'last_reported': abuse_info['last_reported']
+        'last_reported': abuse_info['last_reported'],
+        'first_seen': timestamp,
+        'last_updated': timestamp,
+        'reported_to_abuseipdb': ''
     }
 
 
-def generate_report(grouped, existing_rows):
-    """Generate CSV report with new entries only"""
+def generate_report(ip_analyses, existing_data):
+    """Generate CSV report with individual IP records"""
     os.makedirs(REPORTS_DIR, exist_ok=True)
 
-    new_rows = []
+    if ip_analyses:
+        print(f"🔍 Analyzing {len(ip_analyses)} NEW IPs...")
+    elif not existing_data:
+        print("✅ No IPs to report")
+        return
 
-    if grouped:
-        print(f"🔍 Analyzing {sum(len(ips) for ips in grouped.values())} NEW IPs in {len(grouped)} groups...")
+    # Define field order
+    fieldnames = [
+        "ip", "domain", "subnet",
+        "org_name", "country", "abuse_score", "total_reports",
+        "usage_type", "is_tor", "last_reported",
+        "emails", "phone", "description",
+        "first_seen", "last_updated", "reported_to_abuseipdb"
+    ]
 
-        for network, ip_list in sorted(grouped.items(), key=lambda x: len(x[1]), reverse=True):
-            # Check if cancelled
-            if _cancelled:
-                print("\n⚠️  Saving partial results before exit...")
-                break
+    # Merge existing data with new analyses
+    all_data = {}
 
-            analysis = analyze_group(network, ip_list)
+    # Add existing data
+    for ip, row in existing_data.items():
+        # Update last_updated timestamp
+        row_copy = row.copy()
+        row_copy['last_updated'] = datetime.now(timezone.utc).isoformat()
+        all_data[ip] = row_copy
 
-            # Format output
-            if isinstance(network, IPv4Network):
-                ip_display = f"{analysis['network_str']} ({analysis['ip_count']} IPs)"
-            else:
-                ip_display = str(network)
+    # Add new analyses
+    for ip, analysis in ip_analyses.items():
+        all_data[ip] = analysis
+        abuse_display = f"[Abuse: {analysis['abuse_score']}%]" if analysis['abuse_score'] else ""
+        subnet_display = f" ({analysis['subnet']})" if analysis['subnet'] else ""
+        print(f"  🔍 {ip}{subnet_display}: {analysis['domain']} ({analysis['org_name']}) {abuse_display}")
 
-            new_rows.append({
-                "network": ip_display,
-                "domain": analysis['domain'],
-                "org_name": analysis['org_name'],
-                "country": analysis['country'],
-                "abuse_score": analysis['abuse_score'],
-                "total_reports": analysis['total_reports'],
-                "usage_type": analysis['usage_type'],
-                "is_tor": analysis['is_tor'],
-                "last_reported": analysis['last_reported'],
-                "emails": analysis['emails'],
-                "phone": analysis['phone'],
-                "description": analysis['description'],
-                "ip_count": analysis['ip_count']
-            })
+    # Convert to list sorted by IP
+    all_rows = [all_data[ip] for ip in sorted(all_data.keys(), key=lambda x: IPv4Address(str(x)))]
 
-            # Print progress
-            abuse_display = f"[Abuse: {analysis['abuse_score']}%]" if analysis['abuse_score'] else ""
-            if isinstance(network, IPv4Network):
-                print(f"  📦 {analysis['network_str']}: {analysis['ip_count']} IPs → {analysis['domain']} ({analysis['org_name']}) {abuse_display}")
-            else:
-                print(f"  🔍 {network}: {analysis['domain']} ({analysis['org_name']}) {abuse_display}")
-    else:
-        print("✅ No new IPs to analyze")
-
-    # Combine existing and new rows, ensuring all rows have all fields
-    fieldnames = ["network", "domain", "org_name", "country", "abuse_score", "total_reports",
-                  "usage_type", "is_tor", "last_reported", "emails", "phone", "description", "ip_count"]
-
-    # Pad existing rows with empty values for new fields if they don't exist
-    for row in existing_rows:
+    # Pad rows with empty values for any missing fields
+    for row in all_rows:
         for field in fieldnames:
             if field not in row:
                 row[field] = ''
-
-    all_rows = existing_rows + new_rows
 
     # Write CSV
     with open(OUTPUT_CSV, "w", newline="") as f:
@@ -415,10 +360,8 @@ def generate_report(grouped, existing_rows):
         writer.writerows(all_rows)
 
     print(f"\n✅ Report updated: {OUTPUT_CSV}")
-    print(f"📊 New entries: {len(new_rows)}")
-    print(f"📊 Total entries: {len(all_rows)}")
-    if new_rows:
-        print(f"📊 New IPs analyzed: {sum(row['ip_count'] for row in new_rows)}")
+    print(f"📊 New IPs analyzed: {len(ip_analyses)}")
+    print(f"📊 Total IPs in report: {len(all_rows)}")
 
 
 def main():
@@ -426,29 +369,64 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    print("🔍 Analyzing blacklisted IPs for threat actor patterns...\n")
+    print("🔍 Analyzing blacklisted IPs individually...\n")
 
     # Read existing report
-    analyzed_ips, existing_rows = read_existing_report()
+    existing_data = read_existing_report()
 
     # Read blacklist
     all_ips = read_blacklist()
     print(f"📋 Found {len(all_ips)} total blacklisted IPs")
 
+    # Sync existing data with blacklist - remove IPs no longer blacklisted
+    all_ips_set = set(all_ips)
+    removed_ips = [ip for ip in existing_data.keys() if ip not in all_ips_set]
+    if removed_ips:
+        print(f"🗑️  Removing {len(removed_ips)} IPs no longer in blacklist")
+        for ip in removed_ips:
+            del existing_data[ip]
+
     # Filter out already-analyzed IPs
-    new_ips = [ip for ip in all_ips if ip not in analyzed_ips]
+    new_ips = [ip for ip in all_ips if ip not in existing_data]
     print(f"🆕 Found {len(new_ips)} NEW IPs to analyze\n")
 
+    # Always recalculate subnets for ALL IPs (even if no new IPs)
+    subnet_info = identify_subnets(all_ips)
+
+    # Update existing rows with new subnet info (in case membership changed)
+    updated_subnets = 0
+    for ip in existing_data.keys():
+        old_subnet = existing_data[ip].get('subnet', '')
+        new_subnet = subnet_info.get(ip, '')
+        if old_subnet != new_subnet:
+            updated_subnets += 1
+        existing_data[ip]['subnet'] = new_subnet
+
+    if updated_subnets > 0:
+        print(f"🔄 Updated subnet info for {updated_subnets} existing IPs")
+
     if not new_ips:
-        print("✅ All IPs already analyzed. Report is up to date.")
+        print("✅ All IPs already analyzed.")
+        # Regenerate report if subnets changed or to update timestamps
+        if existing_data:
+            if updated_subnets > 0:
+                print("📝 Regenerating report with updated subnet info...")
+            generate_report({}, existing_data)
         return
 
-    # Group by ranges
-    grouped = group_by_ranges(new_ips)
-    print(f"📦 Grouped into {len(grouped)} entries (ranges + individual IPs)\n")
+    # Analyze new IPs
+    ip_analyses = {}
+    for ip in new_ips:
+        # Check if cancelled
+        if _cancelled:
+            print("\n⚠️  Saving partial results before exit...")
+            break
+
+        analysis = analyze_ip(ip, subnet_info[ip])
+        ip_analyses[ip] = analysis
 
     # Generate report
-    generate_report(grouped, existing_rows)
+    generate_report(ip_analyses, existing_data)
 
 
 if __name__ == "__main__":

@@ -37,22 +37,12 @@ rollout: ## Apply with zero-downtime rollout
 backup: ## Backup upstream directory to S3
 	python3 bin/backup.py
 
-# DNS Honeypot
-dns-up: ## Start DNS honeypot
-	docker-compose -f proxy/docker-compose-dns.yml up -d
-
-dns-down: ## Stop DNS honeypot
-	docker-compose -f proxy/docker-compose-dns.yml down
-
-dns-restart: ## Restart DNS honeypot
-	docker-compose -f proxy/docker-compose-dns.yml restart
-
 dns-logs: ## Tail DNS honeypot logs
 	@docker logs -f dns-honeypot || true
 
 # Container Security Monitor
-monitor-start: ## Start container security monitor and tail logs
-	./bin/start-monitor.sh
+monitor-start: ## Start container security monitor and tail logs (use FLAGS=--skip-sync to skip sync)
+	./bin/start-monitor.sh $(FLAGS)
 
 monitor-stop: ## Stop container security monitor
 	sudo pkill -f docker_monitor.py
@@ -86,7 +76,7 @@ logs-proxy: ## Tail proxy logs
 	./bin/logs-api.sh
 
 logs-api: ## Tail API logs
-	@docker-compose -f proxy/docker-compose.yml logs -f traefik || true
+	@docker-compose -f proxy/docker compose.yml logs -f traefik || true
 
 # Cleanup
 clean: ## Remove generated artifacts

@@ -4,6 +4,28 @@ This directory contains OpenSnitch application firewall rules used by the contai
 
 ## Rules
 
+### 0-whitelist-allow-arpa-53.json
+
+**Purpose**: Allow reverse DNS lookups for whitelisted IPs (must be installed BEFORE deny rule).
+
+**How it works**:
+- Matches reverse DNS queries (`*.in-addr.arpa`)
+- Checks if the queried IP is in the whitelist directory (`data/whitelist/`)
+- Allows the query if IP is whitelisted
+- Uses `precedence: true` and `0-` prefix to ensure it's processed FIRST
+
+**Why this matters**:
+Legitimate services (GitHub, CrowdSec, npm registries) use CDN/load balancers with rotating IPs. When these services redirect to backend IPs, OpenSnitch would normally block the reverse DNS lookup. This rule creates an exception for known-good services.
+
+**Installation order is critical**:
+1. Install `0-whitelist-allow-arpa-53.json` FIRST (the `0-` prefix ensures it runs first)
+2. Then install `deny-always-arpa-53.json` as the catch-all blocker
+
+**Whitelist management**:
+- Add IPs to `data/whitelist/whitelist-outbound-ips.txt`
+- One IP per line, comments allowed with `#`
+- Changes take effect immediately (OpenSnitch monitors the file)
+
 ### deny-always-arpa-53.json
 
 **Purpose**: Block reverse DNS lookups (ARPA queries) from Docker daemon.
@@ -12,6 +34,7 @@ This directory contains OpenSnitch application firewall rules used by the contai
 - Intercepts DNS queries from `/usr/bin/dockerd` to port 53
 - Blocks queries matching pattern `*.in-addr.arpa` (reverse DNS)
 - Prevents containers from performing reverse DNS on hardcoded IPs
+- Only fires if the whitelist rule (above) didn't match
 
 **Why this matters**:
 When a container uses a hardcoded IP address (common malware behavior), the Docker daemon attempts to perform reverse DNS to resolve the IP to a hostname. By blocking these attempts, we can detect malicious hardcoded IP connections.
@@ -19,22 +42,30 @@ When a container uses a hardcoded IP address (common malware behavior), the Dock
 **Detection flow**:
 1. Container tries to connect to hardcoded IP (e.g., 45.148.10.89)
 2. Docker daemon attempts reverse DNS: `89.10.148.45.in-addr.arpa`
-3. OpenSnitch blocks the query (this rule)
-4. Our monitor (`bin/docker_monitor.py`) sees the blocked query
-5. Monitor checks: did any container do forward DNS for this IP?
-6. If NO forward DNS found → hardcoded IP → malware → blacklist IP
+3. OpenSnitch checks whitelist rule first → IP not whitelisted
+4. OpenSnitch blocks the query (this deny rule)
+5. Our monitor (`bin/docker_monitor.py`) sees the blocked query
+6. Monitor checks: did any container do forward DNS for this IP?
+7. If NO forward DNS found → hardcoded IP → malware → blacklist IP
 
 ## Installation
 
-```bash
-# Copy rule to OpenSnitch directory
-sudo cp opensnitch/deny-always-arpa-53.json /etc/opensnitchd/rules/
+**IMPORTANT: Install rules in the correct order to ensure whitelist is checked first!**
 
-# Restart OpenSnitch to load the rule
+```bash
+# Step 1: Install whitelist rule FIRST
+sudo cp opensnitch/0-whitelist-allow-arpa-53.json /etc/opensnitchd/rules/
+sudo chmod 644 /etc/opensnitchd/rules/0-whitelist-allow-arpa-53.json
+
+# Step 2: Install deny rule SECOND (catch-all for non-whitelisted IPs)
+sudo cp opensnitch/deny-always-arpa-53.json /etc/opensnitchd/rules/
+sudo chmod 644 /etc/opensnitchd/rules/deny-always-arpa-53.json
+
+# Step 3: Restart OpenSnitch to load both rules
 sudo systemctl restart opensnitchd
 
-# Verify rule is loaded
-sudo journalctl -u opensnitchd -f
+# Step 4: Verify rules are loaded
+sudo journalctl -u opensnitch --since "10 seconds ago" --no-pager | grep -i "loading rules"
 ```
 
 ## Optional Usage

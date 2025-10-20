@@ -272,8 +272,10 @@ Analysis of kernel logs revealed:
 
 Enhanced `check_direct_connections()` to:
 1. Check if destination IP is already blacklisted → alert immediately
-2. Check if destination IP has recent DNS lookup (5-second window) → log normally
+2. Check if destination IP has **any** DNS history in cache (indefinite) → log normally
 3. If NO DNS lookup found → **flag as hardcoded IP, add to blacklist, report compromise**
+
+**Note**: DNS cache is kept indefinitely within a session. Once an IP is seen via DNS, it's trusted forever (until monitor restart).
 
 This closes the detection gap and will now immediately identify which container is connecting to malicious IPs.
 

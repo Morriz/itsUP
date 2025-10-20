@@ -32,8 +32,8 @@ Clear iptables mode:
 - Use when you want to stop monitoring or clean logs
 
 Files:
-- data/blacklist-outbound-ips.txt (real threats)
-- data/whitelist-outbound-ips.txt (false positives)
+- data/blacklist/blacklist-outbound-ips.txt (real threats)
+- data/whitelist/whitelist-outbound-ips.txt (false positives)
 - /var/log/compromised_container.log (monitor logs)
 """
 import os
@@ -55,8 +55,8 @@ LOG_FILE = "/var/log/compromised_container.log"
 OPENSNITCH_DB = os.getenv("OPENSNITCH_DB", "/var/lib/opensnitch/opensnitch.sqlite3")
 HONEYPOT_CONTAINER = "dns-honeypot"
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BLACKLIST_FILE = os.path.join(PROJECT_ROOT, "data", "blacklist-outbound-ips.txt")
-WHITELIST_FILE = os.path.join(PROJECT_ROOT, "data", "whitelist-outbound-ips.txt")
+BLACKLIST_FILE = os.path.join(PROJECT_ROOT, "data", "blacklist", "blacklist-outbound-ips.txt")
+WHITELIST_FILE = os.path.join(PROJECT_ROOT, "data", "whitelist", "whitelist-outbound-ips.txt")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")  # DEBUG or INFO
 
 
@@ -64,7 +64,7 @@ class ContainerMonitor:
     # Traefik's listening port (when SPT=8443, it's responding to inbound traffic)
     SERVER_PORTS = {8443}
 
-    def __init__(self):
+    def __init__(self, skip_sync: bool = False):
         self.blocked_ips = set()
         self.blacklisted_ips = set()  # IPs in blacklist file
         self.whitelisted_ips = set()  # IPs in whitelist file
@@ -82,6 +82,7 @@ class ContainerMonitor:
         self.recent_direct_connections = deque(maxlen=100)  # (timestamp, src_ip, dst_ip, dst_port)
         self.seen_direct_connections = {}  # (src_ip, dst_ip, dst_port) -> timestamp
         self.iptables_rule_added = False
+        self.skip_sync = skip_sync
         self.load_blacklist()
         self.load_whitelist()
 
@@ -132,7 +133,7 @@ class ContainerMonitor:
             # Create empty file
             try:
                 with open(BLACKLIST_FILE, "w") as f:
-                    f.write("# OpenSnitch blacklist - one IP per line\n")
+                    f.write("# Outbound blacklist - one IP per line\n")
                 self.log(f"✅ Created blacklist file: {BLACKLIST_FILE}")
             except Exception as e:
                 self.log(f"❌ Could not create blacklist: {e}")
@@ -175,7 +176,7 @@ class ContainerMonitor:
                         # - Updating self.blacklisted_ips in memory
                         # - Removing iptables DROP rules
                         with open(BLACKLIST_FILE, "w") as f:
-                            f.write("# OpenSnitch blacklist - one IP per line\n")
+                            f.write("# Outbound blacklist - one IP per line\n")
                             for ip in sorted(updated_blacklist):
                                 f.write(f"{ip}\n")
 
@@ -603,7 +604,10 @@ class ContainerMonitor:
 
                     # Skip response traffic (SPT is a server port = container is responding, not initiating)
                     if src_port in self.SERVER_PORTS:
-                        self.log(f"⬅️  Response traffic: {src_ip}:{src_port} → {dst_ip}:{dst_port} (INBOUND connection response)", "DEBUG")
+                        self.log(
+                            f"⬅️  Response traffic: {src_ip}:{src_port} → {dst_ip}:{dst_port} (INBOUND connection response)",
+                            "DEBUG",
+                        )
                         continue
 
                     # Filter out private IPs (only track external connections)
@@ -693,7 +697,7 @@ class ContainerMonitor:
 
                 cursor.execute(
                     """
-                    SELECT time, dst_host, dst_ip, dst_port, protocol, process
+                    SELECT time, dst_host
                     FROM connections
                     WHERE time > ?
                     AND rule = 'deny-always-arpa-53'
@@ -1023,12 +1027,16 @@ class ContainerMonitor:
             self.log(f"⚠ Could not query OpenSnitch database: {e}")
 
         # Collection phase: Pre-warm DNS cache and detect past threats
+        # Only scan recent history (4 hours) to avoid false positives from before DNS was fixed
         self.log("🚀 Starting collection phase...")
-        self.collect_historical_data(hours=24)
+        self.collect_historical_data(hours=4)
         self.log("✅ Collection phase complete")
 
         # Sync all OpenSnitch blocks to blacklist AFTER DNS cache is warmed
-        self.sync_opensnitch_blocks_to_blacklist()
+        if self.skip_sync:
+            self.log("⏭️  Skipping OpenSnitch sync (--skip-sync flag)")
+        else:
+            self.sync_opensnitch_blocks_to_blacklist()
 
         # Update mtime after sync to baseline for future change detection
         try:
@@ -1092,9 +1100,6 @@ def clear_iptables_rules():
     """
     print("🧹 Clearing iptables rules...")
 
-    # Create monitor instance to reuse its methods
-    monitor = ContainerMonitor()
-
     # 1. Remove LOG rule
     print("🔍 Removing LOG rule...")
     try:
@@ -1125,22 +1130,42 @@ def clear_iptables_rules():
     except Exception as e:
         print(f"⚠️ Failed to remove LOG rule: {e}")
 
-    # 2. Remove all DROP rules for blacklisted IPs
-    blacklisted = monitor._read_blacklist_file()
-    if blacklisted:
-        print(f"🔍 Removing {len(blacklisted)} DROP rules...")
+    # 2. Remove all DROP rules matching our pattern (172.0.0.0/8 -> IP)
+    print("🔍 Removing all DROP rules...")
+    try:
+        # List all rules in DOCKER-USER chain
+        result = subprocess.run(
+            ["iptables", "-L", "DOCKER-USER", "-n", "--line-numbers"], capture_output=True, text=True
+        )
+
         removed = 0
-        for ip in blacklisted:
+        # Parse output and find DROP rules with source 172.0.0.0/8
+        # We need to remove rules in reverse order (highest line number first)
+        # to avoid line number shifts
+        drop_lines = []
+        for line in result.stdout.split("\n"):
+            # Match lines like: "1    DROP   0  --  172.0.0.0/8   104.19.154.92"
+            if "DROP" in line and "172.0.0.0/8" in line:
+                parts = line.split()
+                if parts and parts[0].isdigit():
+                    drop_lines.append(int(parts[0]))
+
+        # Remove in reverse order
+        for line_num in sorted(drop_lines, reverse=True):
             try:
-                cmd = ["iptables", "-D", "DOCKER-USER", "-s", "172.0.0.0/8", "-d", ip, "-j", "DROP"]
+                cmd = ["iptables", "-D", "DOCKER-USER", str(line_num)]
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode == 0:
                     removed += 1
             except Exception:
                 pass
-        print(f"✅ Removed {removed} DROP rules")
-    else:
-        print("ℹ️  No blacklisted IPs found")
+
+        if removed > 0:
+            print(f"✅ Removed {removed} DROP rules")
+        else:
+            print("ℹ️  No DROP rules found")
+    except Exception as e:
+        print(f"⚠️ Failed to remove DROP rules: {e}")
 
     print("\n✅ iptables cleanup complete")
     print("ℹ️  Note: Blacklist file unchanged, only iptables rules removed")
@@ -1175,7 +1200,7 @@ def cleanup_blacklist():
     print("🧹 Cleanup mode: Analyzing blacklist for false positives...")
 
     # Create monitor instance to reuse its methods
-    monitor = ContainerMonitor()
+    monitor = ContainerMonitor(skip_sync=True)
 
     # Read blacklist
     blacklisted = monitor._read_blacklist_file()
@@ -1280,9 +1305,9 @@ def cleanup_blacklist():
     # Summary
     print("\n📊 Summary:")
     if opensnitch_available:
-        print(f"   ✅ Source: OpenSnitch DB (PRIMARY - high confidence)")
+        print("   ✅ Source: OpenSnitch DB (PRIMARY - high confidence)")
     else:
-        print(f"   ⚠️  Source: DNS logs only (FALLBACK - requires confirmation)")
+        print("   ⚠️  Source: DNS logs only (FALLBACK - requires confirmation)")
     print(f"   False positives (move to whitelist): {len(to_whitelist)}")
     print(f"   Real threats (keep in blacklist): {len(to_keep)}")
 
@@ -1306,7 +1331,7 @@ def cleanup_blacklist():
 
             # Remove from blacklist
             with open(BLACKLIST_FILE, "w") as f:
-                f.write("# OpenSnitch blacklist - one IP per line\n")
+                f.write("# Outbound blacklist - one IP per line\n")
                 for ip in sorted(to_keep):
                     f.write(f"{ip}\n")
 
@@ -1326,6 +1351,7 @@ if __name__ == "__main__":
         exit(1)
 
     # Check for command-line flags
+    skip_sync = False
     if len(sys.argv) > 1:
         if sys.argv[1] == "--cleanup":
             cleanup_blacklist()
@@ -1333,10 +1359,13 @@ if __name__ == "__main__":
         elif sys.argv[1] == "--clear-iptables":
             clear_iptables_rules()
             exit(0)
+        elif sys.argv[1] == "--skip-sync":
+            skip_sync = True
         else:
             print(f"Unknown flag: {sys.argv[1]}")
             print("\nUsage:")
             print("  sudo python3 bin/docker_monitor.py                  # Normal monitoring")
+            print("  sudo python3 bin/docker_monitor.py --skip-sync      # Skip OpenSnitch sync")
             print("  sudo python3 bin/docker_monitor.py --cleanup        # Cleanup blacklist")
             print("  sudo python3 bin/docker_monitor.py --clear-iptables # Remove iptables rules")
             exit(1)
@@ -1354,6 +1383,5 @@ if __name__ == "__main__":
         print(f"Failed to create log: {e}")
         exit(1)
 
-    monitor = ContainerMonitor()
-    monitor.run()
+    monitor = ContainerMonitor(skip_sync=skip_sync)
     monitor.run()

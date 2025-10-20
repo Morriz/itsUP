@@ -106,7 +106,7 @@ providers:
   docker:
     exposedByDefault: false
     endpoint: tcp://dockerproxy:2375
-    network: default
+    network: proxynet
   file:
     directory: /etc/traefik/dynamic/
     watch: true
