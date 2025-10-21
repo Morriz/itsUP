@@ -9,9 +9,19 @@ sudo touch /var/log/compromised_container.log
 
 # Parse flags
 FLAGS=""
-if [[ "$1" == "--skip-sync" ]]; then
-    FLAGS="--skip-sync"
-    echo "Starting with --skip-sync flag (will not sync OpenSnitch blocks to blacklist)"
+for arg in "$@"; do
+    case "$arg" in
+        --skip-sync)
+            FLAGS="$FLAGS --skip-sync"
+            ;;
+        --block)
+            FLAGS="$FLAGS --block"
+            ;;
+    esac
+done
+
+if [[ -n "$FLAGS" ]]; then
+    echo "Starting with flags:$FLAGS"
 fi
 
 # Start in background with proper daemonization

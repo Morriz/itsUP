@@ -21,6 +21,9 @@ Still interested? Then read on...
 - [Dev/ops tools](#devops-tools)
   - [utility functions](#utility-functions)
   - [Utility scripts](#utility-scripts)
+  - [Makefile](#makefile)
+  - [DNS Honeypot](#dns-honeypot)
+  - [Container Security Monitor](#container-security-monitor)
 - [Howto](#howto)
   - [Install \& run](#install--run)
   - [Configure services](#configure-services)
@@ -39,6 +42,10 @@ Still interested? Then read on...
     - [Perform a manual backup](#perform-a-manual-backup)
     - [Set up scheduled backups](#set-up-scheduled-backups)
     - [Restore from a backup](#restore-from-a-backup)
+  - [Threat Intelligence Reports](#threat-intelligence-reports)
+    - [Configure AbuseIPDB API](#configure-abuseipdb-api)
+    - [Generate threat report manually](#generate-threat-report-manually)
+    - [Set up automated daily reports](#set-up-automated-daily-reports)
   - [OpenVPN server with SSH access](#openvpn-server-with-ssh-access)
     - [1. Initialize the configuration files and certificates](#1-initialize-the-configuration-files-and-certificates)
     - [2. Create a client file](#2-create-a-client-file)
@@ -186,7 +193,7 @@ The `bin/docker_monitor.py` script provides real-time monitoring of container se
 
 **Files:**
 
-- `data/blacklist-outbound-ips.txt` - Blocked IPs (real threats)
+- `data/blacklist/blacklist-outbound-ips.txt` - Blocked IPs (real threats)
 - `data/whitelist/whitelist-outbound-ips.txt` - Allowed IPs (false positives)
 - `/var/log/compromised_container.log` - Monitor logs
 

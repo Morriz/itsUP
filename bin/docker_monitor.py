@@ -64,7 +64,7 @@ class ContainerMonitor:
     # Traefik's listening port (when SPT=8443, it's responding to inbound traffic)
     SERVER_PORTS = {8443}
 
-    def __init__(self, skip_sync: bool = False):
+    def __init__(self, skip_sync: bool = False, block: bool = False):
         self.blocked_ips = set()
         self.blacklisted_ips = set()  # IPs in blacklist file
         self.whitelisted_ips = set()  # IPs in whitelist file
@@ -83,6 +83,7 @@ class ContainerMonitor:
         self.seen_direct_connections = {}  # (src_ip, dst_ip, dst_port) -> timestamp
         self.iptables_rule_added = False
         self.skip_sync = skip_sync
+        self.block = block
         self.load_blacklist()
         self.load_whitelist()
 
@@ -97,6 +98,11 @@ class ContainerMonitor:
 
     def load_blacklist(self) -> None:
         """Load existing blacklisted IPs from file"""
+        # Skip loading entirely if --skip-sync flag is set (memory-only mode)
+        if self.skip_sync:
+            self.log("⏭️  Skipping blacklist load (--skip-sync) - memory-only mode")
+            return
+
         try:
             import os
 
@@ -114,18 +120,21 @@ class ContainerMonitor:
                 old_blacklist = self.blacklisted_ips
                 self.blacklisted_ips = new_blacklist
 
-            # Check for removals
-            removed = old_blacklist - new_blacklist
-            for ip in removed:
-                self.remove_ip_from_iptables(ip)
+            # Only apply to iptables if --block flag is set
+            if self.block:
+                # Check for removals
+                removed = old_blacklist - new_blacklist
+                for ip in removed:
+                    self.remove_ip_from_iptables(ip)
 
-            # Check for additions
-            added = new_blacklist - old_blacklist
-            for ip in added:
-                self.block_ip_in_iptables(ip, log=True)
+                # Check for additions
+                added = new_blacklist - old_blacklist
+                for ip in added:
+                    self.block_ip_in_iptables(ip, log=True)
 
             if new_blacklist and not old_blacklist:
-                self.log(f"📋 Loaded {len(new_blacklist)} IPs from blacklist")
+                blocked_msg = " (blocked in iptables)" if self.block else " (detection only)"
+                self.log(f"📋 Loaded {len(new_blacklist)} IPs from blacklist{blocked_msg}")
             elif added or removed:
                 self.log(f"📋 Blacklist updated: +{len(added)} -{len(removed)} (total: {len(new_blacklist)})")
 
@@ -206,8 +215,8 @@ class ContainerMonitor:
         try:
             import os
 
-            # Check blacklist
-            if os.path.exists(BLACKLIST_FILE):
+            # Check blacklist (skip if --skip-sync)
+            if not self.skip_sync and os.path.exists(BLACKLIST_FILE):
                 stat = os.stat(BLACKLIST_FILE)
                 if stat.st_mtime > self.blacklist_mtime:
                     self.log("🔄 Blacklist file changed, reloading...")
@@ -232,13 +241,32 @@ class ContainerMonitor:
             return set()
 
     def add_to_blacklist(self, ip: str, log_msg: bool = True) -> None:
-        """Add IP to OpenSnitch blacklist file and block in iptables (atomic)"""
+        """Add IP to blacklist (in-memory and optionally to file) and optionally block in iptables"""
         # Never blacklist whitelisted IPs
         with self.lock:
             if ip in self.whitelisted_ips:
                 return
 
         try:
+            # Check in-memory first (fast check)
+            with self.lock:
+                if ip in self.blacklisted_ips:
+                    return  # Already tracked
+
+            # With --skip-sync: memory-only mode, never touch the file
+            if self.skip_sync:
+                with self.lock:
+                    self.blacklisted_ips.add(ip)
+
+                if log_msg:
+                    mode = "detected (memory-only)" if not self.block else "detected and blocked (memory-only)"
+                    self.log(f"➕ {mode}: {ip}")
+
+                if self.block:
+                    self.block_ip_in_iptables(ip, log=log_msg)
+                return
+
+            # Normal mode: persist to file
             # Atomic file operation with lock
             with self.blacklist_file_lock:
                 # Read current file contents
@@ -251,15 +279,17 @@ class ContainerMonitor:
                 with open(BLACKLIST_FILE, "a") as f:
                     f.write(f"{ip}\n")
 
-                # Update in-memory set
-                with self.lock:
-                    self.blacklisted_ips.add(ip)
+            # Update in-memory set
+            with self.lock:
+                self.blacklisted_ips.add(ip)
 
             if log_msg:
-                self.log(f"➕ Added {ip} to blacklist")
+                action = "Added" if not self.block else "Added and blocked"
+                self.log(f"➕ {action} {ip} to blacklist")
 
-            # Block in iptables for containers
-            self.block_ip_in_iptables(ip, log=log_msg)
+            # Block in iptables only if --block flag is set
+            if self.block:
+                self.block_ip_in_iptables(ip, log=log_msg)
         except Exception as e:
             self.log(f"❌ Failed to add {ip} to blacklist: {e}")
 
@@ -931,7 +961,8 @@ class ContainerMonitor:
                     self.report_compromise(container_name, dst_ip, "historical connection to hardcoded IP")
 
         if ips_without_dns:
-            self.log(f"📊 Blacklisted {len(ips_without_dns)} hardcoded IPs from historical analysis")
+            mode = "(memory-only)" if self.skip_sync else "(persisted to file)"
+            self.log(f"📊 Detected {len(ips_without_dns)} hardcoded IPs from historical analysis {mode}")
         else:
             self.log("✅ All past connections have DNS history")
 
@@ -1016,20 +1047,20 @@ class ContainerMonitor:
             cursor.execute(
                 """
                 SELECT COUNT(*) FROM connections
-                WHERE action = 'deny'
-                AND time > datetime('now', '-5 minutes')
+                WHERE rule = 'deny-always-arpa-53'
+                AND time > strftime('%s', 'now', '-24 hours')
             """
             )
             recent_blocks = cursor.fetchone()[0]
             conn.close()
-            self.log(f"📊 Found {recent_blocks} blocks in last 5 minutes")
+            self.log(f"📊 Found {recent_blocks} blocks in last 24 hours (deny-always-arpa-53)")
         except Exception as e:
             self.log(f"⚠ Could not query OpenSnitch database: {e}")
 
         # Collection phase: Pre-warm DNS cache and detect past threats
-        # Only scan recent history (4 hours) to avoid false positives from before DNS was fixed
+        # Only scan recent history (24 hours)
         self.log("🚀 Starting collection phase...")
-        self.collect_historical_data(hours=4)
+        self.collect_historical_data(hours=24)
         self.log("✅ Collection phase complete")
 
         # Sync all OpenSnitch blocks to blacklist AFTER DNS cache is warmed
@@ -1038,12 +1069,12 @@ class ContainerMonitor:
         else:
             self.sync_opensnitch_blocks_to_blacklist()
 
-        # Update mtime after sync to baseline for future change detection
-        try:
-            stat = os.stat(BLACKLIST_FILE)
-            self.blacklist_mtime = stat.st_mtime
-        except Exception:
-            pass
+            # Update mtime after sync to baseline for future change detection
+            try:
+                stat = os.stat(BLACKLIST_FILE)
+                self.blacklist_mtime = stat.st_mtime
+            except Exception:
+                pass
 
         self.log("✅ Entering real-time monitoring...")
 
@@ -1200,7 +1231,7 @@ def cleanup_blacklist():
     print("🧹 Cleanup mode: Analyzing blacklist for false positives...")
 
     # Create monitor instance to reuse its methods
-    monitor = ContainerMonitor(skip_sync=True)
+    monitor = ContainerMonitor(skip_sync=True, block=False)
 
     # Read blacklist
     blacklisted = monitor._read_blacklist_file()
@@ -1352,20 +1383,25 @@ if __name__ == "__main__":
 
     # Check for command-line flags
     skip_sync = False
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--cleanup":
+    block = False
+    for arg in sys.argv[1:]:
+        if arg == "--cleanup":
             cleanup_blacklist()
             exit(0)
-        elif sys.argv[1] == "--clear-iptables":
+        elif arg == "--clear-iptables":
             clear_iptables_rules()
             exit(0)
-        elif sys.argv[1] == "--skip-sync":
+        elif arg == "--skip-sync":
             skip_sync = True
+        elif arg == "--block":
+            block = True
         else:
-            print(f"Unknown flag: {sys.argv[1]}")
+            print(f"Unknown flag: {arg}")
             print("\nUsage:")
-            print("  sudo python3 bin/docker_monitor.py                  # Normal monitoring")
+            print("  sudo python3 bin/docker_monitor.py                  # Detection only (default)")
+            print("  sudo python3 bin/docker_monitor.py --block          # Detection + blocking")
             print("  sudo python3 bin/docker_monitor.py --skip-sync      # Skip OpenSnitch sync")
+            print("  sudo python3 bin/docker_monitor.py --block --skip-sync  # Block mode, fresh start")
             print("  sudo python3 bin/docker_monitor.py --cleanup        # Cleanup blacklist")
             print("  sudo python3 bin/docker_monitor.py --clear-iptables # Remove iptables rules")
             exit(1)
@@ -1383,5 +1419,5 @@ if __name__ == "__main__":
         print(f"Failed to create log: {e}")
         exit(1)
 
-    monitor = ContainerMonitor(skip_sync=skip_sync)
+    monitor = ContainerMonitor(skip_sync=skip_sync, block=block)
     monitor.run()
