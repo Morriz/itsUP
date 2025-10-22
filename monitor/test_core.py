@@ -1,10 +1,11 @@
 """Tests for monitor.core module - Core business logic only"""
+import json
 import os
 import re
 import tempfile
 import unittest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from monitor.core import ContainerMonitor
 
@@ -198,6 +199,67 @@ class TestDNSRegexParsing(unittest.TestCase):
         match = re.search(pattern, line)
 
         self.assertIsNone(match, "Should not match query lines")
+
+
+class TestDockerEventsIntegration(unittest.TestCase):
+    """Test Docker events real-time container tracking"""
+
+    @patch("subprocess.run")
+    def test_container_start_event_updates_mapping(self, mock_run):
+        """Container start event should add container to mapping"""
+        monitor = ContainerMonitor(skip_sync=True)
+
+        # Mock docker inspect responses
+        mock_run.side_effect = [
+            Mock(stdout="test-container", returncode=0),  # Get name
+            Mock(stdout="172.25.0.100", returncode=0),  # Get IP
+        ]
+
+        # Simulate container start
+        monitor._update_single_container("abc123")
+
+        # Should be in mapping
+        self.assertEqual(monitor._container_ips.get("172.25.0.100"), "test-container")
+
+    @patch("subprocess.run")
+    def test_container_stop_event_removes_from_mapping(self, mock_run):
+        """Container stop event should remove container from mapping"""
+        monitor = ContainerMonitor(skip_sync=True)
+
+        # Pre-populate mapping
+        monitor._container_ips["172.25.0.100"] = "test-container"
+
+        # Mock docker inspect response
+        mock_run.return_value = Mock(stdout="172.25.0.100", returncode=0)
+
+        # Simulate container stop
+        monitor._remove_container_from_mapping("abc123")
+
+        # Should be removed from mapping
+        self.assertNotIn("172.25.0.100", monitor._container_ips)
+
+    @patch("subprocess.run")
+    def test_container_restart_updates_mapping(self, mock_run):
+        """Container restart should update mapping with new IP"""
+        monitor = ContainerMonitor(skip_sync=True)
+
+        # Old mapping
+        monitor._container_ips["172.25.0.100"] = "test-container"
+
+        # Mock docker inspect for removal (old IP)
+        mock_run.return_value = Mock(stdout="172.25.0.100", returncode=0)
+        monitor._remove_container_from_mapping("abc123")
+
+        # Mock docker inspect for addition (new IP after restart)
+        mock_run.side_effect = [
+            Mock(stdout="test-container", returncode=0),  # Get name
+            Mock(stdout="172.25.0.200", returncode=0),  # Get new IP
+        ]
+        monitor._update_single_container("abc123")
+
+        # Old IP should be gone, new IP should be present
+        self.assertNotIn("172.25.0.100", monitor._container_ips)
+        self.assertEqual(monitor._container_ips.get("172.25.0.200"), "test-container")
 
 
 if __name__ == "__main__":

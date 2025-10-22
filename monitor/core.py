@@ -5,6 +5,7 @@ This module contains the ContainerMonitor class which orchestrates
 DNS correlation, threat detection, and container security monitoring.
 """
 
+import json
 import os
 import re
 import signal
@@ -103,8 +104,13 @@ class ContainerMonitor:
 
     def log(self, message: str, level: str = "INFO") -> None:
         """Log message with level filtering."""
-        if level == "DEBUG" and LOG_LEVEL != "DEBUG":
+        # Standard log level hierarchy
+        levels = {"TRACE": 0, "DEBUG": 1, "INFO": 2, "WARN": 3, "ERROR": 4, "CRITICAL": 5}
+
+        # Skip if message level is below configured level
+        if levels.get(level, 2) < levels.get(LOG_LEVEL, 2):
             return
+
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         with open(LOG_FILE, "a") as f:
             f.write(f"[{ts}] {message}\n")
@@ -153,15 +159,113 @@ class ContainerMonitor:
                     "docker",
                     "inspect",
                     "--format",
-                    "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                    "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
                     container_id,
                 ],
                 capture_output=True,
                 text=True,
             )
-            container_ip = inspect.stdout.strip()
-            if container_ip:
-                self._container_ips[container_ip] = container_name
+            container_ips = inspect.stdout.strip()
+            if container_ips:
+                # Map ALL IPs from all networks (we monitor 172.0.0.0/8)
+                for ip in container_ips.split():
+                    if ip:  # Skip empty strings
+                        self._container_ips[ip] = container_name
+
+    def _update_single_container(self, container_id: str) -> None:
+        """Update mapping for a single container by ID."""
+        # Get container name
+        result = subprocess.run(
+            ["docker", "inspect", "--format", "{{.Name}}", container_id],
+            capture_output=True,
+            text=True,
+        )
+        container_name = result.stdout.strip().lstrip("/")  # Docker adds leading slash
+
+        # Get container IPs
+        inspect = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                container_id,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        container_ips = inspect.stdout.strip()
+
+        if container_ips:
+            # Container may have multiple IPs (multiple networks) - store each separately
+            ips = container_ips.split()
+            with self._lock:
+                for ip in ips:
+                    self._container_ips[ip] = container_name
+            self.log(f"🔄 Container mapping updated: {', '.join(ips)} → {container_name}", "DEBUG")
+
+    def _remove_container_from_mapping(self, container_id: str) -> None:
+        """Remove container from mapping when it stops/dies."""
+        # Find and remove by container ID
+        result = subprocess.run(
+            ["docker", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", container_id],
+            capture_output=True,
+            text=True,
+        )
+        container_ips = result.stdout.strip()
+
+        if container_ips:
+            # Container may have multiple IPs - remove all of them
+            with self._lock:
+                for ip in container_ips.split():
+                    removed_name = self._container_ips.pop(ip, None)
+                    if removed_name:
+                        self.log(f"🔄 Container removed from mapping: {ip} ({removed_name})", "DEBUG")
+
+    def monitor_docker_events(self) -> None:
+        """Monitor Docker events for container start/stop/die to update mappings in real-time."""
+        self.log("🔍 Docker events listener started")
+
+        # Start docker events stream (only container events, JSON format)
+        proc = subprocess.Popen(
+            ["docker", "events", "--filter", "type=container", "--format", "{{json .}}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        try:
+            for line in proc.stdout:
+                if not line.strip():
+                    continue
+
+                try:
+                    event = json.loads(line)
+                    action = event.get("Action", "")
+                    container_id = event.get("id", "")
+                    container_name = event.get("Actor", {}).get("Attributes", {}).get("name", "unknown")
+
+                    # Handle container start - add to mapping
+                    if action == "start":
+                        self.log(f"🐳 Container started: {container_name}", "DEBUG")
+                        self._update_single_container(container_id)
+
+                    # Handle container stop/die - remove from mapping
+                    elif action in ("stop", "die"):
+                        self.log(f"🐳 Container stopped: {container_name}", "DEBUG")
+                        self._remove_container_from_mapping(container_id)
+
+                except json.JSONDecodeError:
+                    self.log(f"⚠️  Failed to parse Docker event: {line}", "ERROR")
+                    continue
+                except Exception as e:
+                    self.log(f"⚠️  Error processing Docker event: {e}", "ERROR")
+                    continue
+
+        except Exception as e:
+            self.log(f"❌ Docker events stream error: {e}", "ERROR")
+        finally:
+            proc.kill()
 
     def get_container_from_ip(self, container_ip: str) -> Optional[str]:
         """Get container name from IP address."""
@@ -176,7 +280,7 @@ class ContainerMonitor:
                 self._compromise_count_by_container[container] += 1
                 if ip not in self._compromised_ips_by_container[container]:
                     self._compromised_ips_by_container[container].append(ip)
-            self.log(f"🚨 ALERT: {container} connected to blocked IP {ip} ({evidence})")
+            self.log(f"🚨 ALERT: {container} connected to blocked IP {ip} ({evidence})", "WARN")
 
     def log_suspicious_containers(self) -> None:
         """Log summary of suspicious containers and their target IPs."""
@@ -208,7 +312,7 @@ class ContainerMonitor:
                 if ip in self._opensnitch_blocked_ips:
                     self.log(f"➕ {action} ({mode_desc}): {ip} ✅ CONFIRMED by OpenSnitch")
                 else:
-                    self.log(f"➕ {action} ({mode_desc}): {ip} ⚠️  NOT in OpenSnitch (needs review)")
+                    self.log(f"➕ {action} ({mode_desc}): {ip} ⚠️  NOT in OpenSnitch (needs review)", "WARN")
             else:
                 self.log(f"➕ {action} ({mode_desc}): {ip}")
 
@@ -292,7 +396,7 @@ class ContainerMonitor:
                     if domain not in existing_domains:
                         self._dns_cache[ip].append((domain, timestamp))
 
-                self.log(f"🍯 DNS: {domain} → {ip}", "DEBUG")
+                self.log(f"🍯 DNS: {domain} → {ip}", "TRACE")
 
     def monitor_direct_connections(self) -> None:
         """Monitor journalctl for direct container TCP connections."""
@@ -371,8 +475,8 @@ class ContainerMonitor:
                 else:
                     # NO DNS HISTORY = HARDCODED IP = MALWARE
                     self.log(
-                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE!) 🚨",
-                        "INFO",
+                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
+                        "WARN",
                     )
                     self.add_to_blacklist(dst_ip, log_msg=True)
                     self.report_compromise(container_name, dst_ip, "direct connection to hardcoded IP (no DNS)")
@@ -397,7 +501,7 @@ class ContainerMonitor:
             self.log(f"✅ Loaded {len(self._opensnitch_blocked_ips)} OpenSnitch blocked IPs for cross-reference")
 
         except Exception as e:
-            self.log(f"⚠️  Error loading OpenSnitch blocks: {e}")
+            self.log(f"⚠️  Error loading OpenSnitch blocks: {e}", "ERROR")
 
     def monitor_opensnitch(self) -> None:
         """Monitor OpenSnitch blocks in real-time and update validation set."""
@@ -459,7 +563,7 @@ class ContainerMonitor:
             return unique_ips
 
         except Exception as e:
-            self.log(f"⚠ Error parsing DNS logs: {e}")
+            self.log(f"⚠ Error parsing DNS logs: {e}", "ERROR")
             return 0
 
     def _parse_connection_logs(self, since_arg: str = "") -> set:
@@ -501,7 +605,7 @@ class ContainerMonitor:
             return connections
 
         except Exception as e:
-            self.log(f"⚠ Error parsing connection logs: {e}")
+            self.log(f"⚠ Error parsing connection logs: {e}", "ERROR")
             return set()
 
     def _get_last_processed_timestamp(self) -> Optional[str]:
@@ -535,7 +639,7 @@ class ContainerMonitor:
 
             return None
         except Exception as e:
-            self.log(f"⚠️  Could not read last timestamp: {e}")
+            self.log(f"⚠️  Could not read last timestamp: {e}", "ERROR")
             return None
 
     def _detect_hardcoded_ips(self, connections: set) -> int:
@@ -563,7 +667,8 @@ class ContainerMonitor:
             if not has_dns:
                 # NO DNS HISTORY = HARDCODED IP
                 self.log(
-                    f"🔍 Historical: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE!) 🚨"
+                    f"🔍 Historical: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
+                    "WARN"
                 )
                 self.add_to_blacklist(dst_ip, log_msg=False)
                 self.report_compromise(container_name, dst_ip, "historical connection to hardcoded IP")
@@ -621,6 +726,7 @@ class ContainerMonitor:
     def _start_monitoring_threads(self) -> None:
         """Start all monitoring threads."""
         threads = [
+            threading.Thread(target=self.monitor_docker_events, daemon=True),
             threading.Thread(target=self.monitor_honeypot, daemon=True),
             threading.Thread(target=self.monitor_direct_connections, daemon=True),
             threading.Thread(target=self.check_direct_connections, daemon=True),

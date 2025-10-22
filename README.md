@@ -179,39 +179,38 @@ The DNS honeypot is managed via `proxy/docker-compose-dns.yml` and runs dnsmasq 
 
 ### Container Security Monitor
 
-The `bin/docker_monitor.py` script provides real-time monitoring of container security by correlating DNS queries with OpenSnitch firewall blocks:
+Real-time container security monitoring that detects compromised containers by identifying hardcoded IP connections through DNS correlation analysis.
 
-**Features:**
+**Key Features:**
 
-- Monitors ARPA reverse DNS lookups blocked by OpenSnitch
-- Correlates blocked IPs with container DNS history (indefinite cache)
-- Auto-whitelists IPs that have legitimate forward DNS (false positives)
-- Auto-blacklists IPs with no forward DNS history (hardcoded IPs - likely malware)
-- DNS cache kept indefinitely per session to prevent false positives
-- Blocks suspicious IPs at iptables level for all containers
-- Logs all events with microsecond precision
+- DNS correlation detection (connections without DNS = malware)
+- Real-time Docker events integration
+- OpenSnitch cross-reference (optional)
+- iptables blocking (optional)
+- Automatic IP list management with hot-reload
+- Historical analysis with timestamp resumption
 
-**Files:**
-
-- `data/blacklist/blacklist-outbound-ips.txt` - Blocked IPs (real threats)
-- `data/whitelist/whitelist-outbound-ips.txt` - Allowed IPs (false positives)
-- `/var/log/compromised_container.log` - Monitor logs
-
-**Running:**
+**Quick Start:**
 
 ```bash
-# Start monitor (requires root for iptables)
-sudo python3 bin/docker_monitor.py
+# Start monitor with full protection
+make monitor-start FLAGS="--use-opensnitch --block"
 
-# Run cleanup mode to review existing blacklist
-sudo python3 bin/docker_monitor.py --cleanup
+# Stop monitor
+make monitor-stop
+
+# View logs
+make monitor-logs
 ```
 
-**Testing:**
+**📖 For complete documentation, see [monitor/README.md](monitor/README.md)**
 
-```bash
-python3 bin/docker_monitor_test.py
-```
+This includes:
+- Architecture and detection logic
+- Configuration options
+- False positive handling
+- Testing guide
+- Performance characteristics
 
 ## Howto
 

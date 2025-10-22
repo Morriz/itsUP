@@ -21,7 +21,7 @@ WHITELIST_FILE = os.path.join(PROJECT_ROOT, "data", "whitelist", "whitelist-outb
 HONEYPOT_CONTAINER = "dns-honeypot"
 
 # Logging
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")  # DEBUG or INFO
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # Time Windows (in seconds unless specified)
 DNS_CACHE_WINDOW_HOURS = 48  # Hours of DNS logs to pre-warm cache (safe - no false positives)

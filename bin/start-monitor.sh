@@ -21,6 +21,6 @@ sudo setsid python3 bin/docker_monitor.py $FLAGS < /dev/null &> /dev/null &
 echo "Container security monitor started in background"
 sleep 2
 
-# Tail logs (trap INT to exit cleanly)
+# Show startup logs and continue tailing (trap INT to exit cleanly)
 trap 'exit 0' INT TERM
-tail -f /var/log/compromised_container.log
+tail -n 50 -f /var/log/compromised_container.log
