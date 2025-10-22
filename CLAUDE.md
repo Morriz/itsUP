@@ -45,15 +45,51 @@ The system has three main layers:
 
 ## CRITICAL RULES (ADHERE AT ALL COSTS!)
 
-🚨 **NEVER DELETE ENTRIES FROM OPENSNITCH DATABASE** 🚨
+🚨 **PYTHON UNDERSCORE NAMING CONVENTION** 🚨
+- **ALWAYS** use single leading underscore `_` for instance variables that are internal/private
+- **NEVER** use leading underscore for public API (methods/variables intended for external use)
+- **Rule**: If it's not part of the public interface, prefix with `_`
+- **Example class structure**:
+  ```python
+  class MyClass:
+      def __init__(self):
+          # Public config (external callers need these)
+          self.enabled = True
+          self.mode = "production"
+
+          # Private state (internal implementation only)
+          self._cache = {}
+          self._lock = threading.Lock()
+          self._internal_counter = 0
+
+      # Public API methods (no underscore)
+      def run(self):
+          pass
+
+      def get_status(self):
+          return self._internal_counter
+
+      # Private helper methods (underscore prefix)
+      def _update_cache(self):
+          pass
+  ```
+- **Be consistent!** Don't mix conventions within the same class
+- This applies to ALL Python code in this repository
+
+🚨 **NEVER MODIFY OR MOVE OPENSNITCH DATABASE** 🚨
 - OpenSnitch database (`/var/lib/opensnitch/opensnitch.sqlite3`) is the **permanent security audit log**
 - NEVER run DELETE queries against this database for ANY reason
+- NEVER move, rename, copy, or modify the database file itself
+- NEVER use `mv`, `cp`, or any file operations on `/var/lib/opensnitch/opensnitch.sqlite3`
+- The database is **read-only** for SELECT queries ONLY
 - Historical block data is critical for security analysis and forensics
 - False positives should be handled by:
   - Adding IPs to whitelist files (`data/whitelist/whitelist-outbound-ips.txt`)
   - Removing from blacklist files (`data/blacklist/blacklist-outbound-ips.txt`)
   - Clearing iptables rules
-- OpenSnitch entries are **read-only** for analysis purposes
+- If you need to test scenarios where DB is missing:
+  - Use a mock path like `/tmp/nonexistent.db` in test code
+  - NEVER move or rename the actual production database
 - If you need to "reset" threat detection, clear blacklist/whitelist files and iptables, NEVER touch OpenSnitch DB
 
 ## Common Development Commands
