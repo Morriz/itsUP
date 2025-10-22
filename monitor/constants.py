@@ -16,6 +16,7 @@ LOG_FILE = "/var/log/compromised_container.log"
 OPENSNITCH_DB = os.getenv("OPENSNITCH_DB", "/var/lib/opensnitch/opensnitch.sqlite3")
 BLACKLIST_FILE = os.path.join(PROJECT_ROOT, "data", "blacklist", "blacklist-outbound-ips.txt")
 WHITELIST_FILE = os.path.join(PROJECT_ROOT, "data", "whitelist", "whitelist-outbound-ips.txt")
+DNS_REGISTRY_FILE = os.path.join(PROJECT_ROOT, "data", "dns-registry.json")
 
 # Container Names
 HONEYPOT_CONTAINER = "dns-honeypot"
@@ -24,7 +25,7 @@ HONEYPOT_CONTAINER = "dns-honeypot"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # Time Windows (in seconds unless specified)
-DNS_CACHE_WINDOW_HOURS = 48  # Hours of DNS logs to pre-warm cache (safe - no false positives)
+DNS_CACHE_WINDOW_HOURS = 48  # Hours of docker logs to parse for initial DNS registry bootstrap
 CONNECTION_DEDUP_WINDOW = 60  # Deduplicate same connection within 60 seconds
 OPENSNITCH_POLL_INTERVAL = 0.5  # Poll OpenSnitch DB every 0.5 seconds
 PERIODIC_TASK_INTERVAL = 5  # Run periodic tasks (container mapping, list updates) every 5 seconds

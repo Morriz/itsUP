@@ -21,6 +21,7 @@ from .constants import (
     CHECK_CONNECTIONS_INTERVAL,
     CONNECTION_DEDUP_WINDOW,
     DNS_CACHE_WINDOW_HOURS,
+    DNS_REGISTRY_FILE,
     HONEYPOT_CONTAINER,
     LOG_FILE,
     LOG_LEVEL,
@@ -95,6 +96,10 @@ class ContainerMonitor:
         self.blacklist.load(skip_if_empty=skip_sync)
         self.whitelist.load()
 
+        # Load DNS registry (persistent IP → domains mapping)
+        if not skip_sync:
+            self._load_dns_registry()
+
         # Initialize OpenSnitch integration if enabled
         self._opensnitch_blocked_ips = set()  # Read-only validation set
         if use_opensnitch:
@@ -112,9 +117,10 @@ class ContainerMonitor:
             return
 
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        log_line = f"[{ts}] {level}: {message}"
         with open(LOG_FILE, "a") as f:
-            f.write(f"[{ts}] {message}\n")
-        print(f"[{ts}] {message}")
+            f.write(f"{log_line}\n")
+        print(log_line)
 
     def is_private_ip(self, ip: str) -> bool:
         """Check if IP is private/internal."""
@@ -144,6 +150,63 @@ class ContainerMonitor:
             return all(0 <= int(p) <= 255 for p in parts)
         except ValueError:
             return False
+
+    def _load_dns_registry(self) -> None:
+        """Load DNS registry from JSON file into _dns_cache.
+
+        If registry doesn't exist, populate it from docker logs (initial bootstrap).
+        """
+        if not os.path.exists(DNS_REGISTRY_FILE):
+            self.log("📋 No existing DNS registry found, bootstrapping from docker logs...")
+            self._parse_dns_logs(DNS_CACHE_WINDOW_HOURS)
+            self._save_dns_registry()
+            return
+
+        try:
+            with open(DNS_REGISTRY_FILE, 'r') as f:
+                registry = json.load(f)
+
+            # Populate _dns_cache with registry data
+            # Registry format: {ip: [domains]}
+            # Cache format: {ip: [(domain, timestamp), ...]}
+            timestamp = datetime.now()
+            with self._lock:
+                for ip, domains in registry.items():
+                    if ip not in self._dns_cache:
+                        self._dns_cache[ip] = []
+                    for domain in domains:
+                        # Only add if not already present
+                        existing_domains = [d for d, _ in self._dns_cache[ip]]
+                        if domain not in existing_domains:
+                            self._dns_cache[ip].append((domain, timestamp))
+
+            unique_ips = len(registry)
+            total_domains = sum(len(domains) for domains in registry.values())
+            self.log(f"✅ DNS registry loaded: {unique_ips} IPs, {total_domains} domain mappings")
+
+        except Exception as e:
+            self.log(f"⚠ Error loading DNS registry: {e}", "ERROR")
+
+    def _save_dns_registry(self) -> None:
+        """Save DNS registry from _dns_cache to JSON file."""
+        try:
+            # Extract unique domains per IP from cache
+            # Cache format: {ip: [(domain, timestamp), ...]}
+            # Registry format: {ip: [domains]}
+            registry = {}
+            with self._lock:
+                for ip, entries in self._dns_cache.items():
+                    domains = list(set(domain for domain, _ in entries))
+                    if domains:
+                        registry[ip] = sorted(domains)
+
+            with open(DNS_REGISTRY_FILE, 'w') as f:
+                json.dump(registry, f, indent=2, sort_keys=True)
+
+            self.log(f"💾 DNS registry saved: {len(registry)} IPs", "DEBUG")
+
+        except Exception as e:
+            self.log(f"⚠ Error saving DNS registry: {e}", "ERROR")
 
     def update_container_mapping(self) -> None:
         """Update mapping of container IPs to names."""
@@ -188,7 +251,7 @@ class ContainerMonitor:
                 "docker",
                 "inspect",
                 "--format",
-                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
                 container_id,
             ],
             capture_output=True,
@@ -208,7 +271,7 @@ class ContainerMonitor:
         """Remove container from mapping when it stops/dies."""
         # Find and remove by container ID
         result = subprocess.run(
-            ["docker", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", container_id],
+            ["docker", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", container_id],
             capture_output=True,
             text=True,
         )
@@ -226,46 +289,51 @@ class ContainerMonitor:
         """Monitor Docker events for container start/stop/die to update mappings in real-time."""
         self.log("🔍 Docker events listener started")
 
-        # Start docker events stream (only container events, JSON format)
-        proc = subprocess.Popen(
-            ["docker", "events", "--filter", "type=container", "--format", "{{json .}}"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        while True:
+            # Start docker events stream (only container events, JSON format)
+            proc = subprocess.Popen(
+                ["docker", "events", "--filter", "type=container", "--format", "{{json .}}"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
 
-        try:
-            for line in proc.stdout:
-                if not line.strip():
-                    continue
+            try:
+                for line in proc.stdout:
+                    if not line.strip():
+                        continue
 
-                try:
-                    event = json.loads(line)
-                    action = event.get("Action", "")
-                    container_id = event.get("id", "")
-                    container_name = event.get("Actor", {}).get("Attributes", {}).get("name", "unknown")
+                    try:
+                        event = json.loads(line)
+                        action = event.get("Action", "")
+                        container_id = event.get("id", "")
+                        container_name = event.get("Actor", {}).get("Attributes", {}).get("name", "unknown")
 
-                    # Handle container start - add to mapping
-                    if action == "start":
-                        self.log(f"🐳 Container started: {container_name}", "DEBUG")
-                        self._update_single_container(container_id)
+                        # Handle container start - add to mapping
+                        if action == "start":
+                            self.log(f"🐳 Container started: {container_name}", "DEBUG")
+                            self._update_single_container(container_id)
 
-                    # Handle container stop/die - remove from mapping
-                    elif action in ("stop", "die"):
-                        self.log(f"🐳 Container stopped: {container_name}", "DEBUG")
-                        self._remove_container_from_mapping(container_id)
+                        # Handle container stop/die - remove from mapping
+                        elif action in ("stop", "die"):
+                            self.log(f"🐳 Container stopped: {container_name}", "DEBUG")
+                            self._remove_container_from_mapping(container_id)
 
-                except json.JSONDecodeError:
-                    self.log(f"⚠️  Failed to parse Docker event: {line}", "ERROR")
-                    continue
-                except Exception as e:
-                    self.log(f"⚠️  Error processing Docker event: {e}", "ERROR")
-                    continue
+                    except json.JSONDecodeError:
+                        self.log(f"⚠️  Failed to parse Docker event: {line}", "ERROR")
+                        continue
+                    except Exception as e:
+                        self.log(f"⚠️  Error processing Docker event: {e}", "ERROR")
+                        continue
 
-        except Exception as e:
-            self.log(f"❌ Docker events stream error: {e}", "ERROR")
-        finally:
-            proc.kill()
+            except Exception as e:
+                self.log(f"❌ Docker events stream disconnected: {e}", "ERROR")
+            finally:
+                proc.kill()
+
+            # Reconnect after 5 seconds
+            self.log("🔄 Reconnecting to Docker events in 5 seconds...", "INFO")
+            time.sleep(5)
 
     def get_container_from_ip(self, container_ip: str) -> Optional[str]:
         """Get container name from IP address."""
@@ -388,6 +456,7 @@ class ContainerMonitor:
 
                 # Add to DNS cache (only if not already present for this IP)
                 timestamp = datetime.now()
+                is_new = False
                 with self._lock:
                     if ip not in self._dns_cache:
                         self._dns_cache[ip] = []
@@ -395,6 +464,11 @@ class ContainerMonitor:
                     existing_domains = [d for d, _ in self._dns_cache[ip]]
                     if domain not in existing_domains:
                         self._dns_cache[ip].append((domain, timestamp))
+                        is_new = True
+
+                # Save registry if new entry was added
+                if is_new:
+                    self._save_dns_registry()
 
                 self.log(f"🍯 DNS: {domain} → {ip}", "TRACE")
 
@@ -458,7 +532,7 @@ class ContainerMonitor:
 
                 # Check if in whitelist
                 if self.whitelist.contains(dst_ip):
-                    self.log(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - whitelisted", "DEBUG")
+                    self.log(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - whitelisted", "INFO")
                     continue
 
                 # Check if IP has DNS history
@@ -466,12 +540,30 @@ class ContainerMonitor:
                     has_dns = dst_ip in self._dns_cache
 
                 if has_dns:
-                    # Get first domain (no duplicates in cache)
-                    domain = self._dns_cache[dst_ip][0][0]
+                    # Get first domain and count total
+                    with self._lock:
+                        domains = self._dns_cache[dst_ip]
+                        domain = domains[0][0]
+                        domain_count = len(domains)
+                        all_domains = [d for d, _ in domains]
+
+                    # Show "+N more" if multiple domains
+                    if domain_count > 1:
+                        domain_display = f"{domain} +{domain_count - 1} more"
+                    else:
+                        domain_display = domain
+
                     self.log(
-                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - OK (DNS: {domain})",
-                        "DEBUG",
+                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - OK (DNS: {domain_display})",
+                        "INFO",
                     )
+
+                    # Show all domains in DEBUG log
+                    if domain_count > 1:
+                        self.log(
+                            f"  ↳ DNS mappings: {', '.join(all_domains)}",
+                            "DEBUG",
+                        )
                 else:
                     # NO DNS HISTORY = HARDCODED IP = MALWARE
                     self.log(
@@ -524,12 +616,12 @@ class ContainerMonitor:
             self.update_container_mapping()
 
     def _parse_dns_logs(self, hours: int) -> int:
-        """Parse DNS honeypot logs and build DNS cache.
+        """Parse DNS honeypot logs and build DNS cache (used for initial bootstrap).
 
         Returns:
             Number of unique IPs added to cache
         """
-        self.log("📋 Parsing DNS honeypot logs...")
+        self.log(f"📋 Parsing DNS honeypot logs (last {hours}h)...")
         try:
             result = subprocess.run(
                 ["docker", "logs", "--since", f"{hours}h", HONEYPOT_CONTAINER], capture_output=True, text=True
@@ -677,9 +769,9 @@ class ContainerMonitor:
         return hardcoded_count
 
     def collect_historical_data(self) -> None:
-        """Collect historical data to pre-warm DNS cache and detect past threats.
+        """Collect historical data to detect past threats.
 
-        - DNS cache: warm up with 48 hours of logs (safe, no false positives)
+        - DNS cache: already loaded from persistent registry in __init__
         - Connection scan: resume from last processed timestamp (from our log file)
         """
         # Get last processed timestamp
@@ -693,10 +785,6 @@ class ContainerMonitor:
         else:
             self.log(f"🔍 First run - scanning all available connection logs")
             since_arg = ""
-
-        # Build DNS cache from honeypot logs (48 hours - wider window for safety)
-        self.log(f"📋 Pre-warming DNS cache (last {DNS_CACHE_WINDOW_HOURS}h)...")
-        self._parse_dns_logs(DNS_CACHE_WINDOW_HOURS)
 
         # Scan past outbound connections (from last timestamp)
         self.log(f"📋 Scanning outbound connections{' since last run' if last_timestamp else ''}...")

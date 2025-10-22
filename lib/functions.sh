@@ -71,10 +71,3 @@ dca() {
     dcu $project $@
   done
 }
-
-# remove a specific certificate
-certrm() {
-  dom=$1
-  [ -z "$dom" ] && echo "No domain given!" && return 1
-  sudo rm -rf certs/$dom data/letsencrypt/archive/$dom data/letsencrypt/live/$dom data/letsencrypt/renewal/$dom*
-}
