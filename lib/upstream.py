@@ -1,5 +1,5 @@
+import logging
 import os
-from logging import info
 
 from dotenv import load_dotenv
 from jinja2 import Template
@@ -9,6 +9,8 @@ from lib.models import Project, Protocol, Router
 from lib.utils import run_command
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def write_upstream(project: Project) -> None:
@@ -63,26 +65,24 @@ def check_upstream(project: str, service: str = None) -> None:
     if not service:
         return
     if not get_service(project, service):
-        info(f"Project {project} does not have service {service}")
+        logger.info(f"Project {project} does not have service {service}")
         raise ValueError(f"Project {project} does not have service {service}")
 
 
 def update_upstream(
     project: Project | str,
     service: str = None,
-    rollout: bool = False,
 ) -> None:
-    """Reload service(s) in a docker compose config"""
+    """Reload service(s) in a docker compose config with zero-downtime rollout"""
     project = get_project(project, throw=True)
-    info(f"Updating upstream for project {project.name}")
+    logger.info(f"Updating upstream for project {project.name}")
     if project.enabled:
         run_command(["docker", "compose", "pull"], cwd=f"upstream/{project.name}")
         run_command(["docker", "compose", "up", "-d"], cwd=f"upstream/{project.name}")
     else:
         run_command(["docker", "compose", "down"], cwd=f"upstream/{project.name}")
-    if not rollout:
         return
-    # filter out the project by name and its services that should have an image
+    # Always rollout services with images for zero-downtime
     projects = get_projects(filter=lambda p, s: p.enabled and p.name == project.name and bool(s.image))
     for p in projects:
         for s in p.services:
@@ -90,13 +90,13 @@ def update_upstream(
                 rollout_service(project.name, s.host)
 
 
-def update_upstreams(rollout: bool = False) -> None:
+def update_upstreams() -> None:
     for upstream_dir in [f.path for f in os.scandir("upstream") if f.is_dir()]:
         # get last item from path:
         project = upstream_dir.split("/")[-1]
-        update_upstream(project, rollout=rollout)
+        update_upstream(project)
 
 
 def rollout_service(project: str, service: str) -> None:
-    info(f'Rolling out service "{project}:{service}"')
+    logger.info(f'Rolling out service "{project}:{service}"')
     run_command(["docker", "rollout", f"{project}-{service}"], cwd=f"upstream/{project}")

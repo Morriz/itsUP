@@ -5,26 +5,23 @@ This module handles all OpenSnitch database queries and monitoring.
 OpenSnitch is optional - the monitor can run standalone without it.
 """
 
+import logging
 import re
 import sqlite3
 import time
 from datetime import datetime, timedelta
-from typing import Callable, Optional
+from typing import Optional
 
 from .constants import OPENSNITCH_DB
+
+logger = logging.getLogger(__name__)
 
 
 class OpenSnitchIntegration:
     """Handles OpenSnitch database integration for threat detection."""
 
-    def __init__(self, log_callback: Callable[[str, str], None]):
-        """
-        Initialize OpenSnitch integration.
-
-        Args:
-            log_callback: Function to call for logging (signature: log(message, level="INFO"))
-        """
-        self.log = log_callback
+    def __init__(self):
+        """Initialize OpenSnitch integration."""
         self.db_path = OPENSNITCH_DB
 
     @staticmethod
@@ -69,7 +66,7 @@ class OpenSnitchIntegration:
             conn.close()
             return count
         except Exception as e:
-            self.log(f"⚠ Could not query OpenSnitch database: {e}", "INFO")
+            logger.error(f"⚠ Could not query OpenSnitch database: {e}")
             return 0
 
     def get_all_arpa_blocks(self) -> list[tuple[str, str]]:
@@ -93,7 +90,7 @@ class OpenSnitchIntegration:
             conn.close()
             return rows
         except Exception as e:
-            self.log(f"⚠ Error querying OpenSnitch blocks: {e}", "INFO")
+            logger.error(f"⚠ Error querying OpenSnitch blocks: {e}")
             return []
 
     def correlate_query_with_block(self, query_time: datetime, query_domain: str) -> Optional[tuple[str, str, str]]:
@@ -136,7 +133,7 @@ class OpenSnitchIntegration:
             return None
 
         except Exception as e:
-            self.log(f"Correlation error: {e}", "INFO")
+            logger.error(f"Correlation error: {e}")
             return None
 
     def monitor_blocks(
@@ -151,7 +148,7 @@ class OpenSnitchIntegration:
             on_block_callback: Called for each new block (timestamp, dst_host, ip)
             poll_interval: Seconds between polls
         """
-        self.log("📋 Monitoring OpenSnitch blocks...", "INFO")
+        logger.info("📋 Monitoring OpenSnitch blocks...")
 
         try:
             conn = sqlite3.connect(self.db_path)
@@ -159,9 +156,12 @@ class OpenSnitchIntegration:
             cursor.execute("SELECT MAX(time) FROM connections WHERE rule = 'deny-always-arpa-53'")
             last_time = cursor.fetchone()[0] or ""
             conn.close()
-            self.log(f"📋 Starting from timestamp: {last_time}", "INFO")
+            if last_time:
+                logger.info(f"📋 OpenSnitch: Resuming from last block at {last_time}")
+            else:
+                logger.info(f"📋 OpenSnitch: No previous blocks found - will monitor for new ones (rule: deny-always-arpa-53)")
         except Exception as e:
-            self.log(f"⚠ Could not get initial timestamp: {e}", "INFO")
+            logger.error(f"⚠️  OpenSnitch: Could not read database - {e}")
             last_time = ""
 
         poll_count = 0
@@ -195,10 +195,8 @@ class OpenSnitchIntegration:
                             on_block_callback(timestamp, dst_host, ip)
 
                 poll_count += 1
-                if poll_count % 100 == 0:
-                    self.log(f"📋 Heartbeat: Polled {poll_count} times, last={last_time[:19]}", "INFO")
 
             except Exception as e:
-                self.log(f"❌ OpenSnitch error: {e}", "INFO")
+                logger.error(f"❌ OpenSnitch error: {e}")
 
             time.sleep(poll_interval)

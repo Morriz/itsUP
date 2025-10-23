@@ -1,8 +1,8 @@
-# Container Security Monitor - Product Requirements Document
+# Container Security Monitor
 
 ## Overview
 
-Container security monitor that detects compromised containers by identifying hardcoded IP connections (malware indicator) through DNS correlation analysis.
+Detects compromised containers by identifying hardcoded IP connections (malware indicator) through DNS correlation analysis.
 
 ## Core Detection Logic
 
@@ -17,95 +17,42 @@ Container security monitor that detects compromised containers by identifying ha
 ### Components
 
 1. **DNS Honeypot Monitor** - Captures DNS queries from all containers via dnsmasq logs
-2. **iptables Monitor** - Captures outbound TCP connections via kernel logs
-3. **Container Mapping** - Tracks container IP → name mappings via Docker API
-4. **Docker Events Listener** - Real-time updates to container mappings on start/stop/restart
-5. **OpenSnitch Integration** (optional) - Cross-reference with eBPF application firewall
-6. **IP Lists** - Blacklist and whitelist management with auto-reload
+2. **DNS Registry** - Persistent JSON storage of IP → domain mappings (survives restarts)
+3. **iptables Monitor** - Captures outbound TCP connections via kernel logs
+4. **Container Mapping** - Tracks container IP → name mappings via Docker API
+5. **Docker Events Listener** - Real-time updates to container mappings on start/stop/restart
+6. **OpenSnitch Integration** (optional) - Cross-reference with eBPF application firewall
+7. **IP Lists** - Blacklist and whitelist management with auto-reload
+8. **Grace Period** - 3-second delay before checking connections (uses actual event timestamps, not stream arrival time)
 
 ### Data Flow
 
 ```
-Container → DNS Query → dnsmasq → Honeypot Logs → DNS Cache
-Container → Direct TCP → iptables → Kernel Logs → Connection Analysis
+Container → DNS Query → dnsmasq → Honeypot Logs → DNS Cache → DNS Registry (persisted)
+Container → Direct TCP → iptables → Kernel Logs (µs timestamps) → Queue (3s grace) → Connection Analysis
 Connection Analysis + DNS Cache → Threat Detection → Alert/Block
+
+Note: Grace period uses actual event timestamps from kernel logs (microsecond precision),
+not stream arrival time. This ensures accurate measurement regardless of log buffering delays.
 ```
-
-## Features
-
-### FR1: DNS Correlation Detection
-- Monitor dnsmasq logs for DNS replies/cached responses (IPv4 only)
-- Build DNS cache: `{ip: [(domain, timestamp), ...]}`
-- Correlate outbound connections with DNS cache
-- Flag connections without DNS history as threats
-
-### FR2: Timestamp Resumption
-- Track last processed timestamp in monitor log
-- Resume journalctl scanning from last run (no duplicate analysis)
-- Handle first-run scenario (no previous timestamp)
-
-### FR3: Historical Analysis
-- Pre-warm DNS cache with 48 hours of logs on startup
-- Scan connection logs from last processed timestamp
-- Detect past threats that occurred while monitor was offline
-
-### FR4: Real-Time Monitoring
-- Monitor DNS queries in real-time
-- Monitor outbound TCP connections via journalctl -f
-- 0.5s polling interval for responsive detection
-
-### FR5: Container Identification
-- Map container IPs to container names
-- Handle containers with multiple networks (project + proxynet)
-- Real-time updates via Docker events API
-- Automatic mapping updates on container start/stop/restart
-
-### FR6: OpenSnitch Cross-Reference (Optional)
-- Query OpenSnitch SQLite database for blocked connections
-- Cross-reference detections with OpenSnitch blocks
-- Label detections as "CONFIRMED" or "needs review"
-
-### FR7: IP List Management
-- Blacklist: Detected malicious IPs
-- Whitelist: Known-good IPs (never blocked)
-- Auto-reload on file changes
-- Persistent storage with in-memory cache
-
-### FR8: iptables Blocking (Optional)
-- Insert DROP rules for detected IPs
-- Rules persist in DOCKER-USER chain
-- Manual cleanup required (`--clear-iptables`)
-
-### FR9: Deduplication
-- Connection deduplication (60s window)
-- Compromise alert deduplication (per container:ip pair)
-- DNS cache deduplication (same domain for same IP)
 
 ## Important Operational Notes
 
-### ⚠️ Container Restart Requirement
+### ✅ No Container Restart Required
 
-**To avoid false positives from DNS caching:**
+**The monitor now uses a persistent DNS registry** (`data/dns-registry.json`) that:
+- Survives monitor restarts
+- Preserves all historical DNS resolutions
+- Eliminates false positives from application-level DNS caching
+- No need to restart containers when starting the monitor
 
-When starting the monitor, containers that were already running may have DNS-cached IPs that the monitor never saw resolved. This causes legitimate connections to appear as "hardcoded IPs".
+**How it works:**
+- DNS registry persists all IP → domain mappings indefinitely
+- On startup, loads existing registry (could contain days/weeks of data)
+- Real-time DNS queries update the registry and save to disk
+- Connections are checked against the full registry history
 
-**Solution:** Restart all containers after starting the monitor:
-
-```bash
-# Start monitor first
-make monitor-start FLAGS="--use-opensnitch --block"
-
-# Then restart containers
-docker ps -q | xargs docker restart
-```
-
-**Why this works:**
-- Clears application-level DNS caches
-- Forces fresh DNS queries through the honeypot
-- Monitor captures DNS resolutions
-- Subsequent connections are correctly identified as legitimate
-
-**Alternative:** Start monitor before starting containers initially (e.g., on system boot).
+**First-time setup only:** On very first run, the registry is bootstrapped from 48 hours of docker logs.
 
 ## Prerequisites
 
@@ -180,9 +127,11 @@ See `monitor/constants.py` for configuration values:
 - `LOG_FILE`: Monitor log file location
 - `BLACKLIST_FILE`: Blacklist file path
 - `WHITELIST_FILE`: Whitelist file path
-- `DNS_CACHE_WINDOW_HOURS`: Hours of DNS logs to pre-warm (48h default)
+- `DNS_REGISTRY_FILE`: Persistent DNS registry JSON file (`data/dns-registry.json`)
+- `DNS_CACHE_WINDOW_HOURS`: Hours of DNS logs for initial bootstrap (48h default)
 - `CONNECTION_DEDUP_WINDOW`: Connection deduplication window (60s default)
-- `LOG_LEVEL`: "INFO" or "DEBUG"
+- `CONNECTION_GRACE_PERIOD`: Grace period before checking connections (3s default)
+- `LOG_LEVEL`: "TRACE", "DEBUG", or "INFO" (from `.env` file)
 
 ## Network Architecture
 
@@ -212,17 +161,26 @@ The monitor maps **all IPs** for each container to ensure correct name resolutio
 
 ### Common Causes
 
-1. **Application DNS Caching** - Apps cache IPs internally
-2. **External DNS** - Apps hardcoded to use `8.8.8.8` (rare in Docker)
-3. **IPv6 Responses** - We only track IPv4
-4. **CDN/Load Balancer IPs** - Legitimate services using Cloudflare, etc.
+1. **External DNS** - Apps hardcoded to use `8.8.8.8` (rare in Docker)
+2. **IPv6 Responses** - We only track IPv4
+3. **CDN/Load Balancer IPs** - Legitimate services using Cloudflare, etc.
 
 ### Solutions
 
-1. **Restart containers** after monitor startup (clears caches)
-2. **Whitelist known CDN ranges** (Cloudflare, Fastly, etc.)
-3. **Review OpenSnitch cross-reference** - "needs review" flags may be false positives
-4. **Check container logs** - Verify what service the app is connecting to
+1. **Persistent Registry** - Automatically prevents most false positives (no container restart needed!)
+2. **Grace Period** - 2-second delay allows DNS logs to arrive before checking
+3. **Whitelist known CDN ranges** (Cloudflare, Fastly, etc.)
+4. **Review OpenSnitch cross-reference** - "needs review" flags may be false positives
+5. **Check container logs** - Verify what service the app is connecting to
+
+### Architecture Improvements
+
+The monitor now includes key features that eliminate most false positives:
+
+1. **Persistent DNS Registry**: Survives restarts, preserves all historical DNS data
+2. **Actual Event Timestamps**: Parses microsecond-precision timestamps from kernel logs to measure real event age (not stream arrival time)
+3. **Grace Period**: Delays connection analysis by 3 seconds based on actual event time to handle docker logs buffering
+4. **Stream Delay Detection**: Logs warnings when log stream buffering exceeds 2 seconds (helps diagnose timing issues)
 
 ## Testing
 
@@ -247,14 +205,23 @@ python3 -m unittest monitor.test_core -v
 ## Logging Format
 
 ```
-[TIMESTAMP] EMOJI MESSAGE
+[TIMESTAMP] LEVEL: EMOJI MESSAGE
+
+Log Levels:
+- TRACE: DNS honeypot queries (very verbose)
+- DEBUG: Detailed DNS mappings for multi-domain IPs
+- INFO: Connection analysis results (default)
+- WARN: Hardcoded IP detections
+- ERROR: System errors
 
 Emojis:
-🍯  DNS query captured
-🔍  Connection analyzed
-🚨  ALERT: Hardcoded IP detected
+🍯  DNS query captured (TRACE)
+🔍  Connection analyzed (INFO)
+  ↳ DNS mappings: ... (DEBUG - shows all domains for an IP)
+🚨  ALERT: Hardcoded IP detected (WARN)
 ➕  IP added to blacklist
 🚫  IP blocked in iptables
+💾  DNS registry saved (DEBUG)
 ✅  Confirmation/success
 ⚠️  Warning/needs review
 🔄  Auto-reload/update
@@ -295,14 +262,12 @@ Emojis:
 2. **TCP Only** - UDP connections not monitored (except DNS)
 3. **Docker Networks Only** - Host networking not monitored
 4. **DNS Dependency** - Requires DNS queries through honeypot
-5. **Application Caching** - False positives from cached DNS (mitigated by container restarts)
 
 ## Future Enhancements
 
 - [ ] UDP connection monitoring
 - [ ] IPv6 support
-- [ ] Automatic container restart on monitor startup
 - [ ] Machine learning for anomaly detection
 - [ ] Integration with threat intelligence feeds
 - [ ] Web dashboard for monitoring
-- [ ] Automatic Cloudflare/CDN whitelisting
+- [ ] DNS registry expiration/rotation (currently unlimited history)

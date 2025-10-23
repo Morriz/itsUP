@@ -4,8 +4,8 @@ iptables management for Container Security Monitor.
 This module handles all iptables operations for monitoring and blocking
 container network traffic.
 """
+import logging
 import subprocess
-from typing import Callable
 
 from .constants import (
     IPTABLES_CHAIN,
@@ -13,18 +13,14 @@ from .constants import (
     DOCKER_NETWORK_CIDR,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class IptablesManager:
     """Manages iptables rules for container traffic monitoring and blocking."""
 
-    def __init__(self, log_callback: Callable[[str, str], None]):
-        """
-        Initialize iptables manager.
-
-        Args:
-            log_callback: Function to call for logging (signature: log(message, level="INFO"))
-        """
-        self.log = log_callback
+    def __init__(self):
+        """Initialize iptables manager."""
         self.rule_added = False
 
     def _run_command(self, cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -48,7 +44,7 @@ class IptablesManager:
             True if rule exists or was added successfully
         """
         if self._check_log_rule_exists():
-            self.log("✅ iptables LOG rule already exists (persistent across restarts)", "INFO")
+            logger.info("✅ iptables LOG rule already exists (persistent across restarts)")
             self.rule_added = True
             return True
 
@@ -75,10 +71,10 @@ class IptablesManager:
             ]
             self._run_command(cmd)
             self.rule_added = True
-            self.log("✅ Added iptables LOG rule for NEW outbound container TCP connections", "INFO")
+            logger.info("✅ Added iptables LOG rule for NEW outbound container TCP connections")
             return True
         except Exception as e:
-            self.log(f"❌ Failed to add iptables LOG rule: {e}", "INFO")
+            logger.error(f"❌ Failed to add iptables LOG rule: {e}")
             return False
 
     def _check_log_rule_exists(self) -> bool:
@@ -118,16 +114,16 @@ class IptablesManager:
         """
         if self.is_ip_blocked(ip):
             if log:
-                self.log(f"✅ {ip} already blocked in iptables", "DEBUG")
+                logger.debug(f"✅ {ip} already blocked in iptables")
             return
 
         try:
             cmd = ["iptables", "-I", IPTABLES_CHAIN, "1", "-s", DOCKER_NETWORK_CIDR, "-d", ip, "-j", "DROP"]
             self._run_command(cmd)
             if log:
-                self.log(f"🚫 Blocked {ip} in iptables", "INFO")
+                logger.info(f"🚫 Blocked {ip} in iptables")
         except Exception as e:
-            self.log(f"❌ Failed to block {ip} in iptables: {e}", "INFO")
+            logger.error(f"❌ Failed to block {ip} in iptables: {e}")
 
     def remove_drop_rule(self, ip: str) -> None:
         """
@@ -139,9 +135,9 @@ class IptablesManager:
         try:
             cmd = ["iptables", "-D", IPTABLES_CHAIN, "-s", DOCKER_NETWORK_CIDR, "-d", ip, "-j", "DROP"]
             self._run_command(cmd, check=False)
-            self.log(f"✅ Unblocked {ip} in iptables", "INFO")
+            logger.info(f"✅ Unblocked {ip} in iptables")
         except Exception as e:
-            self.log(f"⚠️ Failed to unblock {ip} in iptables: {e}", "INFO")
+            logger.error(f"⚠️ Failed to unblock {ip} in iptables: {e}")
 
     def is_ip_blocked(self, ip: str) -> bool:
         """
@@ -186,9 +182,9 @@ class IptablesManager:
                 "4",
             ]
             self._run_command(cmd, check=False)
-            self.log("✅ Removed iptables LOG rule", "INFO")
+            logger.info("✅ Removed iptables LOG rule")
         except Exception as e:
-            self.log(f"⚠ Failed to remove iptables LOG rule: {e}", "INFO")
+            logger.error(f"⚠ Failed to remove iptables LOG rule: {e}")
 
     def clear_monitor_rules(self) -> None:
         """Remove all rules added by monitor (LOG rule and all DROP rules)."""

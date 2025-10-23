@@ -1,5 +1,5 @@
+import logging
 import os
-from logging import info
 from typing import Callable, Dict, List
 
 from dotenv import load_dotenv
@@ -7,9 +7,11 @@ from jinja2 import Template
 
 from lib.data import get_plugin_registry, get_project, get_projects, get_versions
 from lib.models import Plugin, Protocol, ProxyProtocol, Router
-from lib.utils import run_command
+from lib.utils import run_command, run_command_output
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def get_domains(filter: Callable[[Plugin], bool] = None) -> List[str]:
@@ -30,70 +32,6 @@ def get_domains(filter: Callable[[Plugin], bool] = None) -> List[str]:
                         domains.update(ingress.tls.sans)
 
     return list(domains)
-
-
-def get_internal_map() -> Dict[str, str]:
-    domains = get_domains()
-    return {d: "terminate:8443" for d in domains}
-
-
-def get_terminate_map() -> Dict[str, str]:
-    projects = get_projects(filter=lambda _, _2, i: not i.passthrough)
-    map = {}
-    for p in projects:
-        for s in p.services:
-            prefix = f"{p.name}-" if s.image else ""
-            for i in s.ingress:
-                map[i.domain] = f"{prefix}{s.host}:{i.port}"
-    return map
-
-
-def get_passthrough_map() -> Dict[str, str]:
-    projects = get_projects(filter=lambda _, _2, i: i.passthrough)
-    map = {}
-    for p in projects:
-        for s in p.services:
-            for i in s.ingress:
-                map[i.domain] = f"{s.host}:{i.port if 'port' in i else 8080}"
-    return map
-
-
-def write_maps() -> None:
-    internal_map = get_internal_map()
-    passthrough_map = get_passthrough_map()
-    terminate_map = get_terminate_map()
-    with open("proxy/tpl/map.conf.j2", encoding="utf-8") as f:
-        t = f.read()
-    tpl = Template(t)
-    internal = tpl.render(map=internal_map)
-    passthrough = tpl.render(map=passthrough_map)
-    terminate = tpl.render(map=terminate_map)
-    with open("proxy/nginx/map/internal.conf", "w", encoding="utf-8") as f:
-        f.write(internal)
-    with open("proxy/nginx/map/passthrough.conf", "w", encoding="utf-8") as f:
-        f.write(passthrough)
-    with open("proxy/nginx/map/terminate.conf", "w", encoding="utf-8") as f:
-        f.write(terminate)
-
-
-def write_proxy() -> None:
-    project = get_project("home-assistant", throw=False)
-    with open("proxy/tpl/proxy.conf.j2", encoding="utf-8") as f:
-        t = f.read()
-    tpl = Template(t)
-    terminate = tpl.render(project=project)
-    with open("proxy/nginx/proxy.conf", "w", encoding="utf-8") as f:
-        f.write(terminate)
-
-
-def write_terminate() -> None:
-    domains = get_domains()
-    with open("proxy/tpl/terminate.conf.j2", encoding="utf-8") as f:
-        t = f.read()
-    tpl = Template(t)
-    terminate = tpl.render(domains=domains)
-    with open("proxy/nginx/terminate.conf", "w", encoding="utf-8") as f:
-        f.write(terminate)
 
 
 def write_routers() -> None:
@@ -174,35 +112,61 @@ def write_compose() -> None:
 
 
 def write_proxies() -> None:
-    write_maps()
-    write_proxy()
-    write_terminate()
     write_routers()
     write_config()
     write_compose()
 
 
-def update_proxy(
-    service: str = None,
-) -> None:
-    """Reload service(s) in the docker compose config for the proxy"""
-    info(f"Updating proxy {service}")
+def _service_needs_update(service: str) -> bool:
+    """Check if a service's image or config changed"""
+    try:
+        # Get current config hash from docker-compose.yml
+        current_hash = run_command_output(
+            ["docker", "compose", "config", "--hash", service],
+            cwd="proxy"
+        ).strip().split()[1]  # Output is "service hash"
+
+        # Get running container's config hash from labels
+        containers = run_command_output(
+            ["docker", "ps", "--filter", f"name=proxy-{service}", "--format", "{{.Names}}"],
+            cwd="proxy"
+        ).strip().split("\n")
+
+        if not containers or not containers[0]:
+            logger.info(f"No running containers for {service}")
+            return True  # Service not running
+
+        running_hash = run_command_output(
+            ["docker", "inspect", containers[0],
+             "--format", "{{index .Config.Labels \"com.docker.compose.config-hash\"}}"],
+            cwd="proxy"
+        ).strip()
+
+        if current_hash != running_hash:
+            logger.info(f"{service} config changed: {running_hash[:12]} -> {current_hash[:12]}")
+            return True
+
+        logger.info(f"{service} config unchanged ({current_hash[:12]})")
+        return False
+
+    except Exception as e:
+        logger.info(f"Error checking {service} update status: {e}")
+        return True  # On error, assume update needed
+
+
+def update_proxy(service: str = None) -> None:
+    """Update proxy with zero-downtime rollout when changes detected"""
+    logger.info("Updating proxy")
     run_command(["docker", "compose", "pull"], cwd="proxy")
+
+    service = service or "traefik"
+
+    # Check if service needs update
+    if _service_needs_update(service):
+        logger.info(f"Changes detected, rolling out {service}")
+        run_command(["docker", "rollout", service], cwd="proxy")
+    else:
+        logger.info(f"No changes detected for {service}, skipping rollout")
+
+    # Ensure all services are up
     run_command(["docker", "compose", "up", "-d"], cwd="proxy")
-    # rollout_proxy(service)
-
-
-def reload_proxy(service: str = None) -> None:
-    info("Reloading proxy")
-    # Execute docker compose command to reload nginx for both 'proxy' and 'terminate' services
-    for s in [service] if service else ["proxy", "terminate"]:
-        run_command(
-            ["docker", "compose", "exec", s, "nginx", "-s", "reload"],
-            cwd="proxy",
-        )
-
-
-def rollout_proxy(service: str = None) -> None:
-    info(f"Rolling out proxy {service}")
-    for s in [service] if service else ["proxy", "terminate"]:
-        run_command(["docker", "rollout", s], cwd="proxy")

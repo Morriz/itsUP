@@ -14,13 +14,17 @@ if [[ -n "$FLAGS" ]]; then
     echo "Starting with flags: $FLAGS"
 fi
 
+# Preserve LOG_LEVEL if set
+if [[ -n "$LOG_LEVEL" ]]; then
+    echo "Using log level: $LOG_LEVEL"
+    ENV_VARS="LOG_LEVEL=$LOG_LEVEL"
+else
+    ENV_VARS=""
+fi
+
 # Start in background with proper daemonization
 cd "$(dirname "$0")/.."
-sudo setsid python3 bin/docker_monitor.py $FLAGS < /dev/null &> /dev/null &
+sudo $ENV_VARS setsid python3 bin/docker_monitor.py $FLAGS < /dev/null &> /dev/null &
 
 echo "Container security monitor started in background"
-sleep 2
-
-# Show startup logs and continue tailing (trap INT to exit cleanly)
-trap 'exit 0' INT TERM
-tail -n 50 -f /var/log/compromised_container.log
+echo "View logs: tail -f /var/log/compromised_container.log"

@@ -4,9 +4,12 @@ IP list management for Container Security Monitor.
 This module provides the IPList class for managing blacklist and whitelist files.
 Each instance manages one IP list (one file, one in-memory set).
 """
+import logging
 import os
 import threading
-from typing import Callable, Optional
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class IPList:
@@ -15,7 +18,6 @@ class IPList:
     def __init__(
         self,
         filepath: str,
-        log_callback: Callable[[str, str], None],
         file_lock: threading.Lock,
         header_comment: str = "# IP list - one IP per line"
     ):
@@ -24,12 +26,10 @@ class IPList:
 
         Args:
             filepath: Path to the list file
-            log_callback: Function to call for logging (signature: log(message, level="INFO"))
             file_lock: Lock for file write operations
             header_comment: Comment to write at the top of new files
         """
         self.filepath = filepath
-        self.log = log_callback
         self.file_lock = file_lock
         self.header_comment = header_comment
         self.ips: set[str] = set()
@@ -44,7 +44,7 @@ class IPList:
             skip_if_empty: If True, skip loading entirely (for --skip-sync mode)
         """
         if skip_if_empty:
-            self.log(f"⏭️  Skipping {self._get_list_name()} load (--skip-sync) - memory-only mode", "INFO")
+            logger.info(f"⏭️  Skipping {self._get_list_name()} load (--skip-sync) - memory-only mode")
             return
 
         try:
@@ -57,18 +57,18 @@ class IPList:
                 self.ips = new_ips
 
             if new_ips:
-                self.log(f"📋 Loaded {len(new_ips)} IPs from {self._get_list_name()}", "INFO")
+                logger.info(f"📋 Loaded {len(new_ips)} IPs from {self._get_list_name()}")
 
         except FileNotFoundError:
             # Create empty file
             try:
                 with open(self.filepath, "w") as f:
                     f.write(f"{self.header_comment}\n")
-                self.log(f"✅ Created {self._get_list_name()} file: {self.filepath}", "INFO")
+                logger.info(f"✅ Created {self._get_list_name()} file: {self.filepath}")
             except Exception as e:
-                self.log(f"❌ Could not create {self._get_list_name()}: {e}", "INFO")
+                logger.error(f"❌ Could not create {self._get_list_name()}: {e}")
         except Exception as e:
-            self.log(f"⚠️ Error loading {self._get_list_name()}: {e}", "INFO")
+            logger.error(f"⚠️ Error loading {self._get_list_name()}: {e}")
 
     def add(self, ip: str, persist: bool = True) -> bool:
         """

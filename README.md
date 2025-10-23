@@ -66,11 +66,20 @@ This means abstractions are used which means a trade off between flexibility and
 
 ### Managed proxy setup
 
-itsUP generates and manages `proxy/docker-compose.yml` which operates traefik to be able to do all one wants from a routing solution:
+itsUP generates and manages `proxy/docker-compose.yml` which operates Traefik in a zero-downtime configuration:
 
-1. Terminate TLS and forward tcp/udp traffic over an encrypted network to listening endpoints.
-   ææ2. Passthrough TLS to endpoints (most people have secure Home Assistant setups already).
-2. Open host ports if needed to choose a new port (openvpn service does exactly that)
+**Architecture:**
+- Traefik using Linux SO_REUSEPORT for zero-downtime updates (defaults to 1 replica)
+- Host networking mode allows multiple instances to bind to same ports simultaneously
+- Kernel load-balances incoming connections between scaled instances
+- Users can scale manually: `docker compose up -d --scale traefik=N` (e.g., N=2 for high availability)
+- Docker socket access secured via dockerproxy (wollomatic/socket-proxy) on localhost
+
+**Capabilities:**
+1. Terminate TLS and forward tcp/udp traffic over an encrypted network to listening endpoints
+2. Passthrough TLS to endpoints (most people have secure Home Assistant setups already)
+3. Open host ports if needed to choose a new port (openvpn service does exactly that)
+4. Zero-downtime configuration updates via rolling deployment
 
 ### Managed service deployments & updates
 
@@ -85,10 +94,24 @@ Like with all docker orchestration platforms (even Kubernetes) this is dependent
 - Are SIGHUP signals respected to shutdown within an acceptable time frame?
 - Are the containers stateless?
 
-itsUP will rollout changes by:
+**Smart Change Detection:**
 
-1. bringing up a new container and wait till it is healthy (if it has a health check then max 60s, otherwise assumes it is healthy after 10s)
-2. kill the old container and wait for it to drain, then removes it
+itsUP implements smart change detection that only performs rollouts when necessary:
+- Compares Docker Compose config hashes (stored in container labels)
+- Detects image updates, environment changes, volume changes, etc.
+- Skips rollout if nothing changed (instant operation)
+- Automatically performs zero-downtime rollout when changes detected
+
+**Rollout Process:**
+
+When changes are detected, itsUP will rollout via `docker rollout`:
+
+1. Scale to double the current replicas (1→2, 2→4, etc. depending on your scale setting)
+2. Wait for new containers to be healthy (max 60s with healthcheck, otherwise 10s)
+3. Kill old containers and wait for drain
+4. Remove old containers, leaving the same number of new replicas running
+
+**Cost:** ~15 seconds when changes detected, instant when nothing changed.
 
 _What about stateful services?_
 
@@ -120,13 +143,31 @@ It is surely possible to deploy stateful services but beware that those might no
 
 Source `lib/functions.sh` to get:
 
-- `dcp`: run a `docker compose` command targeting the proxy stack (`proxy` + `terminate` services): `dcp logs -f`
-- `dcu`: run a `docker compose` command targeting a specific upstream: `dcu test up`
-- `dca`: run a `docker compose` command targeting all upstreams: `dca ps`
-- `dcpx`: execute a command in one of the proxy containers: `dcpx traefik 'rm -rf /etc/acme/acme.json && shutdown' && dcp up`
-- `dcux`: execute a command in one of the upstream containers: `dcux test test-informant env`
+- `dcp <cmd> [service]`: Smart proxy management with zero-downtime
+  - `dcp up` - Smart update all proxy services (detects changes, only rollout if needed)
+  - `dcp up traefik` - Smart update traefik only
+  - `dcp restart [service]` - Smart restart (defaults to traefik)
+  - `dcp logs -f` - Regular docker compose passthrough for other commands
 
-In effect these wrapper commands achieve the same as when going into an `upstream/\*`folder and running`docker compose` there.
+- `dcu <project> <cmd> [service]`: Smart upstream management
+  - `dcu myproject up` - Smart update all services (auto-rollout when changed)
+  - `dcu myproject restart myservice` - Smart restart specific service
+  - `dcu myproject logs -f` - Regular docker compose passthrough
+
+- `dca <cmd>`: Run docker compose command for all upstreams: `dca ps`
+
+- `dcpx <service> <cmd>`: Execute command in proxy container
+  - Example: `dcpx traefik 'rm -rf /etc/acme/acme.json'`
+
+- `dcux <project> <service> <cmd>`: Execute command in upstream container
+  - Example: `dcux test web env`
+
+**Smart Behavior:**
+- `up` and `restart` commands use Python's smart detection (via `update_proxy()`/`update_upstream()`)
+- Other commands pass through to docker compose directly
+- Zero-downtime rollouts only happen when actual changes detected
+
+In effect these wrapper commands achieve the same as when going into an `upstream/*` folder and running `docker compose` there, but with added intelligence.
 I don't want to switch folders/terminals all the time and want to keep a "project root" history of my commands so I choose this approach.
 
 ### Utility scripts
@@ -220,7 +261,7 @@ These are the scripts to install everything and start the proxy and api so that 
 
 1. `bin/install.sh`: creates a local `.venv` and installs all python project deps.
 2. `bin/start-all.sh`: starts the proxy (docker compose) and the api server (uvicorn).
-3. `bin/apply.py`: applies all of `db.yml`.
+3. `bin/apply.py`: applies all of `db.yml` with smart zero-downtime updates.
 4. `bin/api-logs.sh`: tails the output of the api server.
 
 But before doing so please configure your stuff:
@@ -610,9 +651,16 @@ If you wish to revoke a cert or do something else, please visit this page: [kyle
 
 ## Questions one might have
 
-### What about Nginx?
+### Why Traefik over Nginx?
 
-As you may have noted there is a lot of functionality based on Nginx in this repo. I started out using their proxy, but later on ran into the problem of their engine not picking up upstream changes, learning that only the paid Nginx+ does that. I heavily relied on kubernetes in the past years and such was not an issue in their `ingress-NGINX` controller. When I found that Traefik does not suffer this, AND manages letsencrypt certs gracefully, AND gives us label based L7 functionality (like in Kubernetes), I decided to integrate that instead. Weary about its performance though, I intended to keep both approaches side by side. The Nginx part is not working anymore, but I left the code for others to see how one can overcome certain problems in that ecosystem. If one would like to use Nginx for some reason (it is about 40% faster), it is very easy to switch back. But be aware it implies hooking up the hacky `bin/update-certs.py` script to a cron tab for automatic cert rotation.
+Traefik was chosen for several key reasons:
+- **Dynamic configuration**: Automatically picks up container changes via Docker labels
+- **Automatic cert management**: Manages Let's Encrypt certificates gracefully with built-in ACME support
+- **Zero-downtime updates**: With SO_REUSEPORT, can run multiple instances on same ports
+- **Kubernetes-like labels**: Familiar L7 routing configuration for those from K8s background
+- **No manual cert rotation**: Unlike Nginx which requires cron jobs for certificate renewal
+
+While Nginx can be faster in raw performance (~40%), Traefik's automation and zero-downtime capabilities make it the better choice for this use case.
 
 ### Does this scale to more machines?
 

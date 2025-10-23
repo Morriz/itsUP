@@ -44,7 +44,17 @@ dcx_() {
 
 # Run docker compose in the proxy
 dcp() {
-  dc_ proxy proxy $@
+  if [ "$1" = "up" ] || [ "$1" = "restart" ]; then
+    # Smart update with optional service arg
+    service=$2
+    if [ -n "$service" ]; then
+      .venv/bin/python -c "from lib.proxy import update_proxy; update_proxy('$service')"
+    else
+      .venv/bin/python -c "from lib.proxy import update_proxy; update_proxy()"
+    fi
+  else
+    dc_ proxy proxy $@
+  fi
 }
 dcpx() {
   dcx_ proxy proxy $@
@@ -55,7 +65,24 @@ dcu() {
   project=$1
   shift
   [ -z "$project" ] && echo "No upstream project given!" && return 1
-  dc_ upstream/$project $project $@
+
+  # Use rollout for up/restart for zero-downtime
+  if [ "$1" = "up" ] || [ "$1" = "restart" ]; then
+    cmd=$1
+    service=$2
+    if [ -n "$service" ]; then
+      echo "Rolling out $service in $project..."
+      (cd upstream/$project && docker rollout $service)
+    else
+      # No specific service, do all services
+      for svc in $(cd upstream/$project && docker compose config --services); do
+        echo "Rolling out $svc in $project..."
+        (cd upstream/$project && docker rollout $svc)
+      done
+    fi
+  else
+    dc_ upstream/$project $project $@
+  fi
 }
 dcux() {
   project=$1

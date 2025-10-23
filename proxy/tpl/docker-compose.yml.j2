@@ -43,17 +43,12 @@ services:
   dockerproxy:
     image: wollomatic/socket-proxy:1 # see https://github.com/wollomatic/simple-traefik for reference
     container_name: dockerproxy
-    # this image replaced https://github.com/Tecnativa/docker-socket-proxy as the socket proxy
-    # for an example with the tecnativa proxy refer tags before 2.10
-    # depends_on:
-    #   - watchtower
+    network_mode: host
     command:
-      # with this configuration socket-proxy acts similar to the tecnativa proxy. For additional hardening
-      # please refer to the documentation of the wollomatic/socket-proxy image
-      - '-loglevel=info' # set to debug for far more logging
-      - '-allowfrom=traefik'
+      - '-loglevel=info'
+      - '-allowfrom=127.0.0.1'
       - '-listenip=0.0.0.0'
-      - '-allowGET=/v1\..{1,2}/(version|containers/.*|events.*)' # this regexp allows readonly access only for requests that traefik needs
+      - '-allowGET=/v1\..{1,2}/(version|containers/.*|events.*)'
       - '-shutdowngracetime=5'
       - '-watchdoginterval=600'
       - '-stoponwatchdog'
@@ -63,11 +58,7 @@ services:
       - ALL
     security_opt:
       - no-new-privileges
-    user: '0:1' # replace with the uid:gid of the host owner of the docker socket
-    networks:
-      - default
-    expose:
-      - '2375'
+    user: '0:1'
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -76,25 +67,7 @@ services:
 
   traefik:
     image: traefik:{{ versions.traefik }}
-    container_name: traefik
-    networks:
-      - default
-      - proxynet
-    dns:
-      - 172.30.0.253
-    expose:
-      - '8080'
-      - '8443'
-    ports:
-      - 8080:8080/tcp
-      - 8443:8443/tcp
-{% for p in projects %}
-  {%- for s in p.services %}
-    {%- for i in s.ingress %}
-      - {{ i.hostport }}:{{ i.port }}/{{ Protocol(i.protocol).value }}
-    {%- endfor %}
-  {%- endfor %}
-{%- endfor %}
+    network_mode: host
     restart: always
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
@@ -110,6 +83,11 @@ services:
   {%- set cs = plugin_registry.crowdsec %}
       crowdsec:
         condition: service_healthy
+{%- endif %}
+    environment:
+      - DOCKER_HOST=tcp://127.0.0.1:2375
+{%- if plugin_registry.crowdsec.enabled %}
+  {%- set cs = plugin_registry.crowdsec %}
 
   crowdsec:
     image: crowdsecurity/crowdsec:{{ versions.crowdsec }}
@@ -123,9 +101,9 @@ services:
         condition: service_healthy
     dns:
       - 172.30.0.253
-    expose:
-      - '8080'
-      - '7422'
+    ports:
+      - '127.0.0.1:7422:7422'
+      - '127.0.0.1:18080:8080'
     environment:
       GID: ${GID-1000}
       COLLECTIONS: {{ cs.collections | join(' ') }}

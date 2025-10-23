@@ -16,6 +16,7 @@ from datetime import datetime
 # Add parent directory to path for monitor package import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from lib.logging_config import setup_logging
 from monitor import (
     BLACKLIST_FILE,
     HONEYPOT_CONTAINER,
@@ -38,10 +39,7 @@ def clear_iptables_rules():
     print("🧹 Clearing iptables rules...")
 
     # Use IptablesManager to clear rules
-    def dummy_log(msg, level="INFO"):
-        pass
-
-    manager = IptablesManager(dummy_log)
+    manager = IptablesManager()
     manager.clear_monitor_rules()
 
     print("\n✅ iptables cleanup complete")
@@ -209,6 +207,9 @@ def main():
     if os.geteuid() != 0:
         print("Run as root: sudo python3 bin/docker_monitor.py")
         sys.exit(1)
+
+    # Setup logging
+    setup_logging()
 
     # Parse command-line flags
     skip_sync = False

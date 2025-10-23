@@ -6,6 +6,7 @@ DNS correlation, threat detection, and container security monitoring.
 """
 
 import json
+import logging
 import os
 import re
 import signal
@@ -20,6 +21,7 @@ from .constants import (
     BLACKLIST_FILE,
     CHECK_CONNECTIONS_INTERVAL,
     CONNECTION_DEDUP_WINDOW,
+    CONNECTION_GRACE_PERIOD,
     DNS_CACHE_WINDOW_HOURS,
     DNS_REGISTRY_FILE,
     HONEYPOT_CONTAINER,
@@ -34,6 +36,8 @@ from .constants import (
 from .iptables import IptablesManager
 from .lists import IPList
 from .opensnitch import OpenSnitchIntegration
+
+logger = logging.getLogger(__name__)
 
 
 class ContainerMonitor:
@@ -76,18 +80,18 @@ class ContainerMonitor:
         self._seen_direct_connections = {}  # (src_ip, dst_ip, dst_port) → timestamp - deduplication
 
         # Initialize modules
-        self.iptables = IptablesManager(self.log)
+        self.iptables = IptablesManager()
 
-        # Create file lock for blacklist
+        # Create file locks
         self.blacklist_file_lock = threading.Lock()
+        self._dns_registry_file_lock = threading.Lock()
 
         # Initialize IP lists
         self.blacklist = IPList(
-            BLACKLIST_FILE, self.log, self.blacklist_file_lock, header_comment="# Outbound blacklist - one IP per line"
+            BLACKLIST_FILE, self.blacklist_file_lock, header_comment="# Outbound blacklist - one IP per line"
         )
         self.whitelist = IPList(
             WHITELIST_FILE,
-            self.log,
             threading.Lock(),
             header_comment="# Whitelist - IPs that should not be logged or blocked",
         )
@@ -103,24 +107,9 @@ class ContainerMonitor:
         # Initialize OpenSnitch integration if enabled
         self._opensnitch_blocked_ips = set()  # Read-only validation set
         if use_opensnitch:
-            self.opensnitch = OpenSnitchIntegration(self.log)
+            self.opensnitch = OpenSnitchIntegration()
         else:
             self.opensnitch = None
-
-    def log(self, message: str, level: str = "INFO") -> None:
-        """Log message with level filtering."""
-        # Standard log level hierarchy
-        levels = {"TRACE": 0, "DEBUG": 1, "INFO": 2, "WARN": 3, "ERROR": 4, "CRITICAL": 5}
-
-        # Skip if message level is below configured level
-        if levels.get(level, 2) < levels.get(LOG_LEVEL, 2):
-            return
-
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        log_line = f"[{ts}] {level}: {message}"
-        with open(LOG_FILE, "a") as f:
-            f.write(f"{log_line}\n")
-        print(log_line)
 
     def is_private_ip(self, ip: str) -> bool:
         """Check if IP is private/internal."""
@@ -157,7 +146,7 @@ class ContainerMonitor:
         If registry doesn't exist, populate it from docker logs (initial bootstrap).
         """
         if not os.path.exists(DNS_REGISTRY_FILE):
-            self.log("📋 No existing DNS registry found, bootstrapping from docker logs...")
+            logger.info("📋 No existing DNS registry found, bootstrapping from docker logs...")
             self._parse_dns_logs(DNS_CACHE_WINDOW_HOURS)
             self._save_dns_registry()
             return
@@ -182,10 +171,10 @@ class ContainerMonitor:
 
             unique_ips = len(registry)
             total_domains = sum(len(domains) for domains in registry.values())
-            self.log(f"✅ DNS registry loaded: {unique_ips} IPs, {total_domains} domain mappings")
+            logger.info(f"✅ DNS registry loaded: {unique_ips} IPs, {total_domains} domain mappings")
 
         except Exception as e:
-            self.log(f"⚠ Error loading DNS registry: {e}", "ERROR")
+            logger.error(f"⚠ Error loading DNS registry: {e}")
 
     def _save_dns_registry(self) -> None:
         """Save DNS registry from _dns_cache to JSON file."""
@@ -200,13 +189,15 @@ class ContainerMonitor:
                     if domains:
                         registry[ip] = sorted(domains)
 
-            with open(DNS_REGISTRY_FILE, 'w') as f:
-                json.dump(registry, f, indent=2, sort_keys=True)
+            # Use file lock to prevent concurrent writes
+            with self._dns_registry_file_lock:
+                with open(DNS_REGISTRY_FILE, 'w') as f:
+                    json.dump(registry, f, indent=2, sort_keys=True)
 
-            self.log(f"💾 DNS registry saved: {len(registry)} IPs", "DEBUG")
+            logger.debug(f"💾 DNS registry saved: {len(registry)} IPs")
 
         except Exception as e:
-            self.log(f"⚠ Error saving DNS registry: {e}", "ERROR")
+            logger.error(f"⚠ Error saving DNS registry: {e}")
 
     def update_container_mapping(self) -> None:
         """Update mapping of container IPs to names."""
@@ -265,7 +256,7 @@ class ContainerMonitor:
             with self._lock:
                 for ip in ips:
                     self._container_ips[ip] = container_name
-            self.log(f"🔄 Container mapping updated: {', '.join(ips)} → {container_name}", "DEBUG")
+            logger.debug(f"🔄 Container mapping updated: {', '.join(ips)} → {container_name}")
 
     def _remove_container_from_mapping(self, container_id: str) -> None:
         """Remove container from mapping when it stops/dies."""
@@ -283,11 +274,11 @@ class ContainerMonitor:
                 for ip in container_ips.split():
                     removed_name = self._container_ips.pop(ip, None)
                     if removed_name:
-                        self.log(f"🔄 Container removed from mapping: {ip} ({removed_name})", "DEBUG")
+                        logger.debug(f"🔄 Container removed from mapping: {ip} ({removed_name})")
 
     def monitor_docker_events(self) -> None:
         """Monitor Docker events for container start/stop/die to update mappings in real-time."""
-        self.log("🔍 Docker events listener started")
+        logger.info("🔍 Docker events listener started")
 
         while True:
             # Start docker events stream (only container events, JSON format)
@@ -311,28 +302,28 @@ class ContainerMonitor:
 
                         # Handle container start - add to mapping
                         if action == "start":
-                            self.log(f"🐳 Container started: {container_name}", "DEBUG")
+                            logger.debug(f"🐳 Container started: {container_name}")
                             self._update_single_container(container_id)
 
                         # Handle container stop/die - remove from mapping
                         elif action in ("stop", "die"):
-                            self.log(f"🐳 Container stopped: {container_name}", "DEBUG")
+                            logger.debug(f"🐳 Container stopped: {container_name}")
                             self._remove_container_from_mapping(container_id)
 
                     except json.JSONDecodeError:
-                        self.log(f"⚠️  Failed to parse Docker event: {line}", "ERROR")
+                        logger.error(f"⚠️  Failed to parse Docker event: {line}")
                         continue
                     except Exception as e:
-                        self.log(f"⚠️  Error processing Docker event: {e}", "ERROR")
+                        logger.error(f"⚠️  Error processing Docker event: {e}")
                         continue
 
             except Exception as e:
-                self.log(f"❌ Docker events stream disconnected: {e}", "ERROR")
+                logger.error(f"❌ Docker events stream disconnected: {e}")
             finally:
                 proc.kill()
 
             # Reconnect after 5 seconds
-            self.log("🔄 Reconnecting to Docker events in 5 seconds...", "INFO")
+            logger.info("🔄 Reconnecting to Docker events in 5 seconds...")
             time.sleep(5)
 
     def get_container_from_ip(self, container_ip: str) -> Optional[str]:
@@ -348,15 +339,15 @@ class ContainerMonitor:
                 self._compromise_count_by_container[container] += 1
                 if ip not in self._compromised_ips_by_container[container]:
                     self._compromised_ips_by_container[container].append(ip)
-            self.log(f"🚨 ALERT: {container} connected to blocked IP {ip} ({evidence})", "WARN")
+            logger.warning(f"🚨 ALERT: {container} connected to blocked IP {ip} ({evidence})")
 
     def log_suspicious_containers(self) -> None:
         """Log summary of suspicious containers and their target IPs."""
         for container, count in sorted(self._compromise_count_by_container.items(), key=lambda x: x[1], reverse=True):
             ips = self._compromised_ips_by_container.get(container, [])
-            self.log(f"  {container}: {count} alerts")
+            logger.info(f"  {container}: {count} alerts")
             for ip in ips:
-                self.log(f"    → {ip}")
+                logger.info(f"    → {ip}")
 
     def add_to_blacklist(self, ip: str, log_msg: bool = True) -> None:
         """Add IP to blacklist and optionally block in iptables."""
@@ -378,11 +369,11 @@ class ContainerMonitor:
             # Cross-reference with OpenSnitch if enabled
             if self.use_opensnitch and self._opensnitch_blocked_ips:
                 if ip in self._opensnitch_blocked_ips:
-                    self.log(f"➕ {action} ({mode_desc}): {ip} ✅ CONFIRMED by OpenSnitch")
+                    logger.info(f"➕ {action} ({mode_desc}): {ip} ✅ CONFIRMED by OpenSnitch")
                 else:
-                    self.log(f"➕ {action} ({mode_desc}): {ip} ⚠️  NOT in OpenSnitch (needs review)", "WARN")
+                    logger.warning(f"➕ {action} ({mode_desc}): {ip} ⚠️  NOT in OpenSnitch (needs review)")
             else:
-                self.log(f"➕ {action} ({mode_desc}): {ip}")
+                logger.info(f"➕ {action} ({mode_desc}): {ip}")
 
         # Block in iptables if enabled
         if self.block:
@@ -395,7 +386,7 @@ class ContainerMonitor:
 
         # Check blacklist (skip if --skip-sync)
         if not self.skip_sync and self.blacklist.has_changed():
-            self.log("🔄 Blacklist file changed, reloading...")
+            logger.info("🔄 Blacklist file changed, reloading...")
             old = self.blacklist.reload()
             added = self.blacklist.get_all() - old
             removed = old - self.blacklist.get_all()
@@ -409,7 +400,7 @@ class ContainerMonitor:
 
         # Check whitelist
         if self.whitelist.has_changed():
-            self.log("🔄 Whitelist file changed, reloading...")
+            logger.info("🔄 Whitelist file changed, reloading...")
             old = self.whitelist.reload()
             added = self.whitelist.get_all() - old
 
@@ -417,7 +408,7 @@ class ContainerMonitor:
                 # Remove newly whitelisted IPs from blacklist
                 removed_count = self.blacklist.remove_ips(added)
                 if removed_count > 0:
-                    self.log(f"🔄 Removed {removed_count} newly whitelisted IPs from blacklist")
+                    logger.info(f"🔄 Removed {removed_count} newly whitelisted IPs from blacklist")
 
                     # Remove from iptables too
                     if self.block:
@@ -426,7 +417,7 @@ class ContainerMonitor:
 
     def monitor_honeypot(self) -> None:
         """Monitor DNS honeypot for queries."""
-        self.log(f"🍯 Monitoring DNS honeypot container: {HONEYPOT_CONTAINER}")
+        logger.info(f"🍯 Monitoring DNS honeypot container: {HONEYPOT_CONTAINER}")
 
         proc = subprocess.Popen(
             ["docker", "logs", "-f", "--tail", "0", HONEYPOT_CONTAINER],
@@ -470,14 +461,14 @@ class ContainerMonitor:
                 if is_new:
                     self._save_dns_registry()
 
-                self.log(f"🍯 DNS: {domain} → {ip}", "TRACE")
+                logger.trace(f"🍯 DNS: {domain} → {ip}")
 
     def monitor_direct_connections(self) -> None:
         """Monitor journalctl for direct container TCP connections."""
-        self.log("🔍 Monitoring direct container TCP connections via journalctl...", "INFO")
+        logger.info("🔍 Monitoring direct container TCP connections via journalctl...")
 
         proc = subprocess.Popen(
-            ["journalctl", "-kf", "-n", "0", "--no-pager"],
+            ["journalctl", "-kf", "-n", "0", "--no-pager", "--output=short-iso-precise"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -503,7 +494,28 @@ class ContainerMonitor:
             if self.is_private_ip(dst_ip):
                 continue
 
-            timestamp = datetime.now()
+            # Parse actual event timestamp from journalctl line (microsecond precision)
+            # Format: 2025-10-22T23:27:37.817601+0200 hostname kernel: [CONTAINER-TCP] ...
+            timestamp_match = re.match(r'^(\S+)', line)
+            if timestamp_match:
+                try:
+                    # Parse ISO timestamp with microseconds (includes timezone)
+                    timestamp_str = timestamp_match.group(1)
+                    timestamp = datetime.fromisoformat(timestamp_str)
+                    # Convert to naive datetime (remove timezone for consistency)
+                    timestamp = timestamp.replace(tzinfo=None)
+                except ValueError:
+                    # Fallback if parsing fails
+                    logger.warning(f"⚠️  Could not parse timestamp from: {line[:50]}")
+                    timestamp = datetime.now()
+            else:
+                timestamp = datetime.now()
+
+            # Log stream delay for debugging
+            stream_delay = (datetime.now() - timestamp).total_seconds()
+            if stream_delay > 2.0:
+                logger.debug(f"⚠️  High stream delay: {stream_delay:.1f}s for connection {src_ip} → {dst_ip}")
+
             connection_tuple = (src_ip, dst_ip, dst_port)
 
             # Deduplicate
@@ -522,17 +534,30 @@ class ContainerMonitor:
 
             while self._recent_direct_connections:
                 timestamp, src_ip, dst_ip, dst_port = self._recent_direct_connections.popleft()
+
+                # Grace period: allow DNS logs time to arrive before checking
+                # Use actual event timestamp (from kernel log) to measure real age
+                age = (datetime.now() - timestamp).total_seconds()
+                if age < CONNECTION_GRACE_PERIOD:
+                    # Too young, put it back and skip for now
+                    logger.trace(f"⏳ Connection too young ({age:.3f}s < {CONNECTION_GRACE_PERIOD}s), waiting...")
+                    self._recent_direct_connections.append((timestamp, src_ip, dst_ip, dst_port))
+                    break  # Exit inner loop, wait for next interval
+
                 container_name = self.get_container_from_ip(src_ip) or f"container-{src_ip}"
+
+                # Log actual event age for debugging
+                logger.trace(f"🔍 Checking connection (age: {age:.3f}s): {container_name} → {dst_ip}:{dst_port}")
 
                 # Check if already blacklisted
                 if self.blacklist.contains(dst_ip):
-                    self.log(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - BLACKLISTED IP 🚨", "DEBUG")
+                    logger.debug(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - BLACKLISTED IP 🚨")
                     self.report_compromise(container_name, dst_ip, "direct connection to blacklisted IP")
                     continue
 
                 # Check if in whitelist
                 if self.whitelist.contains(dst_ip):
-                    self.log(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - whitelisted", "INFO")
+                    logger.info(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - whitelisted")
                     continue
 
                 # Check if IP has DNS history
@@ -553,20 +578,20 @@ class ContainerMonitor:
                     else:
                         domain_display = domain
 
-                    self.log(
+                    logger.log_legacy(
                         f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - OK (DNS: {domain_display})",
                         "INFO",
                     )
 
                     # Show all domains in DEBUG log
                     if domain_count > 1:
-                        self.log(
+                        logger.log_legacy(
                             f"  ↳ DNS mappings: {', '.join(all_domains)}",
                             "DEBUG",
                         )
                 else:
                     # NO DNS HISTORY = HARDCODED IP = MALWARE
-                    self.log(
+                    logger.log_legacy(
                         f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
                         "WARN",
                     )
@@ -590,10 +615,10 @@ class ContainerMonitor:
                 if ip and not self.is_private_ip(ip):
                     self._opensnitch_blocked_ips.add(ip)
 
-            self.log(f"✅ Loaded {len(self._opensnitch_blocked_ips)} OpenSnitch blocked IPs for cross-reference")
+            logger.info(f"✅ Loaded {len(self._opensnitch_blocked_ips)} OpenSnitch blocked IPs for cross-reference")
 
         except Exception as e:
-            self.log(f"⚠️  Error loading OpenSnitch blocks: {e}", "ERROR")
+            logger.error(f"⚠️  Error loading OpenSnitch blocks: {e}")
 
     def monitor_opensnitch(self) -> None:
         """Monitor OpenSnitch blocks in real-time and update validation set."""
@@ -621,7 +646,7 @@ class ContainerMonitor:
         Returns:
             Number of unique IPs added to cache
         """
-        self.log(f"📋 Parsing DNS honeypot logs (last {hours}h)...")
+        logger.info(f"📋 Parsing DNS honeypot logs (last {hours}h)...")
         try:
             result = subprocess.run(
                 ["docker", "logs", "--since", f"{hours}h", HONEYPOT_CONTAINER], capture_output=True, text=True
@@ -651,11 +676,11 @@ class ContainerMonitor:
                                 dns_count += 1
 
             unique_ips = len(self._dns_cache)
-            self.log(f"✅ DNS cache pre-warmed: {unique_ips} unique IPs, {dns_count} total entries")
+            logger.info(f"✅ DNS cache pre-warmed: {unique_ips} unique IPs, {dns_count} total entries")
             return unique_ips
 
         except Exception as e:
-            self.log(f"⚠ Error parsing DNS logs: {e}", "ERROR")
+            logger.error(f"⚠ Error parsing DNS logs: {e}")
             return 0
 
     def _parse_connection_logs(self, since_arg: str = "") -> set:
@@ -697,7 +722,7 @@ class ContainerMonitor:
             return connections
 
         except Exception as e:
-            self.log(f"⚠ Error parsing connection logs: {e}", "ERROR")
+            logger.error(f"⚠ Error parsing connection logs: {e}")
             return set()
 
     def _get_last_processed_timestamp(self) -> Optional[str]:
@@ -731,7 +756,7 @@ class ContainerMonitor:
 
             return None
         except Exception as e:
-            self.log(f"⚠️  Could not read last timestamp: {e}", "ERROR")
+            logger.error(f"⚠️  Could not read last timestamp: {e}")
             return None
 
     def _detect_hardcoded_ips(self, connections: set) -> int:
@@ -758,7 +783,7 @@ class ContainerMonitor:
 
             if not has_dns:
                 # NO DNS HISTORY = HARDCODED IP
-                self.log(
+                logger.log_legacy(
                     f"🔍 Historical: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
                     "WARN"
                 )
@@ -780,21 +805,21 @@ class ContainerMonitor:
         if last_timestamp:
             # Strip microseconds - journalctl only supports second precision
             timestamp_seconds = last_timestamp.split('.')[0]
-            self.log(f"🔍 Resuming from last run: {last_timestamp} (journalctl: {timestamp_seconds})")
+            logger.info(f"🔍 Resuming from last run: {last_timestamp} (journalctl: {timestamp_seconds})")
             since_arg = f"--since '{timestamp_seconds}'"
         else:
-            self.log(f"🔍 First run - scanning all available connection logs")
+            logger.info(f"🔍 First run - scanning all available connection logs")
             since_arg = ""
 
         # Scan past outbound connections (from last timestamp)
-        self.log(f"📋 Scanning outbound connections{' since last run' if last_timestamp else ''}...")
+        logger.info(f"📋 Scanning outbound connections{' since last run' if last_timestamp else ''}...")
         connections = self._parse_connection_logs(since_arg=since_arg)
-        self.log(f"📋 Found {len(connections)} unique connections to analyze")
+        logger.info(f"📋 Found {len(connections)} unique connections to analyze")
 
         # Detect hardcoded IPs
         hardcoded_count = self._detect_hardcoded_ips(connections)
         mode_desc = "memory-only" if self.skip_sync else "persistent"
-        self.log(f"📊 Detected {hardcoded_count} hardcoded IPs from historical analysis ({mode_desc})")
+        logger.info(f"📊 Detected {hardcoded_count} hardcoded IPs from historical analysis ({mode_desc})")
 
     def _setup_signal_handlers(self) -> None:
         """Setup SIGINT and SIGTERM handlers for graceful shutdown."""
@@ -807,9 +832,9 @@ class ContainerMonitor:
 
     def _run_historical_analysis(self) -> None:
         """Run historical data collection and analysis."""
-        self.log("🚀 Starting collection phase...")
+        logger.info("🚀 Starting collection phase...")
         self.collect_historical_data()
-        self.log("✅ Collection phase complete")
+        logger.info("✅ Collection phase complete")
 
     def _start_monitoring_threads(self) -> None:
         """Start all monitoring threads."""
@@ -828,16 +853,17 @@ class ContainerMonitor:
         for t in threads:
             t.start()
 
-        self.log("✅ All monitoring threads started")
+        logger.info("✅ All monitoring threads started")
 
     def run(self) -> None:
         """Run the container security monitor."""
-        self.log("=== Container Security Monitor with DNS Honeypot Started ===")
+        logger.info("=== Container Security Monitor with DNS Honeypot Started ===")
+        logger.info(f"Log level: {LOG_LEVEL}")
 
         if self.use_opensnitch:
-            self.log("Monitoring: DNS Honeypot + Direct TCP connections (with OpenSnitch cross-reference)")
+            logger.log_legacy("Monitoring: DNS Honeypot + Direct TCP connections (with OpenSnitch cross-reference)")
         else:
-            self.log("Monitoring: DNS Honeypot + Direct TCP connections (standalone mode)")
+            logger.log_legacy("Monitoring: DNS Honeypot + Direct TCP connections (standalone mode)")
 
         # Setup
         self._setup_signal_handlers()
@@ -847,14 +873,14 @@ class ContainerMonitor:
         # Load OpenSnitch blocks for cross-reference if enabled
         if self.use_opensnitch:
             count = self.opensnitch.get_recent_block_count(hours=24)
-            self.log(f"📊 Found {count} blocks in last 24 hours (deny-always-arpa-53)")
+            logger.info(f"📊 Found {count} blocks in last 24 hours (deny-always-arpa-53)")
             self._load_opensnitch_blocks()
 
         # Historical analysis
         self._run_historical_analysis()
 
         # Start real-time monitoring
-        self.log("✅ Entering real-time monitoring...")
+        logger.info("✅ Entering real-time monitoring...")
         self._startup_complete = True
         self._start_monitoring_threads()
 
@@ -862,14 +888,16 @@ class ContainerMonitor:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            self.log("\n=== Monitor stopped ===")
-            self.log("Suspicious containers detected:")
-            self.log_suspicious_containers()
+            logger.info("\n=== Monitor stopped ===")
+            if self._compromise_count_by_container:
+                logger.info("Suspicious containers detected:")
+                self.log_suspicious_containers()
 
     def _cleanup_and_exit(self) -> None:
         """Cleanup handler for signals."""
-        self.log("\n=== Shutting down ===")
-        self.log("ℹ️  iptables rules remain active (use --clear-iptables to remove)")
-        self.log("Suspicious containers detected:")
-        self.log_suspicious_containers()
+        logger.info("\n=== Shutting down ===")
+        logger.log_legacy("ℹ️  iptables rules remain active (use --clear-iptables to remove)")
+        if self._compromise_count_by_container:
+            logger.info("Suspicious containers detected:")
+            self.log_suspicious_containers()
         exit(0)

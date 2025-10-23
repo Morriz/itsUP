@@ -210,7 +210,10 @@ When our monitor detects a hardcoded IP connection:
 
 **Data Storage**:
 
-- DNS correlation: In-memory only (cleared on restart)
+- DNS correlation: Persistent JSON registry (`data/dns-registry.json`) + in-memory cache
+  - Registry survives restarts, preserves unlimited DNS history
+  - First run: Bootstrap from 48h of docker logs
+  - Subsequent runs: Load full registry history
 - Blacklist: Persistent file (`data/blacklist/blacklist-outbound-ips.txt`)
 - Whitelist: Persistent file (`data/whitelist/whitelist-outbound-ips.txt`)
 
@@ -220,6 +223,13 @@ When our monitor detects a hardcoded IP connection:
 - Outbound connections: ephemeral ports (typically 32768-60999)
 - Server responses: privileged/service ports (80, 443, etc.)
 - Only flag connections with source port > 1024 to exclude server response traffic
+
+**Timestamp Accuracy**:
+
+- Kernel logs parsed with `--output=short-iso-precise` for microsecond precision
+- Grace period measured from **actual event timestamp** (from log), not stream arrival time
+- Eliminates false positives from variable log buffering delays
+- Stream delays >2s logged as DEBUG warnings for diagnostics
 
 **Typical Workflow**:
 

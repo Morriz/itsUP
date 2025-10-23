@@ -27,6 +27,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Time Windows (in seconds unless specified)
 DNS_CACHE_WINDOW_HOURS = 48  # Hours of docker logs to parse for initial DNS registry bootstrap
 CONNECTION_DEDUP_WINDOW = 60  # Deduplicate same connection within 60 seconds
+CONNECTION_GRACE_PERIOD = 3.0  # Wait 3 seconds before checking connection (allows DNS logs to arrive)
 OPENSNITCH_POLL_INTERVAL = 0.5  # Poll OpenSnitch DB every 0.5 seconds
 PERIODIC_TASK_INTERVAL = 5  # Run periodic tasks (container mapping, list updates) every 5 seconds
 CHECK_CONNECTIONS_INTERVAL = 0.5  # Check direct connections queue every 0.5 seconds

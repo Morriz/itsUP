@@ -19,7 +19,7 @@
       },
       {
         "operand": "lists.ips",
-        "data": "/home/morriz/srv/data/whitelist",
+        "data": "${ITSUP_ROOT}/data/whitelist",
         "type": "lists",
         "list": null,
         "sensitive": false

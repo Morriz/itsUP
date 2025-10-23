@@ -67,8 +67,9 @@ http:
         #stsPreload: true
     rate-limit:
       rateLimit:
+        period: 1s
         average: 100
-        burst: 50
+        burst: 200
 {%- if plugin_registry.crowdsec.enabled %}
     crowdsec:
       plugin:
@@ -84,9 +85,9 @@ http:
           crowdsecMode: live
           crowdsecAppsecEnabled: true
           crowdsecAppsecFailureBlock: true
-          crowdsecAppsecHost: crowdsec:7422
+          crowdsecAppsecHost: 127.0.0.1:7422
           crowdsecLapiKey: {{ plugin_registry.crowdsec.apikey }}
-          crowdsecLapiHost: crowdsec:8080
+          crowdsecLapiHost: 127.0.0.1:18080
           crowdsecLapiScheme: http
           crowdsecLapiTLSInsecureVerify: false
 {%- endif %}
