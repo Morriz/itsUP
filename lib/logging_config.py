@@ -4,10 +4,10 @@ Centralized logging configuration for itsUP.
 Provides standardized log format across all modules:
 [2025-10-23 23:05:31.454670] INFO > path/to/file.py: message
 """
+
 import logging
 import os
 from typing import Any, Optional
-
 
 # Add TRACE level (below DEBUG)
 TRACE = 5
@@ -29,8 +29,8 @@ class PathFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         # Convert module name (monitor.core) to path (monitor/core.py)
-        if record.name != '__main__':
-            pathname = record.name.replace('.', '/') + '.py'
+        if record.name != "__main__":
+            pathname = record.name.replace(".", "/") + ".py"
         else:
             # For __main__, use actual file path relative to project root
             pathname = os.path.relpath(record.pathname)
@@ -57,8 +57,7 @@ def setup_logging(level: Optional[str] = None) -> None:
         level_const = getattr(logging, level, logging.INFO)
 
     formatter = PathFormatter(
-        '[%(asctime)s] %(levelname)s > %(custom_pathname)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S.%f'
+        "[%(asctime)s] %(levelname)s > %(custom_pathname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f"
     )
 
     # Console handler

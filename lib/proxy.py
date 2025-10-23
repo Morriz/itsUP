@@ -121,25 +121,32 @@ def _service_needs_update(service: str) -> bool:
     """Check if a service's image or config changed"""
     try:
         # Get current config hash from docker-compose.yml
-        current_hash = run_command_output(
-            ["docker", "compose", "config", "--hash", service],
-            cwd="proxy"
-        ).strip().split()[1]  # Output is "service hash"
+        current_hash = (
+            run_command_output(["docker", "compose", "config", "--hash", service], cwd="proxy").strip().split()[1]
+        )  # Output is "service hash"
 
         # Get running container's config hash from labels
-        containers = run_command_output(
-            ["docker", "ps", "--filter", f"name=proxy-{service}", "--format", "{{.Names}}"],
-            cwd="proxy"
-        ).strip().split("\n")
+        containers = (
+            run_command_output(
+                ["docker", "ps", "--filter", f"name=proxy-{service}", "--format", "{{.Names}}"], cwd="proxy"
+            )
+            .strip()
+            .split("\n")
+        )
 
         if not containers or not containers[0]:
             logger.info(f"No running containers for {service}")
             return True  # Service not running
 
         running_hash = run_command_output(
-            ["docker", "inspect", containers[0],
-             "--format", "{{index .Config.Labels \"com.docker.compose.config-hash\"}}"],
-            cwd="proxy"
+            [
+                "docker",
+                "inspect",
+                containers[0],
+                "--format",
+                '{{index .Config.Labels "com.docker.compose.config-hash"}}',
+            ],
+            cwd="proxy",
         ).strip()
 
         if current_hash != running_hash:

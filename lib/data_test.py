@@ -220,6 +220,7 @@ class TestData(unittest.TestCase):  # pylint: disable=too-many-public-methods
         # Filter for a specific plugin name
         def filter_func(p: Plugin) -> bool:
             return p.name == "crowdsec"
+
         plugins = get_plugins(filter=filter_func)
 
         mock_get_registry.assert_called_once()
