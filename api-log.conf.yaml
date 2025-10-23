@@ -2,9 +2,11 @@ version: 1
 disable_existing_loggers: False
 formatters:
   default:
-    format: '%(asctime)s - %(levelname)s - %(message)s'
+    format: '%(asctime)s.%(msecs)03dZ %(levelname)-8s %(message)s'
+    datefmt: '%Y-%m-%dT%H:%M:%S'
   access:
-    format: '%(asctime)s - %(levelname)s - %(message)s'
+    format: '%(asctime)s.%(msecs)03dZ %(levelname)-8s %(client_addr)s "%(request_line)s" %(status_code)s'
+    datefmt: '%Y-%m-%dT%H:%M:%S'
 handlers:
   default:
     formatter: default
@@ -15,7 +17,7 @@ handlers:
   access:
     formatter: access
     class: logging.FileHandler
-    filename: logs/access.log
+    filename: logs/api-access.log
     encoding: utf8
     mode: a
 loggers:
@@ -30,7 +32,7 @@ loggers:
       - access
     propagate: no
 root:
-  level: DEBUG
+  level: INFO
   handlers:
     - default
   propagate: no

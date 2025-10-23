@@ -65,7 +65,8 @@ bin/validate-db.py          # Validate db.yml schema
 
 ### Monitoring and Logs
 ```bash
-bin/logs-api.sh             # Tail API server logs
+bin/tail-logs.sh            # Tail all logs (Traefik, API, errors) with flat formatting
+make logs                   # Same as above
 ```
 
 ### Utilities

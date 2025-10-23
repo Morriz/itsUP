@@ -2,7 +2,7 @@
         dns-up dns-down dns-restart dns-logs \
         monitor-start monitor-stop monitor-cleanup monitor-logs monitor-report \
         start-proxy start-api start start-all restart-all \
-        logs-proxy logs-api \
+        logs \
         clean
 
 help: ## Show this help message
@@ -72,11 +72,8 @@ start-all: start ## Alias for start
 restart-all: ## Restart all containers except dns-honeypot
 	./bin/restart-all.sh
 
-logs-proxy: ## Tail proxy logs
-	./bin/logs-api.sh
-
-logs-api: ## Tail API logs
-	@docker-compose -f proxy/docker compose.yml logs -f traefik || true
+logs: ## Tail all logs (Traefik access, API, errors) with flat formatting
+	./bin/tail-logs.sh
 
 # Cleanup
 clean: ## Remove generated artifacts
