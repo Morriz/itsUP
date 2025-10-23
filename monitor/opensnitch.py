@@ -10,7 +10,7 @@ import re
 import sqlite3
 import time
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Callable, Optional
 
 from .constants import OPENSNITCH_DB
 

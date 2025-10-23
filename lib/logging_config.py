@@ -6,6 +6,7 @@ Provides standardized log format across all modules:
 """
 import logging
 import os
+from typing import Any, Optional
 
 
 # Add TRACE level (below DEBUG)
@@ -13,20 +14,20 @@ TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
 
 
-def trace(self, message, *args, **kwargs):
+def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None:
     """Log trace message."""
     if self.isEnabledFor(TRACE):
-        self._log(TRACE, message, args, **kwargs)
+        self._log(TRACE, message, args, **kwargs)  # pylint: disable=protected-access
 
 
 # Add trace() method to Logger class
-logging.Logger.trace = trace
+logging.Logger.trace = trace  # type: ignore[attr-defined]
 
 
 class PathFormatter(logging.Formatter):
     """Custom formatter that shows relative file paths."""
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         # Convert module name (monitor.core) to path (monitor/core.py)
         if record.name != '__main__':
             pathname = record.name.replace('.', '/') + '.py'
@@ -39,7 +40,7 @@ class PathFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_logging(level=None):
+def setup_logging(level: Optional[str] = None) -> None:
     """
     Setup logging with standardized format.
 

@@ -204,7 +204,8 @@ def upsert_service(project: str | Project, service: Service) -> None:
 
 def get_env(project: str | Project, service: str) -> Env:
     """Get a project's env by name"""
-    logger.debug(f"Getting env for service {service} in project {project.name if isinstance(project, Project) else project}")
+    proj_name = project.name if isinstance(project, Project) else project
+    logger.debug(f"Getting env for service {service} in project {proj_name}")
     service = get_service(project, service)
     return service.env
 

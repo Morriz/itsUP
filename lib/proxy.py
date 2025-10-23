@@ -1,11 +1,11 @@
 import logging
 import os
-from typing import Callable, Dict, List
+from typing import Callable, List
 
 from dotenv import load_dotenv
 from jinja2 import Template
 
-from lib.data import get_plugin_registry, get_project, get_projects, get_versions
+from lib.data import get_plugin_registry, get_projects, get_versions
 from lib.models import Plugin, Protocol, ProxyProtocol, Router
 from lib.utils import run_command, run_command_output
 

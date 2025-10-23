@@ -235,7 +235,6 @@ class TestUpdateUpstream(TestCase):
         update_upstream(
             project_name,
             service_name,
-            rollout=True,
         )
 
         # Assert that the subprocess.Popen was called with the correct arguments
@@ -287,11 +286,10 @@ class TestUpdateUpstream(TestCase):
         _3: Mock,  # mock_run_command (unused in assertion)
         mock_rollout_service: Mock,
     ) -> None:
-        # Call the function under test with rollout=True and service=None
+        # Call the function under test with service=None
         update_upstream(
             "my-project-multi",
             service=None,  # Explicitly None
-            rollout=True,
         )
 
         # Assert that rollout_service is called for each service
@@ -326,7 +324,6 @@ class TestUpdateUpstream(TestCase):
         update_upstream(
             project_name,
             service_name,  # Service name doesn't strictly matter for down command, but use a valid one
-            rollout=True,
         )
 
         # Assert that the subprocess.Popen was called with the correct arguments
@@ -343,25 +340,6 @@ class TestUpdateUpstream(TestCase):
         # with the correct arguments
         mock_rollout_service.assert_not_called()
 
-    @mock.patch("lib.upstream.rollout_service")
-    @mock.patch("lib.upstream.run_command")
-    @mock.patch("lib.upstream.get_project", return_value=_ret_projects[0])
-    def test_update_upstream_no_rollout(self, _: Mock, _2: Mock, mock_rollout_service: Mock) -> None:
-
-        # Use names from the updated _ret_projects[0]
-        project_name = "comprehensive-project"
-        service_name = "app-main"
-
-        # Call the function under test
-        update_upstream(
-            project_name,
-            service_name,
-            rollout=False,
-        )
-
-        # Assert that the rollout_service function is not called
-        mock_rollout_service.assert_not_called()
-
     @mock.patch("os.scandir")
     @mock.patch("lib.upstream.update_upstream")
     @mock.patch("lib.upstream.run_command")
@@ -376,7 +354,6 @@ class TestUpdateUpstream(TestCase):
 
         mock_update_upstream.assert_called_once_with(
             project_name,
-            rollout=False,
         )
 
 

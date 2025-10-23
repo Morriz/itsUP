@@ -29,7 +29,7 @@ from lib.models import Env, Ingress, Plugin, PluginRegistry, Project, Router, Se
 from lib.test_stubs import test_db, test_projects
 
 
-class TestData(unittest.TestCase):
+class TestData(unittest.TestCase):  # pylint: disable=too-many-public-methods
 
     @mock.patch("lib.data.get_db", return_value=test_db.copy())
     @mock.patch(
@@ -218,7 +218,8 @@ class TestData(unittest.TestCase):
         mock_get_registry.return_value = mock_registry
 
         # Filter for a specific plugin name
-        filter_func = lambda p: p.name == "crowdsec"
+        def filter_func(p: Plugin) -> bool:
+            return p.name == "crowdsec"
         plugins = get_plugins(filter=filter_func)
 
         mock_get_registry.assert_called_once()
