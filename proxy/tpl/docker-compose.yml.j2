@@ -69,6 +69,8 @@ services:
     image: traefik:{{ versions.traefik }}
     network_mode: host
     restart: always
+    dns:
+      - 172.30.0.253
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
