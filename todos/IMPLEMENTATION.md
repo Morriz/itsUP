@@ -183,8 +183,7 @@ cd secrets/
 PUBLIC_KEY=$(grep "public key:" ~/.config/sops/age/keys.txt | cut -d: -f2 | tr -d ' ')
 cat > .sops.yaml <<EOF
 creation_rules:
-  - path_regex: \.enc\.txt$
-    age: ${PUBLIC_KEY}
+  - age: ${PUBLIC_KEY}
 EOF
 
 # 3.3: Create .gitignore (ignore decrypted files)
@@ -272,12 +271,12 @@ set -e
 SECRETS_DIR="$(git rev-parse --show-toplevel)"
 cd "$SECRETS_DIR"
 
-# Check if any .txt files are staged
-if git diff --cached --name-only --diff-filter=ACM | grep -q '\.txt$'; then
+# Check if any .txt files are staged (exclude .enc.txt)
+if git diff --cached --name-only --diff-filter=ACM | grep '\.txt$' | grep -v '\.enc\.txt$' | grep -q .; then
     echo "🔒 Encrypting secrets..."
 
-    # Encrypt all changed .txt files
-    git diff --cached --name-only --diff-filter=ACM | grep '\.txt$' | while read txt_file; do
+    # Encrypt all changed .txt files (exclude .enc.txt)
+    git diff --cached --name-only --diff-filter=ACM | grep '\.txt$' | grep -v '\.enc\.txt$' | while read txt_file; do
         if [ -f "$txt_file" ]; then
             enc_file="${txt_file%.txt}.enc.txt"
             if sops -e "$txt_file" > "$enc_file"; then
