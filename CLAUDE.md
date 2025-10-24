@@ -4,6 +4,11 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 
 ## CRITICAL RULES (ADHERE AT ALL COSTS!)
 
+🚨 **ALWAYS OPERATE FROM PROJECT ROOT** 🚨
+- **NEVER** cd into subdirectories and stay there
+- Use relative paths from root (e.g., `upstream/instrukt-ai/docker-compose.yml`)
+- If you need to run a command in a subdirectory, use `(cd dir && command)`
+
 🚨 **PYTHON UNDERSCORE NAMING CONVENTION** 🚨
 - **ALWAYS** use single leading underscore `_` for instance variables that are internal/private
 - **NEVER** use leading underscore for public API (methods/variables intended for external use)

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
+log_file="logs/monitor.log"
 # Kill any existing instance
 sudo pkill -f docker_monitor.py 2>/dev/null || true
 
 # Ensure log file exists
-sudo touch /var/log/compromised_container.log
+sudo touch "$log_file"
 
 # Parse flags - just pass them through directly
 FLAGS="$@"
@@ -27,4 +28,4 @@ cd "$(dirname "$0")/.."
 sudo $ENV_VARS setsid python3 bin/docker_monitor.py $FLAGS < /dev/null &> /dev/null &
 
 echo "Container security monitor started in background"
-echo "View logs: tail -f /var/log/compromised_container.log"
+echo "View logs: tail -f $log_file"

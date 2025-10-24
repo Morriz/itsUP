@@ -8,9 +8,9 @@ See monitor/ package for implementation details.
 """
 import os
 import re
-import sys
 import sqlite3
 import subprocess
+import sys
 from datetime import datetime
 
 # Add parent directory to path for monitor package import
@@ -20,6 +20,7 @@ from lib.logging_config import setup_logging
 from monitor import (
     BLACKLIST_FILE,
     HONEYPOT_CONTAINER,
+    LOG_FILE,
     OPENSNITCH_DB,
     WHITELIST_FILE,
 )
@@ -103,12 +104,7 @@ def cleanup_blacklist():
     dns_cache = {}
 
     try:
-        result = subprocess.run(
-            ["docker", "logs", HONEYPOT_CONTAINER],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(["docker", "logs", HONEYPOT_CONTAINER], capture_output=True, text=True, timeout=30)
         dns_logs = result.stdout
 
         # Build IP → domains mapping
@@ -208,8 +204,8 @@ def main():
         print("Run as root: sudo python3 bin/docker_monitor.py")
         sys.exit(1)
 
-    # Setup logging
-    setup_logging()
+    # Setup logging (with file output)
+    setup_logging(log_file=LOG_FILE)
 
     # Parse command-line flags
     skip_sync = False
@@ -249,7 +245,6 @@ def main():
 
     # Initialize log file
     try:
-        from monitor.constants import LOG_FILE
         with open(LOG_FILE, "a") as f:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             f.write(f"[{ts}] Started\n")

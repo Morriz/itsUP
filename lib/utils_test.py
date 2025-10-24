@@ -26,7 +26,7 @@ class TestRunCommand(unittest.TestCase):
         # Assert the exit code is returned correctly
         self.assertEqual(exit_code, 0)
         # Assert the open call was made correctly
-        mock_open.assert_called_with("logs/error.log", "w", encoding="utf-8")
+        mock_open.assert_called_with("logs/proxy.log", "w", encoding="utf-8")
         # Assert the subprocess.run call was made correctly
         mock_run.assert_called_once_with(
             ["ls"], check=True, cwd=None, env={}, stdout=mock_open.return_value, stderr=mock_open.return_value

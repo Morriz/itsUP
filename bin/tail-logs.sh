@@ -1,3 +1,3 @@
 #!/usr/bin/env sh
 
-tail -f logs/*.log | bin/format-logs.py
+tail -f -n 100 logs/*.log | bin/format-logs.py

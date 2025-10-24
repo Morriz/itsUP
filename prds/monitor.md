@@ -58,7 +58,7 @@ On startup, the monitor MUST:
 1. **DNS Cache Pre-warming**: Load 48 hours of DNS honeypot logs to build comprehensive DNS cache
    - Wider window than connection scanning to prevent false positives
    - Safe operation - more DNS data = fewer false positives
-2. **Connection Scanning**: Resume from last processed timestamp (from `/var/log/compromised_container.log`)
+2. **Connection Scanning**: Resume from last processed timestamp (from `logs/monitor.log`)
    - If no prior run: Process all available historical connection data
    - Only scans connections since last run to avoid duplicate alerts
 3. Correlate scanned connections with pre-warmed DNS cache

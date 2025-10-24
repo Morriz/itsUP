@@ -51,7 +51,7 @@ monitor-cleanup: ## Run cleanup mode to review blacklist
 	sudo python3 bin/docker_monitor.py --cleanup
 
 monitor-logs: ## Tail security monitor logs
-	@tail -f /var/log/compromised_container.log || true
+	@tail -f logs/monitor.log || true
 
 monitor-report: ## Generate threat actor analysis report
 	python3 bin/analyze_threats.py

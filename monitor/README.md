@@ -7,6 +7,7 @@ Detects compromised containers by identifying hardcoded IP connections (malware 
 ## Core Detection Logic
 
 **Hardcoded IP Detection:**
+
 - Monitor all outbound TCP connections from Docker containers
 - Check if destination IP was previously resolved via DNS
 - If NO DNS history exists → Flag as hardcoded IP (malware indicator)
@@ -41,12 +42,14 @@ not stream arrival time. This ensures accurate measurement regardless of log buf
 ### ✅ No Container Restart Required
 
 **The monitor now uses a persistent DNS registry** (`data/dns-registry.json`) that:
+
 - Survives monitor restarts
 - Preserves all historical DNS resolutions
 - Eliminates false positives from application-level DNS caching
 - No need to restart containers when starting the monitor
 
 **How it works:**
+
 - DNS registry persists all IP → domain mappings indefinitely
 - On startup, loads existing registry (could contain days/weeks of data)
 - Real-time DNS queries update the registry and save to disk
@@ -64,6 +67,7 @@ For enhanced detection confidence, install OpenSnitch application firewall and c
 2. **Deploy OpenSnitch rules** - See [../opensnitch/README.md](../opensnitch/README.md) for detailed installation instructions
 
 The OpenSnitch integration provides:
+
 - Higher confidence threat detection via cross-reference
 - Cleanup mode - reviews existing blacklist entries to identify and remove false positives
 
@@ -99,7 +103,7 @@ make monitor-stop
 ### View Logs
 
 ```bash
-tail -f /var/log/compromised_container.log
+tail -f logs/monitor.log
 ```
 
 ### Manage IP Lists
@@ -145,6 +149,7 @@ The monitor tracks outbound connections from **all Docker networks** in the `172
 ### Routing Behavior
 
 Containers use their **primary/first network** for outbound connections:
+
 - Containers with project network → use project IP (e.g., `172.25.0.3`)
 - Containers with ONLY proxynet → use proxynet IP (e.g., `172.30.0.27`)
 
