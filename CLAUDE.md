@@ -58,11 +58,25 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 
 ### Setup and Installation
 
+**First-time setup requires git submodules:**
+
+The `projects/` and `secrets/` directories are git submodules that MUST be initialized before running `bin/install.py`. Users must create their own private repositories for these and add them as submodules. See [README.md](README.md) for detailed submodule setup instructions.
+
 ```bash
-bin/install.sh              # Create virtualenv and install dependencies
+# After initializing submodules (see README.md)
+bin/install.py              # Validates submodules, copies samples, creates .venv, installs deps
 bin/start-all.sh            # Start proxy and API server
-bin/apply.py                # Apply db.yml changes with smart zero-downtime updates
+bin/apply.py                # Apply configuration with smart zero-downtime updates
 ```
+
+**What `bin/install.py` does:**
+- Validates that `projects/` and `secrets/` submodules are initialized
+- Copies sample files (won't overwrite existing files):
+  - `samples/env` → `.env`
+  - `samples/traefik.yml` → `projects/traefik.yml`
+  - `samples/secrets/global.txt` → `secrets/global.txt`
+- Creates Python virtual environment
+- Installs dependencies from `requirements-prod.txt`
 
 **Note:** `bin/apply.py` uses smart change detection via config hash comparison - only performs rollouts when changes detected.
 

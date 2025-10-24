@@ -1,8 +1,5 @@
 # Runtime configuration (machine-specific, not committed to git)
-# Copied to .env on `itsup init`
-
-# Root directory of itsUP installation (needed for OpenSnitch rules)
-ITSUP_ROOT=/home/user/itsup
+# Copied to .env by itsup init
 
 # Environment (development, production)
 # PYTHON_ENV=production
