@@ -1,0 +1,70 @@
+# Infrastructure configuration
+# Edit values below, then commit to git
+# Secrets referenced as ${VAR} - actual values in secrets/global.txt
+
+domain_suffix: example.com  # CHANGE THIS
+
+letsencrypt:
+  email: ${LETSENCRYPT_EMAIL}  # From secrets/global.txt
+  staging: false  # Set to true for testing
+
+trusted_ips:
+  - 192.168.1.1  # Your router IP
+  - 172.0.0.0/8  # Docker networks
+  - 10.0.0.0/8   # Private networks
+
+traefik:
+  log_level: INFO  # DEBUG, INFO, WARN
+  dashboard_enabled: true
+  dashboard_domain: traefik.${domain_suffix}
+  dashboard_auth: ${TRAEFIK_ADMIN}  # From secrets (htpasswd)
+
+middleware:
+  rate_limit:
+    enabled: true
+    average: 100  # requests per second
+    burst: 50
+
+  headers:
+    ssl_redirect: true
+    sts_seconds: 31536000
+    sts_include_subdomains: true
+    sts_preload: true
+
+plugins:
+  crowdsec:
+    enabled: true
+    version: v1.2.0
+    collections:
+      - crowdsecurity/linux
+      - crowdsecurity/traefik
+      - crowdsecurity/http-cve
+      - crowdsecurity/sshd
+      - crowdsecurity/whitelist-good-actors
+      - crowdsecurity/appsec-virtual-patching
+    scenarios:
+      - crowdsecurity/http-admin-interface-probing
+      - crowdsecurity/http-backdoors-attempts
+      - crowdsecurity/http-bad-user-agent
+      - crowdsecurity/http-crawl-non_statics
+      - crowdsecurity/http-generic-bf
+      - crowdsecurity/http-open-proxy
+      - crowdsecurity/http-path-traversal-probing
+      - crowdsecurity/http-probing
+      - crowdsecurity/http-sensitive-files
+      - crowdsecurity/http-sqli-probing
+      - crowdsecurity/http-xss-probing
+      - ltsich/http-w00tw00t
+    options:
+      logLevel: WARN
+      updateIntervalSeconds: 60
+      defaultDecisionSeconds: 600
+      httpTimeoutSeconds: 10
+      # Secrets from secrets/global.txt
+      apikey: ${CROWDSEC_API_KEY}
+      capiMachineId: ${CROWDSEC_CAPI_MACHINE_ID}
+      capiPassword: ${CROWDSEC_CAPI_PASSWORD}
+
+versions:
+  traefik: v3.2
+  crowdsec: v1.6.8

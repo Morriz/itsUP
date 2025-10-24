@@ -1,0 +1,14 @@
+services:
+  web:
+    image: nginx:alpine
+    environment:
+      # Reference secrets from secrets/
+      API_KEY: ${MY_PROJECT_API_KEY}
+    volumes:
+      - ./html:/usr/share/nginx/html
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
