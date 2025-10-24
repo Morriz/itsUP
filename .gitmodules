@@ -1,3 +1,6 @@
 [submodule "projects"]
 	path = projects
 	url = git@github.com:Morriz/itsUP-projects.git
+[submodule "secrets"]
+	path = secrets
+	url = git@github.com:Morriz/itsUP-secrets.git
