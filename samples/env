@@ -1,0 +1,33 @@
+# Runtime configuration template for itsUP
+# Copy this file to .env in the project root and customize values
+
+# uncomment in your prod env to make the repo update itself via webhook:
+# PYTHON_ENV=production
+
+# Root directory of itsUP installation (needed for OpenSnitch rules)
+ITSUP_ROOT=$HOME/itsup
+
+# Trusted ips for proxy protocol, usually the ip of your router (sending to traefik)
+TRUSTED_IPS_CIDRS=192.168.0.1,192.168.1.1,10.0.0.1
+
+# Domain suffix for all tls services that don't specify their own
+DOMAIN_SUFFIX=example.com
+# Traefik dashboard domain name
+TRAEFIK_DOMAIN=traefik.$DOMAIN_SUFFIX
+# Traefic basic auth user+pass (htpasswd) WHICH NEEDS TO BE QUOTED!
+# TRAEFIK_ADMIN='admin:$xxx/yyy'
+
+# Letsencrypt settings
+LETSENCRYPT_EMAIL=admin@example.com
+# Uncomment next line for prod certs:
+LETSENCRYPT_STAGING=1
+
+# Main api key for itsUP
+API_KEY=
+
+# AbuseIPDB API key for threat intelligence (get free key at https://www.abuseipdb.com/register)
+# Free tier: 1,000 checks/day
+ABUSEIPDB_API_KEY=
+
+# OpenSnitch database path for container security monitor
+OPENSNITCH_DB=/var/lib/opensnitch/opensnitch.sqlite3

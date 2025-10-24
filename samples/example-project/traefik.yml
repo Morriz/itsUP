@@ -1,0 +1,15 @@
+http:
+  routers:
+    example:
+      rule: "Host(`example.example.com`)"
+      entryPoints:
+        - web-secure
+      service: example
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    example:
+      loadBalancer:
+        servers:
+          - url: "http://web:80"

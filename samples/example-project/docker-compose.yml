@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  web:
+    image: traefik/whoami:latest
+    container_name: example-web
+    restart: unless-stopped
+    networks:
+      - proxynet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.example.rule=Host(`example.example.com`)"
+      - "traefik.http.routers.example.entrypoints=web-secure"
+      - "traefik.http.routers.example.tls=true"
+      - "traefik.http.routers.example.tls.certresolver=letsencrypt"
+      - "traefik.http.services.example.loadbalancer.server.port=80"
+
+networks:
+  proxynet:
+    external: true

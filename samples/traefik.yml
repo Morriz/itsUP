@@ -1,0 +1,73 @@
+accessLog:
+  filePath: /var/log/traefik/access.log
+  format: json
+log:
+  level: INFO
+
+api:
+  insecure: false
+  dashboard: true
+  debug: true
+
+ping:
+  entryPoint: web
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # Uncomment for staging (testing) certificates:
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      email: admin@example.com
+      storage: /etc/acme/acme.json
+      tlsChallenge: {}
+
+entryPoints:
+  web:
+    address: ':8080'
+    reusePort: true
+    forwardedHeaders:
+      trustedIPs:
+        - 172.0.0.0/8
+        - 192.168.0.1
+        - 192.168.1.1
+        - 10.0.0.1
+    proxyProtocol:
+      trustedIPs:
+        - 127.0.0.1/32
+        - 192.168.0.1
+        - 192.168.1.1
+        - 10.0.0.1
+  web-secure:
+    address: ':8443'
+    asDefault: true
+    reusePort: true
+    http3:
+      advertisedPort: 8443
+    forwardedHeaders:
+      trustedIPs:
+        - 172.0.0.0/8
+        - 192.168.0.1
+        - 192.168.1.1
+        - 10.0.0.1
+    proxyProtocol:
+      trustedIPs:
+        - 127.0.0.1/32
+        - 192.168.0.1
+        - 192.168.1.1
+        - 10.0.0.1
+    http:
+      middlewares:
+        - default-headers@file
+        - rate-limit@file
+
+global:
+  sendAnonymousUsage: true
+
+providers:
+  docker:
+    exposedByDefault: false
+    endpoint: tcp://127.0.0.1:2375
+    network: proxynet
+  file:
+    directory: /etc/traefik/
+    watch: true
