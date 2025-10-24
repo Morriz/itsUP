@@ -443,23 +443,8 @@ ingress:
 See existing projects for real-world examples.
 EOF
 
-# 4.3: Create .gitignore (don't track data volumes)
-cat > .gitignore <<'EOF'
-# Ignore data volumes (should be in upstream/)
-*/data/
-*/var/
-*/logs/
-*/*.db
-*/*.sqlite
-
-# Keep structure
-!*/docker-compose.yml
-!*/traefik.yml
-!traefik.yml
-EOF
-
-# 4.4: Commit and push
-git add README.md .gitignore
+# 4.3: Commit and push
+git add README.md
 git commit -m "Initial projects structure"
 git push -u origin main
 
