@@ -1,1 +1,0 @@
-"""itsUP CLI commands"""

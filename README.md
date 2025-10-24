@@ -264,19 +264,108 @@ This includes:
 
 ### Install & run
 
-These are the scripts to install everything and start the proxy and api so that we can receive incoming challenge webhooks:
+#### 1. Initialize git submodules
 
-1. `bin/install.sh`: creates a local `.venv` and installs all python project deps.
-2. `bin/start-all.sh`: starts the proxy (docker compose) and the api server (uvicorn).
-3. `bin/apply.py`: applies all of `db.yml` with smart zero-downtime updates.
-4. `bin/api-logs.sh`: tails the output of the api server.
+itsUP uses git submodules for configuration and secrets management. You must create two repositories and add them as submodules:
 
-But before doing so please configure your stuff:
+**Create the repositories:**
+
+```bash
+# Create a private repository for your project configurations
+# (on GitHub, GitLab, or your preferred git host)
+# Name it something like: itsup-projects
+
+# Create a private repository for your secrets
+# Name it something like: itsup-secrets
+```
+
+**Add them as submodules:**
+
+```bash
+# Clone itsUP
+git clone https://github.com/Morriz/itsUP.git
+cd itsUP
+
+# Add your projects repository as a submodule
+git submodule add <your-projects-repo-url> projects
+
+# Add your secrets repository as a submodule
+git submodule add <your-secrets-repo-url> secrets
+
+# Initialize and update the submodules
+git submodule update --init --recursive
+```
+
+**Why submodules?**
+
+- `projects/`: Contains your service configurations (YAML files). This keeps your infrastructure-as-code separate from the itsUP codebase, allowing you to manage and version your configurations independently.
+- `secrets/`: Contains encrypted secrets (using SOPS). Keeping secrets in a separate repository improves security and access control.
+
+#### 2. Run installation
+
+The installation script will:
+- Validate that submodules are initialized
+- Copy sample configuration files (won't overwrite existing files)
+- Set up Python virtual environment
+- Install dependencies
+
+```bash
+bin/install.sh
+```
+
+The script will copy sample files to:
+- `.env` (with auto-detected ITSUP_ROOT)
+- `projects/traefik.yml` (base Traefik configuration)
+- `secrets/global.txt` (template for required secrets)
+
+#### 3. Configure your installation
+
+Edit the copied files:
+
+1. **`.env`**: Already configured with ITSUP_ROOT (usually no changes needed)
+2. **`projects/traefik.yml`**: Change `domain_suffix` to your domain
+3. **`secrets/global.txt`**: Fill in ALL required secrets (validation will fail if any are empty)
+
+#### 4. Encrypt and commit secrets
+
+```bash
+# Encrypt secrets with SOPS
+cd secrets
+sops -e global.txt > global.enc.txt
+
+# Commit to your secrets repository
+git add global.enc.txt
+git commit -m "Initial secrets"
+git push
+
+# Commit your project configuration
+cd ../projects
+git add traefik.yml
+git commit -m "Initial configuration"
+git push
+```
+
+#### 5. Deploy
+
+```bash
+# Start the proxy and API
+bin/start-all.sh
+
+# Apply your configuration with zero-downtime updates
+bin/apply.py
+```
+
+#### 6. Monitor
+
+```bash
+# Tail all logs
+bin/tail-logs.sh
+
+# Or use make
+make logs
+```
 
 ### Configure services
-
-1. Copy `.env.sample` to `.env` and set the correct info (comments should be self explanatory).
-2. Copy `db.yml.sample` to `db.yml` and edit your project and their services (see explanations below).
 
 Project and service configuration is explained below with the following scenarios. Please also check `db.yml.sample` as it contains more examples.
 

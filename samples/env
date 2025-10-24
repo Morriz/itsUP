@@ -1,7 +1,8 @@
 # Runtime configuration (machine-specific, not committed to git)
-# Copied to .env on `itsup init`
+# Copied to .env by bin/install.sh (auto-detects ITSUP_ROOT)
 
 # Root directory of itsUP installation (needed for OpenSnitch rules)
+# This will be auto-detected and set by bin/install.sh
 ITSUP_ROOT=/home/user/itsup
 
 # Environment (development, production)
