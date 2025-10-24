@@ -1,5 +1,5 @@
 # Runtime configuration (machine-specific, not committed to git)
-# Copied to .env by bin/install.py
+# Copied to .env by itsup init
 
 # Environment (development, production)
 # PYTHON_ENV=production

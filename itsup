@@ -1,0 +1,35 @@
+#!.venv/bin/python
+
+"""
+itsUP CLI - Command-line interface for itsUP management
+
+Usage:
+    itsup init              Initialize new installation from samples
+    itsup --version         Show version
+    itsup --help            Show help
+"""
+
+import sys
+from pathlib import Path
+
+# Add project root to Python path for imports
+project_root = Path(__file__).resolve().parent
+sys.path.insert(0, str(project_root))
+
+import click
+
+from commands.init import init
+
+
+@click.group()
+@click.version_option(version="0.1.0", prog_name="itsup")
+def cli():
+    """itsUP - Infrastructure management CLI"""
+    pass
+
+
+# Register commands
+cli.add_command(init)
+
+if __name__ == "__main__":
+    cli()
