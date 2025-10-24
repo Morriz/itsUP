@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def write_upstream(project: Project) -> None:
-    with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
+    with open("tpl/upstream/docker-compose.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl = Template(t)
     tpl.globals["Protocol"] = Protocol

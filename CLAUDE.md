@@ -5,15 +5,18 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 ## CRITICAL RULES (ADHERE AT ALL COSTS!)
 
 🚨 **ALWAYS OPERATE FROM PROJECT ROOT** 🚨
+
 - **NEVER** cd into subdirectories and stay there
 - Use relative paths from root (e.g., `upstream/instrukt-ai/docker-compose.yml`)
 - If you need to run a command in a subdirectory, use `(cd dir && command)`
 
 🚨 **PYTHON UNDERSCORE NAMING CONVENTION** 🚨
+
 - **ALWAYS** use single leading underscore `_` for instance variables that are internal/private
 - **NEVER** use leading underscore for public API (methods/variables intended for external use)
 - **Rule**: If it's not part of the public interface, prefix with `_`
 - **Example**:
+
   ```python
   class MyClass:
       def __init__(self):
@@ -37,9 +40,11 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
       def _update_cache(self):
           pass
   ```
+
 - **Be consistent!** Don't mix conventions within the same class
 
 🚨 **NEVER MODIFY OR MOVE OPENSNITCH DATABASE** 🚨
+
 - OpenSnitch database (`/var/lib/opensnitch/opensnitch.sqlite3`) is the **permanent security audit log**
 - NEVER run DELETE queries against this database for ANY reason
 - NEVER move, rename, copy, or modify the database file itself
@@ -52,6 +57,7 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 ## Common Development Commands
 
 ### Setup and Installation
+
 ```bash
 bin/install.sh              # Create virtualenv and install dependencies
 bin/start-all.sh            # Start proxy and API server
@@ -61,6 +67,7 @@ bin/apply.py                # Apply db.yml changes with smart zero-downtime upda
 **Note:** `bin/apply.py` uses smart change detection via config hash comparison - only performs rollouts when changes detected.
 
 ### Testing and Validation
+
 ```bash
 bin/test.sh                 # Run all Python unit tests (*_test.py files)
 bin/lint.sh                 # Run linting
@@ -69,12 +76,14 @@ bin/validate-db.py          # Validate db.yml schema
 ```
 
 ### Monitoring and Logs
+
 ```bash
 bin/tail-logs.sh            # Tail all logs (Traefik, API, errors) with flat formatting
 make logs                   # Same as above
 ```
 
 ### Utilities
+
 ```bash
 bin/write-artifacts.py      # Regenerate proxy and upstream configs without deploying
 bin/backup.py               # Backup upstream/ directory to S3
@@ -104,6 +113,7 @@ dcux <project> <svc> <cmd>  # Execute command in upstream service container
 ```
 
 **Smart Behavior:**
+
 - `up` and `restart` commands call Python's `update_proxy()`/`update_upstream()` which use config hash comparison
 - Only performs zero-downtime rollout when actual changes detected
 - Other commands pass through directly to docker compose
@@ -113,11 +123,13 @@ dcux <project> <svc> <cmd>  # Execute command in upstream service container
 ### Template Generation
 
 All Docker Compose files are generated from Jinja2 templates:
-- `tpl/docker-compose.yml.j2`: Upstream service deployments
-- `proxy/tpl/docker-compose.yml.j2`: Proxy stack
-- `proxy/tpl/routers-{http,tcp,udp}.yml.j2`: Traefik dynamic configuration
+
+- `tpl/upstream/docker-compose.yml.j2`: Upstream service deployments
+- `tpl/proxy/docker-compose.yml.j2`: Proxy stack
+- `tpl/proxy/routers-{http,tcp,udp}.yml.j2`: Traefik dynamic configuration
 
 Templates have access to:
+
 - `project`: Project object with all services
 - Pydantic enum types (Protocol, Router, ProxyProtocol)
 - Python builtins (isinstance, len, list, str)
@@ -125,6 +137,7 @@ Templates have access to:
 ### Filtering Pattern
 
 Many functions accept filter callbacks with variable arity:
+
 ```python
 get_projects(filter=lambda p: p.enabled)                          # Filter by project
 get_projects(filter=lambda p, s: s.image)                         # Filter by service
@@ -138,6 +151,7 @@ The system detects arity via `filter.__code__.co_argcount` and filters at the ap
 Plugins configured in `db.yml` under `plugins:` section. Currently supported:
 
 **CrowdSec:**
+
 - `enabled`: Enable/disable plugin
 - `apikey`: Bouncer API key from CrowdSec container
 - `version`: Plugin version

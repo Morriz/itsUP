@@ -4,12 +4,8 @@ __pycache__
 .history
 .mypy_cache
 .venv
-certs/
-data/
-reports/
-upstream/
-db.yml
-proxy/docker-compose.yml
-proxy/nginx/*.conf
-proxy/traefik/dynamic/*.yml
-proxy/traefik/*.yml
+/data/
+/proxy/
+/reports/
+/upstream/
+/db.yml

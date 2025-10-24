@@ -41,7 +41,7 @@ def write_routers() -> None:
         filter=lambda _, s, i: i.router == Router.http
         and (i.passthrough or not s.image or (i.hostport and (i.domain or i.tls)))
     )
-    with open("proxy/tpl/routers-http.yml.j2", encoding="utf-8") as f:
+    with open("tpl/proxy/routers-http.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_http = Template(t)
     domain = os.environ.get("TRAEFIK_DOMAIN")
@@ -53,31 +53,31 @@ def write_routers() -> None:
         traefik_rule=f"Host(`{domain}`)",
         trusted_ips_cidrs=os.environ.get("TRUSTED_IPS_CIDRS").split(","),
     )
-    with open("proxy/traefik/dynamic/routers-http.yml", "w", encoding="utf-8") as f:
+    with open("proxy/traefik/routers-http.yml", "w", encoding="utf-8") as f:
         f.write(routers_http)
     projects_tcp = get_projects(
         filter=lambda _, s, i: i.router == Router.tcp and (i.passthrough or not s.image or i.hostport)
     )
-    with open("proxy/tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
+    with open("tpl/proxy/routers-tcp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_tcp = Template(t)
     tpl_routers_tcp.globals["ProxyProtocol"] = ProxyProtocol
     routers_tcp = tpl_routers_tcp.render(
         projects=projects_tcp,
     )
-    with open("proxy/traefik/dynamic/routers-tcp.yml", "w", encoding="utf-8") as f:
+    with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
     projects_udp = get_projects(filter=lambda _, _2, i: i.router == Router.udp)
-    with open("proxy/tpl/routers-udp.yml.j2", encoding="utf-8") as f:
+    with open("tpl/proxy/routers-udp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_udp = Template(t)
     routers_udp = tpl_routers_udp.render(projects=projects_udp)
-    with open("proxy/traefik/dynamic/routers-udp.yml", "w", encoding="utf-8") as f:
+    with open("proxy/traefik/routers-udp.yml", "w", encoding="utf-8") as f:
         f.write(routers_udp)
 
 
 def write_config() -> None:
-    with open("proxy/tpl/traefik.yml.j2", encoding="utf-8") as f:
+    with open("tpl/proxy/traefik.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_config_http = Template(t)
     tpl_config_http.globals["Protocol"] = Protocol
@@ -101,7 +101,7 @@ def write_config() -> None:
 def write_compose() -> None:
     plugin_registry = get_plugin_registry()
     versions = get_versions()
-    with open("proxy/tpl/docker-compose.yml.j2", encoding="utf-8") as f:
+    with open("tpl/proxy/docker-compose.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_compose = Template(t)
     tpl_compose.globals["Protocol"] = Protocol

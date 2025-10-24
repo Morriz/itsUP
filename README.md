@@ -53,7 +53,7 @@ Still interested? Then read on...
     - [4. SSH access](#4-ssh-access)
     - [5. Make sure port 1194 is portforwarding the UDP protocol.](#5-make-sure-port-1194-is-portforwarding-the-udp-protocol)
 - [Questions one might have](#questions-one-might-have)
-  - [What about Nginx?](#what-about-nginx)
+  - [Why Traefik over Nginx?](#why-traefik-over-nginx)
   - [Does this scale to more machines?](#does-this-scale-to-more-machines)
 - [Disclaimer](#disclaimer)
 
@@ -69,6 +69,7 @@ This means abstractions are used which means a trade off between flexibility and
 itsUP generates and manages `proxy/docker-compose.yml` which operates Traefik in a zero-downtime configuration:
 
 **Architecture:**
+
 - Traefik using Linux SO_REUSEPORT for zero-downtime updates (defaults to 1 replica)
 - Host networking mode allows multiple instances to bind to same ports simultaneously
 - Kernel load-balances incoming connections between scaled instances
@@ -76,6 +77,7 @@ itsUP generates and manages `proxy/docker-compose.yml` which operates Traefik in
 - Docker socket access secured via dockerproxy (wollomatic/socket-proxy) on localhost
 
 **Capabilities:**
+
 1. Terminate TLS and forward tcp/udp traffic over an encrypted network to listening endpoints
 2. Passthrough TLS to endpoints (most people have secure Home Assistant setups already)
 3. Open host ports if needed to choose a new port (openvpn service does exactly that)
@@ -97,6 +99,7 @@ Like with all docker orchestration platforms (even Kubernetes) this is dependent
 **Smart Change Detection:**
 
 itsUP implements smart change detection that only performs rollouts when necessary:
+
 - Compares Docker Compose config hashes (stored in container labels)
 - Detects image updates, environment changes, volume changes, etc.
 - Skips rollout if nothing changed (instant operation)
@@ -144,12 +147,14 @@ It is surely possible to deploy stateful services but beware that those might no
 Source `lib/functions.sh` to get:
 
 - `dcp <cmd> [service]`: Smart proxy management with zero-downtime
+
   - `dcp up` - Smart update all proxy services (detects changes, only rollout if needed)
   - `dcp up traefik` - Smart update traefik only
   - `dcp restart [service]` - Smart restart (defaults to traefik)
   - `dcp logs -f` - Regular docker compose passthrough for other commands
 
 - `dcu <project> <cmd> [service]`: Smart upstream management
+
   - `dcu myproject up` - Smart update all services (auto-rollout when changed)
   - `dcu myproject restart myservice` - Smart restart specific service
   - `dcu myproject logs -f` - Regular docker compose passthrough
@@ -157,12 +162,14 @@ Source `lib/functions.sh` to get:
 - `dca <cmd>`: Run docker compose command for all upstreams: `dca ps`
 
 - `dcpx <service> <cmd>`: Execute command in proxy container
+
   - Example: `dcpx traefik 'rm -rf /etc/acme/acme.json'`
 
 - `dcux <project> <service> <cmd>`: Execute command in upstream container
   - Example: `dcux test web env`
 
 **Smart Behavior:**
+
 - `up` and `restart` commands use Python's smart detection (via `update_proxy()`/`update_upstream()`)
 - Other commands pass through to docker compose directly
 - Zero-downtime rollouts only happen when actual changes detected
@@ -172,7 +179,6 @@ I don't want to switch folders/terminals all the time and want to keep a "projec
 
 ### Utility scripts
 
-- ~~`bin/update-certs.py`: pull certs and reload the proxy if any certs were created or updated. You could run this in a crontab every week if you want to stay up to date.~~ (Obsolete since migration to Treaefik)
 - `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
 - `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
 - `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
@@ -247,6 +253,7 @@ make monitor-logs
 **📖 For complete documentation, see [monitor/README.md](monitor/README.md)**
 
 This includes:
+
 - Architecture and detection logic
 - Configuration options
 - False positive handling
@@ -654,6 +661,7 @@ If you wish to revoke a cert or do something else, please visit this page: [kyle
 ### Why Traefik over Nginx?
 
 Traefik was chosen for several key reasons:
+
 - **Dynamic configuration**: Automatically picks up container changes via Docker labels
 - **Automatic cert management**: Manages Let's Encrypt certificates gracefully with built-in ACME support
 - **Zero-downtime updates**: With SO_REUSEPORT, can run multiple instances on same ports

@@ -114,7 +114,7 @@ services:
       BOUNCER_KEY_TRAEFIK: {{ cs.apikey }}
       {%- endif %}
     volumes:
-      - ./traefik/crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
+      - ../crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
       - ../data/crowdsec:/var/lib/crowdsec/data/
       - ../logs:/var/log/traefik
     labels:

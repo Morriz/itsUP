@@ -3,7 +3,6 @@ drun() {
   $image = $1
   shift
   eval docker run --rm -it \
-    -v $PWD/certs:/app/certs \
     -v $PWD/data:/app/data \
     -v $PWD/proxy:/app/proxy \
     -v $PWD/upstream:/app/upstream \
