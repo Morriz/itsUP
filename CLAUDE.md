@@ -60,20 +60,19 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 
 **First-time setup requires git submodules:**
 
-The `projects/` and `secrets/` directories are git submodules that MUST be initialized before running `bin/install.sh`. Users must create their own private repositories for these and add them as submodules. See [README.md](README.md) for detailed submodule setup instructions.
+The `projects/` and `secrets/` directories are git submodules that MUST be initialized before running `bin/install.py`. Users must create their own private repositories for these and add them as submodules. See [README.md](README.md) for detailed submodule setup instructions.
 
 ```bash
 # After initializing submodules (see README.md)
-bin/install.sh              # Validates submodules, copies samples, creates .venv, installs deps
+bin/install.py              # Validates submodules, copies samples, creates .venv, installs deps
 bin/start-all.sh            # Start proxy and API server
 bin/apply.py                # Apply configuration with smart zero-downtime updates
 ```
 
-**What `bin/install.sh` does:**
+**What `bin/install.py` does:**
 - Validates that `projects/` and `secrets/` submodules are initialized
-- Auto-detects and sets ITSUP_ROOT environment variable
 - Copies sample files (won't overwrite existing files):
-  - `samples/env` → `.env` (with auto-detected ITSUP_ROOT)
+  - `samples/env` → `.env`
   - `samples/traefik.yml` → `projects/traefik.yml`
   - `samples/secrets/global.txt` → `secrets/global.txt`
 - Creates Python virtual environment

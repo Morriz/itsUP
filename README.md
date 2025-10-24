@@ -310,11 +310,11 @@ The installation script will:
 - Install dependencies
 
 ```bash
-bin/install.sh
+bin/install.py
 ```
 
 The script will copy sample files to:
-- `.env` (with auto-detected ITSUP_ROOT)
+- `.env` (environment variables)
 - `projects/traefik.yml` (base Traefik configuration)
 - `secrets/global.txt` (template for required secrets)
 
@@ -322,7 +322,7 @@ The script will copy sample files to:
 
 Edit the copied files:
 
-1. **`.env`**: Already configured with ITSUP_ROOT (usually no changes needed)
+1. **`.env`**: Configure environment variables as needed
 2. **`projects/traefik.yml`**: Change `domain_suffix` to your domain
 3. **`secrets/global.txt`**: Fill in ALL required secrets (validation will fail if any are empty)
 
