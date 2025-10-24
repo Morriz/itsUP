@@ -52,6 +52,7 @@ services:
       - '-shutdowngracetime=5'
       - '-watchdoginterval=600'
       - '-stoponwatchdog'
+      - '-allowhealthcheck'
     read_only: true
     mem_limit: 64M
     cap_drop:
@@ -63,7 +64,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["NONE"]
+      test: ["CMD", "./healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 1s
 
   traefik:
     image: traefik:{{ versions.traefik }}
@@ -88,12 +93,17 @@ services:
 {%- endif %}
     environment:
       - DOCKER_HOST=tcp://127.0.0.1:2375
+    healthcheck:
+      test: ["CMD-SHELL", "test ! -f /tmp/drain && traefik healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 {%- if plugin_registry.crowdsec.enabled %}
   {%- set cs = plugin_registry.crowdsec %}
 
   crowdsec:
     image: crowdsecurity/crowdsec:{{ versions.crowdsec }}
-    container_name: crowdsec
     restart: unless-stopped
     networks:
       - default

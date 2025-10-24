@@ -1,0 +1,17 @@
+{
+  "created": "2024-05-31T23:39:28+02:00",
+  "updated": "2024-05-31T23:39:28+02:00",
+  "name": "000-block-ld-preload",
+  "description": "Block outbound connections initiated by executables with certain environment variables, like when LD_PRELOAD is used maliciously",
+  "action": "reject",
+  "duration": "always",
+  "enabled": true,
+  "precedence": true,
+  "nolog": false,
+  "operator": {
+    "operand": "process.env.LD_PRELOAD",
+    "data": "^(\\.|/).*",
+    "type": "regexp",
+    "sensitive": false
+  }
+}

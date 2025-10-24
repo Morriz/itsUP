@@ -1,0 +1,40 @@
+{
+  "created": "2025-10-24T21:46:32+02:00",
+  "updated": "2025-10-24T21:46:32+02:00",
+  "name": "allow-anycommand-this-host-anyip-443",
+  "description": "essential rule to allow outbound over 443\nif no related dns resolution was done before our monitor will catch (and block if --block used) that IP (albeit some seconds later)",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "list",
+    "data": "",
+    "type": "list",
+    "list": [
+      {
+        "operand": "process.path",
+        "data": ".*",
+        "type": "regexp",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.port",
+        "data": "443",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "source.ip",
+        "data": "$(ITSUP_HOST_IP)",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      }
+    ],
+    "sensitive": false
+  },
+  "enabled": true,
+  "precedence": false,
+  "nolog": false
+}

@@ -1,8 +1,8 @@
 {
-  "created": "2025-10-18T00:00:00+00:00",
-  "updated": "2025-10-18T00:00:00+00:00",
-  "name": "deny-always-arpa-53",
-  "description": "Block reverse DNS lookups (ARPA queries) from dockerd. This prevents containers from performing reverse DNS on hardcoded IPs they're trying to connect to. When a container uses a hardcoded IP (malware behavior), the host's dockerd will attempt reverse DNS to resolve the IP to a hostname - this rule blocks those attempts, allowing our monitor to detect the malicious behavior.",
+  "created": "2025-10-24T23:07:39+02:00",
+  "updated": "2025-10-24T23:07:39+02:00",
+  "name": "0-deny-arpa-53",
+  "description": "",
   "action": "deny",
   "duration": "always",
   "operator": {

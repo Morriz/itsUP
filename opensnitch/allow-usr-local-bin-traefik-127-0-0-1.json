@@ -1,0 +1,33 @@
+{
+  "created": "2025-10-23T23:45:09+02:00",
+  "updated": "2025-10-23T23:45:09+02:00",
+  "name": "allow-usr-local-bin-traefik-127-0-0-1",
+  "description": "",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "list",
+    "data": "",
+    "type": "list",
+    "list": [
+      {
+        "operand": "process.path",
+        "data": "/usr/local/bin/traefik",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.ip",
+        "data": "127.0.0.1",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      }
+    ],
+    "sensitive": false
+  },
+  "enabled": true,
+  "precedence": false,
+  "nolog": false
+}

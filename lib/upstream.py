@@ -1,8 +1,10 @@
 import logging
 import os
+from typing import Any
 
+import yaml
 from dotenv import load_dotenv
-from jinja2 import Template
+from jinja2 import Environment, FileSystemLoader
 
 from lib.data import get_project, get_projects, get_service
 from lib.models import Project, Protocol, Router
@@ -13,16 +15,26 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def to_yaml(value: Any, indent: int = 2) -> str:
+    """Convert a value to human-readable YAML.
+
+    Does one thing: Python object → YAML string.
+    Indentation/positioning handled by template via |indent filter.
+    """
+    transformed = yaml.dump(value, indent=indent, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    return transformed.rstrip("\n")
+
+
 def write_upstream(project: Project) -> None:
-    with open("tpl/upstream/docker-compose.yml.j2", encoding="utf-8") as f:
-        t = f.read()
-    tpl = Template(t)
-    tpl.globals["Protocol"] = Protocol
-    tpl.globals["Router"] = Router
-    tpl.globals["isinstance"] = isinstance
-    tpl.globals["len"] = len
-    tpl.globals["list"] = list
-    tpl.globals["str"] = str
+    env = Environment(loader=FileSystemLoader("tpl/upstream"))
+    env.globals["Protocol"] = Protocol
+    env.globals["Router"] = Router
+    env.globals["isinstance"] = isinstance
+    env.globals["len"] = len
+    env.globals["list"] = list
+    env.globals["str"] = str
+    env.filters["to_yaml"] = to_yaml
+    tpl = env.get_template("docker-compose.yml.j2")
     content = tpl.render(project=project)
     with open(f"upstream/{project.name}/docker-compose.yml", "w", encoding="utf-8") as f:
         f.write(content)
@@ -82,12 +94,15 @@ def update_upstream(
     else:
         run_command(["docker", "compose", "down"], cwd=f"upstream/{project.name}")
         return
-    # Always rollout services with images for zero-downtime
+    # Only rollout stateless services (stateful services restarted via docker compose up -d above)
     projects = get_projects(filter=lambda p, s: p.enabled and p.name == project.name and bool(s.image))
     for p in projects:
         for s in p.services:
             if not service or s.host == service:
-                rollout_service(project.name, s.host)
+                if s.stateless:
+                    rollout_service(project.name, s.host)
+                else:
+                    logger.info(f"Skipping rollout for {project.name}:{s.host} (stateless not set)")
 
 
 def update_upstreams() -> None:

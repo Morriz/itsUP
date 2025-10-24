@@ -41,7 +41,7 @@ dns-logs: ## Tail DNS honeypot logs
 	@docker logs -f dns-honeypot || true
 
 # Container Security Monitor
-monitor-start: ## Start container security monitor and tail logs (FLAGS: --skip-sync --block --use-opensnitch)
+monitor-start: ## Start container security monitor and tail logs (FLAGS: --skip-sync --report-only --use-opensnitch)
 	./bin/start-monitor.sh $(FLAGS)
 
 monitor-stop: ## Stop container security monitor

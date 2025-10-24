@@ -1,0 +1,47 @@
+{
+  "created": "2025-10-24T22:48:50+02:00",
+  "updated": "2025-10-24T22:48:50+02:00",
+  "name": "allow-anycommand-anydomain-443",
+  "description": "",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "list",
+    "data": "",
+    "type": "list",
+    "list": [
+      {
+        "operand": "process.path",
+        "data": ".*",
+        "type": "regexp",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.port",
+        "data": "443",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.host",
+        "data": "^[_a-za-z0-9-]+(?:\\.[_a-za-z0-9-]+)+$",
+        "type": "regexp",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "source.ip",
+        "data": "192.168.1.30",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      }
+    ],
+    "sensitive": false
+  },
+  "enabled": true,
+  "precedence": false,
+  "nolog": true
+}

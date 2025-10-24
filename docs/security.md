@@ -37,7 +37,7 @@ Conclusion: Malware using hardcoded IP addresses, not DNS resolution.
 
 ## 5. The Accidental Discovery
 
-Created OpenSnitch rule: `deny-always-arpa-53` blocking all `*.in-addr.arpa` queries.
+Created OpenSnitch rule: `0-deny-arpa-53` blocking all `*.in-addr.arpa` queries.
 
 Result: **Immediate cessation of key exfiltration.**
 
@@ -62,7 +62,7 @@ OpenSnitch uses eBPF to intercept outbound connections and performs reverse DNS 
 1. Intercepts the connection via eBPF hooks
 2. Performs reverse DNS to get the `X.X.X.X.in-addr.arpa` domain
 3. Applies rules based on this reverse domain
-4. The `deny-always-arpa-53` rule matches all `*.in-addr.arpa` connections
+4. The `0-deny-arpa-53` rule matches all `*.in-addr.arpa` connections
 5. This blocks ALL direct IP connections while allowing legitimate DNS-based connections
 
 **Why blocking works:**
@@ -150,19 +150,21 @@ If using OpenSnitch for enhanced detection, install the reverse DNS blocking rul
 
 ```bash
 # Copy the rule to OpenSnitch rules directory
-sudo cp opensnitch/deny-always-arpa-53.json /etc/opensnitchd/rules/
+sudo cp opensnitch/0-deny-arpa-53.json /etc/opensnitchd/rules/
 
 # Restart OpenSnitch to load the rule
 sudo systemctl restart opensnitchd
 ```
 
 **Rule details:**
-- **Name**: `deny-always-arpa-53`
+
+- **Name**: `0-deny-arpa-53`
 - **Purpose**: Blocks reverse DNS lookups (ARPA queries) from dockerd
 - **Effect**: Prevents containers from performing reverse DNS on hardcoded IPs
 - **Detection**: When blocked, our monitor identifies the connection as malicious
 
 **Note**: The monitoring system works with or without OpenSnitch:
+
 - **With OpenSnitch**: Uses OpenSnitch DB as primary source of truth for cleanup (high confidence)
 - **Without OpenSnitch**: Falls back to iptables/journalctl logs + DNS honeypot analysis (requires more validation)
 
@@ -183,7 +185,7 @@ sudo python3 bin/docker_monitor.py --clear-iptables
 
 **Active protections:**
 
-- OpenSnitch (optional): `deny-always-arpa-53` rule blocks all reverse DNS
+- OpenSnitch (optional): `0-deny-arpa-53` rule blocks all reverse DNS
 - iptables: 114+ malicious IPs blocked at kernel level
 - CrowdSec: L7 HTTP attack mitigation
 - Real-time correlation engine monitoring for new C2 infrastructure
@@ -213,7 +215,7 @@ stateDiagram-v2
 
     Reverse_DNS_Lookup --> OpenSnitch_Check: Query = X.X.X.X.in-addr.arpa
 
-    OpenSnitch_Check --> Blocked: Rule = deny-always-arpa-53
+    OpenSnitch_Check --> Blocked: Rule = 0-deny-arpa-53
     OpenSnitch_Check --> Allowed: [No block rule]
 
     Blocked --> Monitor_Detects: Correlation engine
@@ -248,7 +250,7 @@ stateDiagram-v2
 
     note right of Blocked
         CRITICAL PROTECTION:
-        deny-always-arpa-53 rule
+        0-deny-arpa-53 rule
         blocks direct IP connections
         while allowing DNS-based ones
     end note
@@ -265,6 +267,7 @@ The `docker_monitor.py` script's `check_direct_connections()` function was colle
 ### The Evidence
 
 Analysis of kernel logs revealed:
+
 - **ai-assistant-ai-assistant-web-1** (172.30.0.32) made a NEW connection to **45.148.10.89:443** at **15:57:18**
 - This IP had **zero DNS lookups** in the honeypot logs
 - The script logged it at DEBUG level but **never flagged it as a hardcoded IP**
@@ -272,6 +275,7 @@ Analysis of kernel logs revealed:
 ### The Fix
 
 Enhanced `check_direct_connections()` to:
+
 1. Check if destination IP is already blacklisted → alert immediately
 2. Check if destination IP has **any** DNS history in cache (indefinite) → log normally
 3. If NO DNS lookup found → **flag as hardcoded IP, add to blacklist, report compromise**
@@ -289,12 +293,13 @@ OpenSnitch uses eBPF to intercept outbound connections. When a container attempt
 1. **Intercepts the connection** at the kernel level via eBPF hooks
 2. **Performs reverse DNS lookup** on the destination IP to get its `X.X.X.X.in-addr.arpa` domain
 3. **Checks for matching block rules** against the in-addr.arpa domain
-4. **Blocks the connection** if a rule matches (e.g., `deny-always-arpa-53` blocks all `*.in-addr.arpa`)
+4. **Blocks the connection** if a rule matches (e.g., `0-deny-arpa-53` blocks all `*.in-addr.arpa`)
 5. **Logs the blocked connection** in its SQLite database
 
-**Why the `deny-always-arpa-53` rule works:**
+**Why the `0-deny-arpa-53` rule works:**
 
 The rule blocks connections where:
+
 - Destination is identified by reverse DNS (in-addr.arpa domain)
 - This only happens for **direct IP connections** (no forward DNS lookup)
 - Legitimate services that do proper DNS lookups are NOT affected (they match by forward domain name, not reverse)
@@ -308,7 +313,7 @@ OpenSnitch intercepts (eBPF)
     ↓
 Reverse DNS: 1.2.3.4 → 4.3.2.1.in-addr.arpa
     ↓
-Rule check: deny-always-arpa-53 matches "*.in-addr.arpa"
+Rule check: 0-deny-arpa-53 matches "*.in-addr.arpa"
     ↓
 CONNECTION BLOCKED ✅
     ↓
@@ -322,6 +327,7 @@ Extracts IP, adds to blacklist, reports compromised container
 **Why this stops exfiltration:**
 
 Malware using hardcoded C2 server IPs will:
+
 - Skip DNS lookup (to avoid detection)
 - Connect directly to IP address
 - Trigger OpenSnitch's reverse DNS lookup
@@ -329,6 +335,7 @@ Malware using hardcoded C2 server IPs will:
 - Fail to establish connection to C2 server
 
 Legitimate services that use DNS properly will:
+
 - Query DNS for domain name (e.g., "api.openai.com")
 - Connect to resolved IP
 - Match OpenSnitch rules by forward domain name, not reverse

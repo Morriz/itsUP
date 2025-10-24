@@ -120,6 +120,11 @@ services:
     {%- endfor %}
   {%- endif %}
   {%- for k, v in s.additional_properties.items() %}
+    {%- if v is string or v is number or v is boolean or v is none %}
     {{ k }}: {{ v }}
+    {%- else %}
+    {{ k }}:
+{{ v | to_yaml | indent(6, first=True) }}
+    {%- endif %}
   {%- endfor %}
 {%- endfor %}

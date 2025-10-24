@@ -78,17 +78,17 @@ The OpenSnitch integration provides:
 ### Start Monitor
 
 ```bash
-# Basic mode (detect only, no blocking)
+# Basic mode (detect and block by default)
 make monitor-start
 
 # With OpenSnitch cross-reference
 make monitor-start FLAGS="--use-opensnitch"
 
-# With iptables blocking
-make monitor-start FLAGS="--block"
+# Detection only (no blocking)
+make monitor-start FLAGS="--report-only"
 
-# Full protection
-make monitor-start FLAGS="--use-opensnitch --block"
+# Detection only with OpenSnitch
+make monitor-start FLAGS="--report-only --use-opensnitch"
 
 # Memory-only mode (no file persistence)
 make monitor-start FLAGS="--skip-sync"

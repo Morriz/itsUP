@@ -101,6 +101,7 @@ _ret_projects = [
                     "cap_add": ["NET_ADMIN"],
                     "ulimits": {"nofile": {"soft": 65535, "hard": 65535}},
                 },  # Example additional_properties
+                stateless=True,  # Enable zero-downtime rollout for tests
                 ingress=[
                     Ingress(
                         domain="minio-api.example.com", port=9000, router=Router.tcp, proxyprotocol=None
@@ -265,8 +266,8 @@ class TestUpdateUpstream(TestCase):
                 name="my-project-multi",
                 enabled=True,
                 services=[
-                    Service(host="service1", image="img1"),
-                    Service(host="service2", image="img2"),
+                    Service(host="service1", image="img1", stateless=True),
+                    Service(host="service2", image="img2", stateless=True),
                 ],
             )
         ],
@@ -276,7 +277,10 @@ class TestUpdateUpstream(TestCase):
         return_value=Project(
             name="my-project-multi",
             enabled=True,
-            services=[Service(host="service1", image="img1"), Service(host="service2", image="img2")],
+            services=[
+                Service(host="service1", image="img1", stateless=True),
+                Service(host="service2", image="img2", stateless=True),
+            ],
         ),
     )
     def test_update_upstream_rollout_all_services(
@@ -300,6 +304,59 @@ class TestUpdateUpstream(TestCase):
             ],
             any_order=True,
         )
+
+    @mock.patch("lib.upstream.rollout_service")
+    @mock.patch("lib.upstream.run_command")
+    @mock.patch(
+        "lib.upstream.get_projects",
+        # Return a project with stateful service (stateless=False)
+        return_value=[
+            Project(
+                name="stateful-project",
+                enabled=True,
+                services=[
+                    Service(host="database", image="postgres:latest", stateless=False),
+                ],
+            )
+        ],
+    )
+    @mock.patch(
+        "lib.upstream.get_project",
+        return_value=Project(
+            name="stateful-project",
+            enabled=True,
+            services=[Service(host="database", image="postgres:latest", stateless=False)],
+        ),
+    )
+    def test_update_upstream_stateful_no_rollout(
+        self,
+        _: Mock,
+        _2: Mock,
+        mock_run_command: Mock,
+        mock_rollout_service: Mock,
+    ) -> None:
+        # Call the function under test with a stateful service
+        update_upstream(
+            "stateful-project",
+            service="database",
+        )
+
+        # Assert docker compose up was called
+        mock_run_command.assert_has_calls(
+            [
+                call(
+                    ["docker", "compose", "pull"],
+                    cwd="upstream/stateful-project",
+                ),
+                call(
+                    ["docker", "compose", "up", "-d"],
+                    cwd="upstream/stateful-project",
+                ),
+            ]
+        )
+
+        # Assert that rollout_service is NOT called for stateful services (stateless=False)
+        mock_rollout_service.assert_not_called()
 
     @mock.patch("lib.upstream.rollout_service")
     @mock.patch("lib.upstream.run_command")

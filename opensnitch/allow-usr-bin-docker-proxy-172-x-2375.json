@@ -1,0 +1,40 @@
+{
+  "created": "2025-10-24T22:49:43+02:00",
+  "updated": "2025-10-24T22:49:43+02:00",
+  "name": "allow-usr-bin-docker-proxy-172-x-2375",
+  "description": "",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "list",
+    "data": "",
+    "type": "list",
+    "list": [
+      {
+        "operand": "process.path",
+        "data": "/usr/bin/docker-proxy",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.port",
+        "data": "2375",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.network",
+        "data": "172.16.0.0/12",
+        "type": "network",
+        "list": null,
+        "sensitive": false
+      }
+    ],
+    "sensitive": false
+  },
+  "enabled": true,
+  "precedence": false,
+  "nolog": true
+}

@@ -1,0 +1,33 @@
+{
+  "created": "2025-10-24T03:09:11+02:00",
+  "updated": "2025-10-24T03:09:11+02:00",
+  "name": "allow-usr-local-bin-traefik-172-x",
+  "description": "",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "list",
+    "data": "",
+    "type": "list",
+    "list": [
+      {
+        "operand": "process.path",
+        "data": "/usr/local/bin/traefik",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.network",
+        "data": "172.16.0.0/12",
+        "type": "network",
+        "list": null,
+        "sensitive": false
+      }
+    ],
+    "sensitive": false
+  },
+  "enabled": true,
+  "precedence": false,
+  "nolog": true
+}

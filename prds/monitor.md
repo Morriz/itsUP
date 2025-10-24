@@ -28,7 +28,7 @@
 
 3. **OpenSnitch Database** (`/var/lib/opensnitch/opensnitch.sqlite3`) - **Optional**
    - Only used when `--use-opensnitch` flag is provided
-   - Provides historical block data from `deny-always-arpa-53` rule
+   - Provides historical block data from `0-deny-arpa-53` rule
    - More reliable over time (actively blocking direct IP connections)
    - Used for blacklist inflation and validation (`--cleanup`)
 
@@ -83,12 +83,12 @@ The monitor MUST:
 - Maintain a persistent blacklist of detected malicious IPs
 - Add newly detected IPs to blacklist
 - Support user whitelist for false positives
-- Optionally block blacklisted IPs via iptables (`--block` flag)
+- Block blacklisted IPs via iptables by default (disable with `--report-only` flag)
 
 **Modes**:
 
-- **Default**: Detection-only (log but don't block)
-- **--block**: Detection + iptables DROP rules
+- **Default**: Detection + iptables DROP rules (blocking enabled)
+- **--report-only**: Detection-only (log but don't block)
 - **--skip-sync**: Memory-only (no file persistence, for analysis)
 
 ### FR6: OpenSnitch Cross-Reference (Optional)
@@ -97,7 +97,7 @@ The monitor MUST:
 
 When `--use-opensnitch` flag is provided, the monitor MUST:
 
-- Load OpenSnitch's blocked IPs from `deny-always-arpa-53` rule into memory
+- Load OpenSnitch's blocked IPs from `0-deny-arpa-53` rule into memory
 - **DO NOT sync or modify our blacklist** based on OpenSnitch data
 - When our monitor detects a hardcoded IP, cross-reference with OpenSnitch:
   - **IP in OpenSnitch blocks**: Log "✅ CONFIRMED by OpenSnitch" (high confidence threat)
@@ -135,14 +135,15 @@ The monitor MUST identify which container made each suspicious connection by nam
 
 ## Modes of Operation
 
-| Mode                       | Flags                      | Blacklist File | iptables Blocking | OpenSnitch      | Use Case                                                                 |
-| -------------------------- | -------------------------- | -------------- | ----------------- | --------------- | ------------------------------------------------------------------------ |
-| **Detection** (default)    | none                       | Read/Write     | No                | No              | Production monitoring (standalone)                                       |
-| **Detection + Block**      | `--block`                  | Read/Write     | Yes               | No              | Active defense (standalone)                                              |
-| **Detection + Validation** | `--use-opensnitch`         | Read/Write     | No                | Cross-reference | Enhanced logging with OpenSnitch validation                              |
-| **Full Protection**        | `--block --use-opensnitch` | Read/Write     | Yes               | Cross-reference | Active defense + OpenSnitch validation                                   |
-| **Memory-Only**            | `--skip-sync`              | None           | No                | No              | Testing/analysis                                                         |
-| **Cleanup Mode**           | `--cleanup`                | Read/Write     | N/A               | Required        | Validate blacklist against OpenSnitch, move false positives to whitelist |
+| Mode                | Flag               | Blacklist File | iptables Blocking | OpenSnitch      | Use Case                                                                 |
+| ------------------- | ------------------ | -------------- | ----------------- | --------------- | ------------------------------------------------------------------------ |
+| **Block** (default) | (none)             | Read/Write     | Yes               | No              | Active defense (standalone)                                              |
+| Detection Only      | `--report-only`    | Read/Write     | No                | No              | Production monitoring (standalone)                                       |
+| OpenSnitch Mode     | `--use-opensnitch` | Read/Write     | Yes               | Cross-reference | Active defense + OpenSnitch validation                                   |
+| Memory-Only         | `--skip-sync`      | None           | No                | No              | Testing/analysis                                                         |
+| Cleanup Mode        | `--cleanup`        | Read/Write     | N/A               | Required        | Validate blacklist against OpenSnitch, move false positives to whitelist |
+
+**Note**: Flags can be combined (e.g., `--report-only --use-opensnitch` for detection-only with OpenSnitch validation).
 
 ## Integration Points
 
@@ -150,7 +151,7 @@ The monitor MUST identify which container made each suspicious connection by nam
 
 **Startup (initial load)**:
 
-1. Query OpenSnitch database for all IPs blocked by `deny-always-arpa-53` rule
+1. Query OpenSnitch database for all IPs blocked by `0-deny-arpa-53` rule
 2. Load these IPs into in-memory set: `_opensnitch_blocked_ips`
 3. This set is used for cross-reference validation only
 
@@ -191,7 +192,7 @@ When our monitor detects a hardcoded IP connection:
 
 - Monitor and OpenSnitch are **independent, standalone solutions**
 - Monitor uses DNS correlation to detect hardcoded IPs
-- OpenSnitch uses eBPF to block reverse DNS queries (deny-always-arpa-53 rule)
+- OpenSnitch uses eBPF to block reverse DNS queries (0-deny-arpa-53 rule)
 - When enabled: OpenSnitch data is loaded into memory for **cross-reference** only
 - Our blacklist is **never modified** by OpenSnitch data
 - Cross-referencing provides confidence signals:
@@ -233,7 +234,7 @@ When our monitor detects a hardcoded IP connection:
 
 **Typical Workflow**:
 
-1. Run monitor in detection mode: `bin/docker_monitor.py`
+1. Run monitor in detection mode first: `bin/docker_monitor.py --report-only`
 2. Periodically validate with OpenSnitch: `bin/docker_monitor.py --cleanup`
 3. Review false positives, move to whitelist
-4. Enable blocking when confident: `bin/docker_monitor.py --block --use-opensnitch`
+4. Enable blocking when confident: `bin/docker_monitor.py --use-opensnitch`

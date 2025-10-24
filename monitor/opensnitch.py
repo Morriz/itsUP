@@ -43,7 +43,7 @@ class OpenSnitchIntegration:
 
     def get_recent_block_count(self, hours: int = 24) -> int:
         """
-        Get count of blocks from deny-always-arpa-53 rule in last N hours.
+        Get count of blocks from 0-deny-arpa-53 rule in last N hours.
 
         Args:
             hours: Number of hours to look back
@@ -57,7 +57,7 @@ class OpenSnitchIntegration:
             cursor.execute(
                 """
                 SELECT COUNT(*) FROM connections
-                WHERE rule = 'deny-always-arpa-53'
+                WHERE rule = '0-deny-arpa-53'
                 AND time > strftime('%s', 'now', ?)
             """,
                 (f"-{hours} hours",),
@@ -83,7 +83,7 @@ class OpenSnitchIntegration:
                 """
                 SELECT DISTINCT dst_host, dst_ip
                 FROM connections
-                WHERE rule = 'deny-always-arpa-53'
+                WHERE rule = '0-deny-arpa-53'
             """
             )
             rows = cursor.fetchall()
@@ -116,7 +116,7 @@ class OpenSnitchIntegration:
                 """
                 SELECT time, process
                 FROM connections
-                WHERE rule = 'deny-always-arpa-53'
+                WHERE rule = '0-deny-arpa-53'
                 AND time BETWEEN ? AND ?
                 ORDER BY time ASC
                 LIMIT 1
@@ -153,13 +153,15 @@ class OpenSnitchIntegration:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            cursor.execute("SELECT MAX(time) FROM connections WHERE rule = 'deny-always-arpa-53'")
+            cursor.execute("SELECT MAX(time) FROM connections WHERE rule = '0-deny-arpa-53'")
             last_time = cursor.fetchone()[0] or ""
             conn.close()
             if last_time:
                 logger.info(f"📋 OpenSnitch: Resuming from last block at {last_time}")
             else:
-                logger.info(f"📋 OpenSnitch: No previous blocks found - will monitor for new ones (rule: deny-always-arpa-53)")
+                logger.info(
+                    "📋 OpenSnitch: No previous blocks found - will monitor for new ones (rule: 0-deny-arpa-53)"
+                )
         except Exception as e:
             logger.error(f"⚠️  OpenSnitch: Could not read database - {e}")
             last_time = ""
@@ -176,7 +178,7 @@ class OpenSnitchIntegration:
                     SELECT time, dst_host
                     FROM connections
                     WHERE time > ?
-                    AND rule = 'deny-always-arpa-53'
+                    AND rule = '0-deny-arpa-53'
                     ORDER BY time ASC
                 """,
                     (last_time,),

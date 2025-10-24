@@ -57,7 +57,7 @@ def cleanup_blacklist():
     print("🧹 Cleanup mode: Analyzing blacklist for false positives...")
 
     # Create monitor instance to reuse methods
-    monitor = ContainerMonitor(skip_sync=True, block=False, use_opensnitch=False)
+    monitor = ContainerMonitor(skip_sync=True, report_only=True, use_opensnitch=False)
 
     # Read blacklist
     blacklisted = monitor.blacklist.get_all()
@@ -78,7 +78,7 @@ def cleanup_blacklist():
                 """
                 SELECT DISTINCT dst_host
                 FROM connections
-                WHERE rule = 'deny-always-arpa-53'
+                WHERE rule = '0-deny-arpa-53'
                 AND dst_host LIKE '%.in-addr.arpa'
             """
             )
@@ -209,7 +209,7 @@ def main():
 
     # Parse command-line flags
     skip_sync = False
-    block = False
+    report_only = False
     use_opensnitch = False
 
     for arg in sys.argv[1:]:
@@ -221,17 +221,17 @@ def main():
             sys.exit(0)
         elif arg == "--skip-sync":
             skip_sync = True
-        elif arg == "--block":
-            block = True
+        elif arg == "--report-only":
+            report_only = True
         elif arg == "--use-opensnitch":
             use_opensnitch = True
         else:
             print(f"Unknown flag: {arg}")
             print("\nUsage:")
-            print("  sudo python3 bin/docker_monitor.py                       # Detection only (standalone)")
-            print("  sudo python3 bin/docker_monitor.py --block               # Detection + iptables blocking")
-            print("  sudo python3 bin/docker_monitor.py --use-opensnitch      # Detection + OpenSnitch integration")
-            print("  sudo python3 bin/docker_monitor.py --block --use-opensnitch  # Full protection mode")
+            print("  sudo python3 bin/docker_monitor.py                       # Detection + iptables blocking (default)")
+            print("  sudo python3 bin/docker_monitor.py --report-only         # Detection only, no blocking")
+            print("  sudo python3 bin/docker_monitor.py --use-opensnitch      # Blocking + OpenSnitch integration")
+            print("  sudo python3 bin/docker_monitor.py --report-only --use-opensnitch  # Detection-only with OpenSnitch")
             print("  sudo python3 bin/docker_monitor.py --skip-sync           # Memory-only mode (no file I/O)")
             print("  sudo python3 bin/docker_monitor.py --cleanup             # Validate blacklist with OpenSnitch")
             print("  sudo python3 bin/docker_monitor.py --clear-iptables      # Remove iptables rules")
@@ -254,7 +254,7 @@ def main():
         sys.exit(1)
 
     # Create and run monitor
-    monitor = ContainerMonitor(skip_sync=skip_sync, block=block, use_opensnitch=use_opensnitch)
+    monitor = ContainerMonitor(skip_sync=skip_sync, report_only=report_only, use_opensnitch=use_opensnitch)
     monitor.run()
 
 

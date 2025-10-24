@@ -48,18 +48,18 @@ class ContainerMonitor:
     DNS queries with outbound TCP connections.
     """
 
-    def __init__(self, skip_sync: bool = False, block: bool = False, use_opensnitch: bool = False):
+    def __init__(self, skip_sync: bool = False, report_only: bool = False, use_opensnitch: bool = False):
         """
         Initialize container monitor.
 
         Args:
             skip_sync: Memory-only mode (no file I/O)
-            block: Enable iptables blocking
+            report_only: Disable iptables blocking (detection only)
             use_opensnitch: Enable OpenSnitch integration
         """
         # Public configuration (set once in __init__)
         self.skip_sync = skip_sync
-        self.block = block
+        self.report_only = report_only
         self.use_opensnitch = use_opensnitch
 
         # Internal state (all private - use _ prefix)
@@ -152,7 +152,7 @@ class ContainerMonitor:
             return
 
         try:
-            with open(DNS_REGISTRY_FILE, 'r') as f:
+            with open(DNS_REGISTRY_FILE, "r") as f:
                 registry = json.load(f)
 
             # Populate _dns_cache with registry data
@@ -191,7 +191,7 @@ class ContainerMonitor:
 
             # Use file lock to prevent concurrent writes
             with self._dns_registry_file_lock:
-                with open(DNS_REGISTRY_FILE, 'w') as f:
+                with open(DNS_REGISTRY_FILE, "w") as f:
                     json.dump(registry, f, indent=2, sort_keys=True)
 
             logger.debug(f"💾 DNS registry saved: {len(registry)} IPs")
@@ -262,7 +262,13 @@ class ContainerMonitor:
         """Remove container from mapping when it stops/dies."""
         # Find and remove by container ID
         result = subprocess.run(
-            ["docker", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", container_id],
+            [
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
+                container_id,
+            ],
             capture_output=True,
             text=True,
         )
@@ -330,6 +336,23 @@ class ContainerMonitor:
         """Get container name from IP address."""
         return self._container_ips.get(container_ip)
 
+    def _handle_hardcoded_ip_detection(self, container_name: str, dst_ip: str, dst_port: str, log_blacklist: bool) -> None:
+        """Handle detection of hardcoded IP (no DNS history).
+
+        Args:
+            container_name: Name of container making the connection
+            dst_ip: Destination IP address
+            dst_port: Destination port
+            log_blacklist: Whether to log when adding to blacklist
+        """
+        # DIRTY HACK: Skip blacklist for VPN containers but still report
+        if container_name.startswith("vpn-vpn-openvpn-"):
+            logger.info(f"🔓 VPN exclusion: {container_name} → {dst_ip} (reported but not blacklisted)")
+        else:
+            self.add_to_blacklist(dst_ip, log_msg=log_blacklist)
+
+        self.report_compromise(container_name, dst_ip, "connection to hardcoded IP (no DNS)")
+
     def report_compromise(self, container: str, ip: str, evidence: str) -> None:
         """Report compromised container."""
         key = f"{container}:{ip}"
@@ -364,7 +387,7 @@ class ContainerMonitor:
 
         if log_msg:
             mode_desc = "memory-only" if self.skip_sync else "persistent"
-            action = "detected and blocked" if self.block else "detected"
+            action = "detected and blocked" if not self.report_only else "detected"
 
             # Cross-reference with OpenSnitch if enabled
             if self.use_opensnitch and self._opensnitch_blocked_ips:
@@ -376,7 +399,7 @@ class ContainerMonitor:
                 logger.info(f"➕ {action} ({mode_desc}): {ip}")
 
         # Block in iptables if enabled
-        if self.block:
+        if not self.report_only:
             self.iptables.add_drop_rule(ip, log=log_msg)
 
     def check_list_updates(self) -> None:
@@ -392,7 +415,7 @@ class ContainerMonitor:
             removed = old - self.blacklist.get_all()
 
             # Update iptables for changes
-            if self.block:
+            if not self.report_only:
                 for ip in removed:
                     self.iptables.remove_drop_rule(ip)
                 for ip in added:
@@ -411,7 +434,7 @@ class ContainerMonitor:
                     logger.info(f"🔄 Removed {removed_count} newly whitelisted IPs from blacklist")
 
                     # Remove from iptables too
-                    if self.block:
+                    if not self.report_only:
                         for ip in added:
                             self.iptables.remove_drop_rule(ip)
 
@@ -496,7 +519,7 @@ class ContainerMonitor:
 
             # Parse actual event timestamp from journalctl line (microsecond precision)
             # Format: 2025-10-22T23:27:37.817601+0200 hostname kernel: [CONTAINER-TCP] ...
-            timestamp_match = re.match(r'^(\S+)', line)
+            timestamp_match = re.match(r"^(\S+)", line)
             if timestamp_match:
                 try:
                     # Parse ISO timestamp with microseconds (includes timezone)
@@ -595,8 +618,7 @@ class ContainerMonitor:
                         f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
                         "WARN",
                     )
-                    self.add_to_blacklist(dst_ip, log_msg=True)
-                    self.report_compromise(container_name, dst_ip, "direct connection to hardcoded IP (no DNS)")
+                    self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=True)
 
     def _load_opensnitch_blocks(self) -> None:
         """Load OpenSnitch blocked IPs into memory for cross-reference validation."""
@@ -736,7 +758,7 @@ class ContainerMonitor:
                 return None
 
             # Read last line from log file
-            with open(LOG_FILE, 'rb') as f:
+            with open(LOG_FILE, "rb") as f:
                 f.seek(0, os.SEEK_END)
                 file_size = f.tell()
                 if file_size == 0:
@@ -745,12 +767,12 @@ class ContainerMonitor:
                 # Read last 2KB to find last timestamp
                 read_size = min(2048, file_size)
                 f.seek(-read_size, os.SEEK_END)
-                lines = f.read().decode('utf-8', errors='ignore').splitlines()
+                lines = f.read().decode("utf-8", errors="ignore").splitlines()
 
                 # Find last line with timestamp
                 for line in reversed(lines):
                     # Format: [2025-10-22 13:32:18.714729] message
-                    match = re.search(r'\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\]', line)
+                    match = re.search(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\]", line)
                     if match:
                         return match.group(1)
 
@@ -785,10 +807,9 @@ class ContainerMonitor:
                 # NO DNS HISTORY = HARDCODED IP
                 logger.log_legacy(
                     f"🔍 Historical: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
-                    "WARN"
+                    "WARN",
                 )
-                self.add_to_blacklist(dst_ip, log_msg=False)
-                self.report_compromise(container_name, dst_ip, "historical connection to hardcoded IP")
+                self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=False)
                 hardcoded_count += 1
 
         return hardcoded_count
@@ -804,11 +825,11 @@ class ContainerMonitor:
 
         if last_timestamp:
             # Strip microseconds - journalctl only supports second precision
-            timestamp_seconds = last_timestamp.split('.')[0]
+            timestamp_seconds = last_timestamp.split(".")[0]
             logger.info(f"🔍 Resuming from last run: {last_timestamp} (journalctl: {timestamp_seconds})")
             since_arg = f"--since '{timestamp_seconds}'"
         else:
-            logger.info(f"🔍 First run - scanning all available connection logs")
+            logger.info("🔍 First run - scanning all available connection logs")
             since_arg = ""
 
         # Scan past outbound connections (from last timestamp)
@@ -873,7 +894,7 @@ class ContainerMonitor:
         # Load OpenSnitch blocks for cross-reference if enabled
         if self.use_opensnitch:
             count = self.opensnitch.get_recent_block_count(hours=24)
-            logger.info(f"📊 Found {count} blocks in last 24 hours (deny-always-arpa-53)")
+            logger.info(f"📊 Found {count} blocks in last 24 hours (0-deny-arpa-53)")
             self._load_opensnitch_blocks()
 
         # Historical analysis

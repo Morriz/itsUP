@@ -175,16 +175,31 @@ def _service_needs_update(service: str) -> bool:
 def update_proxy(service: str = None) -> None:
     """Update proxy with zero-downtime rollout when changes detected"""
     logger.info("Updating proxy")
-    run_command(["docker", "compose", "pull"], cwd="proxy")
 
-    service = service or "traefik"
+    # Only these proxy services are safe for rollout (stateless)
+    STATELESS_SERVICES = ["traefik"]
+    ALL_PROXY_SERVICES = ["traefik", "crowdsec", "dockerproxy", "dns"]
 
-    # Check if service needs update
-    if _service_needs_update(service):
-        logger.info(f"Changes detected, rolling out {service}")
-        run_command(["docker", "rollout", service], cwd="proxy")
-    else:
-        logger.info(f"No changes detected for {service}, skipping rollout")
+    # Determine which services to update
+    services_to_update = [service] if service else ALL_PROXY_SERVICES
 
-    # Ensure all services are up
-    run_command(["docker", "compose", "up", "-d"], cwd="proxy")
+    for svc in services_to_update:
+        logger.info(f"Checking {svc}")
+
+        # Pull image for this service only
+        run_command(["docker", "compose", "pull", svc], cwd="proxy")
+
+        # Early exit if no changes
+        if not _service_needs_update(svc):
+            logger.info(f"No changes detected for {svc}, skipping")
+            continue
+
+        logger.info(f"Changes detected for {svc}")
+
+        # Either rollout (stateless) or restart (stateful)
+        if svc in STATELESS_SERVICES:
+            logger.info(f"Rolling out {svc} (stateless)")
+            run_command(["docker", "rollout", svc], cwd="proxy")
+        else:
+            logger.info(f"Restarting {svc} via docker compose (not stateless)")
+            run_command(["docker", "compose", "up", "-d", svc], cwd="proxy")

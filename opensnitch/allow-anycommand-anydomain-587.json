@@ -1,0 +1,33 @@
+{
+  "created": "2025-10-24T22:49:10+02:00",
+  "updated": "2025-10-24T22:49:10+02:00",
+  "name": "allow-anycommand-anydomain-587",
+  "description": "",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "list",
+    "data": "",
+    "type": "list",
+    "list": [
+      {
+        "operand": "dest.port",
+        "data": "587",
+        "type": "simple",
+        "list": null,
+        "sensitive": false
+      },
+      {
+        "operand": "dest.host",
+        "data": "^[_a-za-z0-9-]+(?:\\.[_a-za-z0-9-]+)+$",
+        "type": "regexp",
+        "list": null,
+        "sensitive": false
+      }
+    ],
+    "sensitive": false
+  },
+  "enabled": true,
+  "precedence": false,
+  "nolog": true
+}

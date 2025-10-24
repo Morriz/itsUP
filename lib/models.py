@@ -120,13 +120,18 @@ class Service(BaseModel):
     image: str = None
     """The full container image uri of the service"""
     ingress: List[Ingress] = None
-    """Ingress configuration for the service. If a string is passed, 
+    """Ingress configuration for the service. If a string is passed,
     it will be used as the domain."""
     labels: List[str] = []
-    """Extra labels to add to the service. Should not interfere with 
+    """Extra labels to add to the service. Should not interfere with
     generated traefik labels for ingress."""
     restart: str = "unless-stopped"
     """The restart policy to use for the service"""
+    stateless: bool = False
+    """Whether this service is stateless and safe for zero-downtime rollout.
+    Stateless services can have multiple instances running simultaneously without
+    data corruption. ONLY set to true for services without writable volumes or
+    services designed for concurrent multi-instance operation."""
     volumes: List[str] = []
     """A list of volumes to mount in the service"""
 

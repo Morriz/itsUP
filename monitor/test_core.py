@@ -16,7 +16,8 @@ from monitor.constants import CONNECTION_GRACE_PERIOD
 class TestDNSCorrelation(unittest.TestCase):
     """Test DNS correlation detection - the core feature"""
 
-    def test_hardcoded_ip_detected_no_dns_cache(self):
+    @patch("monitor.core.logger")
+    def test_hardcoded_ip_detected_no_dns_cache(self, mock_logger):
         """Connection to IP without DNS cache = hardcoded IP (malware)"""
         monitor = ContainerMonitor(skip_sync=True)
 
@@ -27,14 +28,14 @@ class TestDNSCorrelation(unittest.TestCase):
         connections = {("172.30.0.5", "45.148.10.81", "443")}
 
         # Detect hardcoded IPs
-        with patch.object(monitor, "log"):
-            detected_count = monitor._detect_hardcoded_ips(connections)
+        detected_count = monitor._detect_hardcoded_ips(connections)
 
         # Should detect 1 hardcoded IP
         self.assertEqual(detected_count, 1)
         self.assertIn("45.148.10.81", monitor.blacklist.get_all())
 
-    def test_legitimate_connection_with_dns_cache(self):
+    @patch("monitor.core.logger")
+    def test_legitimate_connection_with_dns_cache(self, mock_logger):
         """Connection to IP that WAS in DNS cache = legitimate"""
         monitor = ContainerMonitor(skip_sync=True)
 
@@ -48,8 +49,7 @@ class TestDNSCorrelation(unittest.TestCase):
         connections = {("172.30.0.5", "45.148.10.81", "443")}
 
         # Detect hardcoded IPs
-        with patch.object(monitor, "log"):
-            detected_count = monitor._detect_hardcoded_ips(connections)
+        detected_count = monitor._detect_hardcoded_ips(connections)
 
         # Should NOT detect any hardcoded IPs
         self.assertEqual(detected_count, 0)
@@ -59,39 +59,96 @@ class TestDNSCorrelation(unittest.TestCase):
 class TestOpenSnitchCrossReference(unittest.TestCase):
     """Test OpenSnitch cross-reference validation - PRD requirement"""
 
+    @patch("monitor.core.logger")
     @patch("monitor.core.IptablesManager.add_drop_rule")
-    def test_detection_confirmed_by_opensnitch(self, mock_iptables):
+    def test_detection_confirmed_by_opensnitch(self, mock_iptables, mock_logger):
         """Detection + OpenSnitch block = high confidence threat"""
-        monitor = ContainerMonitor(skip_sync=True, block=True, use_opensnitch=True)
+        monitor = ContainerMonitor(skip_sync=True, report_only=False, use_opensnitch=True)
 
         # OpenSnitch has blocked this IP
         monitor._opensnitch_blocked_ips.add("1.2.3.4")
 
         # Our monitor detects it
-        with patch.object(monitor, "log") as mock_log:
-            monitor.add_to_blacklist("1.2.3.4", log_msg=True)
+        monitor.add_to_blacklist("1.2.3.4", log_msg=True)
 
-            # Should log confirmation
-            log_calls = [str(call) for call in mock_log.call_args_list]
-            confirmed = any("✅ CONFIRMED by OpenSnitch" in str(c) for c in log_calls)
-            self.assertTrue(confirmed, "Should show OpenSnitch confirmation")
+        # Should log confirmation
+        log_calls = [str(call) for call in mock_logger.info.call_args_list]
+        confirmed = any("✅ CONFIRMED by OpenSnitch" in str(c) for c in log_calls)
+        self.assertTrue(confirmed, "Should show OpenSnitch confirmation")
 
+    @patch("monitor.core.logger")
     @patch("monitor.core.IptablesManager.add_drop_rule")
-    def test_detection_not_confirmed_by_opensnitch(self, mock_iptables):
+    def test_detection_not_confirmed_by_opensnitch(self, mock_iptables, mock_logger):
         """Detection but NOT in OpenSnitch = needs review (possible false positive)"""
-        monitor = ContainerMonitor(skip_sync=True, block=True, use_opensnitch=True)
+        monitor = ContainerMonitor(skip_sync=True, report_only=False, use_opensnitch=True)
 
         # OpenSnitch has NOT blocked this IP
         monitor._opensnitch_blocked_ips.add("5.6.7.8")  # Different IP
 
         # Our monitor detects 1.2.3.4
-        with patch.object(monitor, "log") as mock_log:
-            monitor.add_to_blacklist("1.2.3.4", log_msg=True)
+        monitor.add_to_blacklist("1.2.3.4", log_msg=True)
 
-            # Should log warning
-            log_calls = [str(call) for call in mock_log.call_args_list]
-            needs_review = any("⚠️  NOT in OpenSnitch (needs review)" in str(c) for c in log_calls)
-            self.assertTrue(needs_review, "Should warn about no OpenSnitch confirmation")
+        # Should log warning
+        log_calls = [str(call) for call in mock_logger.warning.call_args_list]
+        needs_review = any("⚠️  NOT in OpenSnitch (needs review)" in str(c) for c in log_calls)
+        self.assertTrue(needs_review, "Should warn about no OpenSnitch confirmation")
+
+
+class TestVPNExclusion(unittest.TestCase):
+    """Test VPN container exclusion from blacklist"""
+
+    @patch("monitor.core.logger")
+    def test_vpn_container_not_blacklisted(self, mock_logger):
+        """VPN containers should be reported but NOT blacklisted"""
+        monitor = ContainerMonitor(skip_sync=True)
+
+        # Simulate VPN container detection
+        monitor._handle_hardcoded_ip_detection("vpn-vpn-openvpn-server1", "1.2.3.4", "443", log_blacklist=True)
+
+        # Should NOT be in blacklist
+        self.assertNotIn("1.2.3.4", monitor.blacklist.get_all())
+
+    @patch("monitor.core.logger")
+    def test_vpn_container_is_reported(self, mock_logger):
+        """VPN containers should still be reported as compromised"""
+        monitor = ContainerMonitor(skip_sync=True)
+
+        # Simulate VPN container detection
+        monitor._handle_hardcoded_ip_detection("vpn-vpn-openvpn-server1", "1.2.3.4", "443", log_blacklist=True)
+
+        # Should be in reported compromises
+        self.assertIn("vpn-vpn-openvpn-server1:1.2.3.4", monitor._reported_compromises)
+
+    @patch("monitor.core.logger")
+    def test_non_vpn_container_is_blacklisted(self, mock_logger):
+        """Non-VPN containers should be blacklisted normally"""
+        monitor = ContainerMonitor(skip_sync=True)
+
+        # Simulate normal container detection
+        monitor._handle_hardcoded_ip_detection("test-container", "1.2.3.4", "443", log_blacklist=True)
+
+        # Should be in blacklist
+        self.assertIn("1.2.3.4", monitor.blacklist.get_all())
+
+    @patch("monitor.core.logger")
+    def test_vpn_exclusion_prefix_match(self, mock_logger):
+        """VPN exclusion should match prefix 'vpn-vpn-openvpn-'"""
+        monitor = ContainerMonitor(skip_sync=True)
+
+        # Test various VPN container names
+        vpn_names = [
+            "vpn-vpn-openvpn-server1",
+            "vpn-vpn-openvpn-client",
+            "vpn-vpn-openvpn-test-123",
+        ]
+
+        for vpn_name in vpn_names:
+            monitor._handle_hardcoded_ip_detection(vpn_name, f"1.2.3.{len(vpn_name)}", "443", log_blacklist=True)
+
+        # None should be blacklisted
+        for i, vpn_name in enumerate(vpn_names):
+            ip = f"1.2.3.{len(vpn_name)}"
+            self.assertNotIn(ip, monitor.blacklist.get_all(), f"{vpn_name} should not be blacklisted")
 
 
 class TestWhitelistProtection(unittest.TestCase):
@@ -114,19 +171,19 @@ class TestWhitelistProtection(unittest.TestCase):
 class TestCompromiseReporting(unittest.TestCase):
     """Test compromise reporting and deduplication"""
 
-    def test_duplicate_reports_are_deduplicated(self):
+    @patch("monitor.core.logger")
+    def test_duplicate_reports_are_deduplicated(self, mock_logger):
         """Same container+IP should only be reported once"""
         monitor = ContainerMonitor(skip_sync=True)
 
-        with patch.object(monitor, "log") as mock_log:
-            # First report
-            monitor.report_compromise("test-container", "1.2.3.4", "hardcoded IP")
-            self.assertEqual(mock_log.call_count, 1)
+        # First report
+        monitor.report_compromise("test-container", "1.2.3.4", "hardcoded IP")
+        self.assertEqual(mock_logger.warning.call_count, 1)
 
-            # Duplicate report
-            mock_log.reset_mock()
-            monitor.report_compromise("test-container", "1.2.3.4", "hardcoded IP")
-            self.assertEqual(mock_log.call_count, 0, "Duplicate should be suppressed")
+        # Duplicate report
+        mock_logger.reset_mock()
+        monitor.report_compromise("test-container", "1.2.3.4", "hardcoded IP")
+        self.assertEqual(mock_logger.warning.call_count, 0, "Duplicate should be suppressed")
 
         # Tracking should show 1 alert
         self.assertEqual(monitor._compromise_count_by_container["test-container"], 1)
@@ -314,7 +371,8 @@ class TestTimestampParsing(unittest.TestCase):
 class TestGracePeriodTiming(unittest.TestCase):
     """Test grace period prevents premature DNS cache checks"""
 
-    def test_connection_not_checked_before_grace_period(self):
+    @patch("monitor.core.logger")
+    def test_connection_not_checked_before_grace_period(self, mock_logger):
         """Connections should NOT be checked until grace period expires"""
         monitor = ContainerMonitor(skip_sync=True)
 
@@ -326,17 +384,16 @@ class TestGracePeriodTiming(unittest.TestCase):
         monitor._recent_direct_connections.append((timestamp, "172.30.0.5", "1.2.3.4", "443"))
 
         # Grace period not expired yet (age = 0)
-        with patch.object(monitor, "log"):
-            # Manually check the grace period logic
-            connection = monitor._recent_direct_connections[0]
-            conn_timestamp, src_ip, dst_ip, dst_port = connection
-            age = (datetime.now() - conn_timestamp).total_seconds()
+        # Manually check the grace period logic
+        connection = monitor._recent_direct_connections[0]
+        conn_timestamp, src_ip, dst_ip, dst_port = connection
+        age = (datetime.now() - conn_timestamp).total_seconds()
 
-            # Age should be near 0, well below grace period
-            self.assertLess(age, CONNECTION_GRACE_PERIOD)
+        # Age should be near 0, well below grace period
+        self.assertLess(age, CONNECTION_GRACE_PERIOD)
 
-            # Connection should remain in queue (not processed)
-            self.assertEqual(len(monitor._recent_direct_connections), 1)
+        # Connection should remain in queue (not processed)
+        self.assertEqual(len(monitor._recent_direct_connections), 1)
 
     def test_connection_checked_after_grace_period(self):
         """Connections SHOULD be checked after grace period expires"""
