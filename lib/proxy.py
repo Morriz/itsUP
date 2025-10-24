@@ -53,7 +53,7 @@ def write_routers() -> None:
         traefik_rule=f"Host(`{domain}`)",
         trusted_ips_cidrs=os.environ.get("TRUSTED_IPS_CIDRS").split(","),
     )
-    with open("proxy/traefik/routers-http.yml", "w", encoding="utf-8") as f:
+    with open("proxy/traefik/dynamic/routers-http.yml", "w", encoding="utf-8") as f:
         f.write(routers_http)
     projects_tcp = get_projects(
         filter=lambda _, s, i: i.router == Router.tcp and (i.passthrough or not s.image or i.hostport)
@@ -65,15 +65,25 @@ def write_routers() -> None:
     routers_tcp = tpl_routers_tcp.render(
         projects=projects_tcp,
     )
-    with open("proxy/traefik/routers-tcp.yml", "w", encoding="utf-8") as f:
+    with open("proxy/traefik/dynamic/routers-tcp.yml", "w", encoding="utf-8") as f:
         f.write(routers_tcp)
     projects_udp = get_projects(filter=lambda _, _2, i: i.router == Router.udp)
     with open("tpl/proxy/routers-udp.yml.j2", encoding="utf-8") as f:
         t = f.read()
     tpl_routers_udp = Template(t)
     routers_udp = tpl_routers_udp.render(projects=projects_udp)
-    with open("proxy/traefik/routers-udp.yml", "w", encoding="utf-8") as f:
+    with open("proxy/traefik/dynamic/routers-udp.yml", "w", encoding="utf-8") as f:
         f.write(routers_udp)
+
+
+def write_middleware() -> None:
+    plugin_registry = get_plugin_registry()
+    with open("tpl/proxy/middleware.yml.j2", encoding="utf-8") as f:
+        t = f.read()
+    tpl_middleware = Template(t)
+    middleware = tpl_middleware.render(plugin_registry=plugin_registry)
+    with open("proxy/traefik/dynamic/middleware.yml", "w", encoding="utf-8") as f:
+        f.write(middleware)
 
 
 def write_config() -> None:
@@ -113,6 +123,7 @@ def write_compose() -> None:
 
 def write_proxies() -> None:
     write_routers()
+    write_middleware()
     write_config()
     write_compose()
 
