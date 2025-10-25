@@ -65,9 +65,11 @@ def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
         # Expand ${VAR} and $VAR
         def replacer(match):
             var_name = match.group(1) or match.group(2)
-            return secrets.get(var_name, match.group(0))
+            if var_name not in secrets:
+                raise ValueError(f"Secret variable '{var_name}' not found in secrets")
+            return secrets[var_name]
 
-        pattern = r'\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)'
+        pattern = r'\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)'
         return re.sub(pattern, replacer, data)
     else:
         return data
