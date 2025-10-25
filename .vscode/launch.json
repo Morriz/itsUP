@@ -20,7 +20,7 @@
       "name": "Python: write artifacts",
       "type": "debugpy",
       "request": "launch",
-      "program": "bin/write-artifacts.py",
+      "program": "bin/write_artifacts.py",
       "console": "integratedTerminal",
       "justMyCode": false,
       "envFile": "${workspaceFolder}/.env",

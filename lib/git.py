@@ -1,10 +1,11 @@
 import logging
 import os
+import subprocess
 
 from dotenv import load_dotenv
 
-from lib.proxy import write_proxies
-from lib.upstream import update_upstreams, write_upstreams
+from bin.write_artifacts import write_upstreams
+from lib.data import list_projects
 from lib.utils import run_command
 
 load_dotenv()
@@ -20,9 +21,23 @@ def update_repo() -> None:
         run_command("git fetch origin main".split(" "), cwd=".")
         run_command("git reset --hard origin/main".split(" "), cwd=".")
         logger.info("Repository updated successfully")
-    write_proxies()
+
+    # Generate all upstream configs
     write_upstreams()
-    update_upstreams()
+
+    # Deploy all upstreams
+    for project in list_projects():
+        upstream_dir = f"upstream/{project}"
+        compose_file = f"{upstream_dir}/docker-compose.yml"
+        cmd = [
+            "docker", "compose",
+            "--project-directory", upstream_dir,
+            "-p", project,
+            "-f", compose_file,
+            "up", "-d"
+        ]
+        subprocess.run(cmd, check=False)  # Don't fail on deployment errors
+
     # restart the api to make sure the new code is running:
     logger.info("Restarting API server")
     run_command(["bin/start-api.sh"])

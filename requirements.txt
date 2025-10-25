@@ -3,6 +3,7 @@ fastapi
 github-webhooks-framework2
 ipwhois
 jinja2-cli
+pydantic
 python-dotenv
 pyyaml
 requests

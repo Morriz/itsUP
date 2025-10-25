@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from lib.data import list_projects, load_project, validate_all
 from lib.logging_config import setup_logging
-from lib.proxy import write_proxies
 
 import logging
 import yaml
@@ -148,9 +147,6 @@ if __name__ == "__main__":
             for error in project_errors:
                 logger.error(f"  {project}: {error}")
         sys.exit(1)
-
-    # Generate proxy configs
-    write_proxies()
 
     # Generate upstream configs
     if not write_upstreams():

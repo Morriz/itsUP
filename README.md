@@ -179,8 +179,7 @@ I don't want to switch folders/terminals all the time and want to keep a "projec
 
 ### Utility scripts
 
-- `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
-- `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
+- `bin/write_artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
 - `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
 
 ### Makefile
@@ -505,7 +504,7 @@ You can enable and configure plugins in `db.yml`. Right now we support the follo
 
 **Step 1: generate api key**
 
-First set `enable: true`, run `bin/write-artifacts.py`, and bring up the `crowdsec` container:
+First set `enable: true`, run `bin/write_artifacts.py`, and bring up the `crowdsec` container:
 
 ```
 docker compose up -d crowdsec

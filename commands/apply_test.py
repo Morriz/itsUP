@@ -65,16 +65,12 @@ class TestApply(unittest.TestCase):
         mock_write_upstream.assert_called_once_with("myproject")
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_proxies")
     @patch("commands.apply.write_upstreams")
-    @patch("commands.apply.update_proxy")
     @patch("commands.apply.subprocess.run")
     def test_apply_all_success(
         self,
         mock_subprocess: Mock,
-        mock_update_proxy: Mock,
         mock_write_upstreams: Mock,
-        mock_write_proxies: Mock,
         mock_list_projects: Mock,
     ) -> None:
         """Test applying all projects successfully."""
@@ -85,16 +81,13 @@ class TestApply(unittest.TestCase):
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_proxies.assert_called_once()
         mock_write_upstreams.assert_called_once()
-        mock_update_proxy.assert_called_once()
         self.assertEqual(mock_subprocess.call_count, 2)
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_proxies")
     @patch("commands.apply.write_upstreams")
     def test_apply_all_upstream_generation_failure(
-        self, mock_write_upstreams: Mock, mock_write_proxies: Mock, mock_list_projects: Mock
+        self, mock_write_upstreams: Mock, mock_list_projects: Mock
     ) -> None:
         """Test handling upstream generation failure."""
         mock_list_projects.return_value = ["project1", "project2"]
@@ -103,20 +96,15 @@ class TestApply(unittest.TestCase):
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 1)
-        mock_write_proxies.assert_called_once()
         mock_write_upstreams.assert_called_once()
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_proxies")
     @patch("commands.apply.write_upstreams")
-    @patch("commands.apply.update_proxy")
     @patch("commands.apply.subprocess.run")
     def test_apply_all_with_partial_failures(
         self,
         mock_subprocess: Mock,
-        mock_update_proxy: Mock,
         mock_write_upstreams: Mock,
-        mock_write_proxies: Mock,
         mock_list_projects: Mock,
     ) -> None:
         """Test applying all projects with some failures."""
@@ -140,16 +128,12 @@ class TestApply(unittest.TestCase):
         self.assertEqual(mock_subprocess.call_count, 3)
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_proxies")
     @patch("commands.apply.write_upstreams")
-    @patch("commands.apply.update_proxy")
     @patch("commands.apply.subprocess.run")
     def test_apply_all_with_multiple_failures(
         self,
         mock_subprocess: Mock,
-        mock_update_proxy: Mock,
         mock_write_upstreams: Mock,
-        mock_write_proxies: Mock,
         mock_list_projects: Mock,
     ) -> None:
         """Test applying all projects with multiple failures."""
