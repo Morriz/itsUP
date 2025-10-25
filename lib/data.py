@@ -1,24 +1,14 @@
 """Data loading from projects/ and secrets/"""
 
 import logging
-import os
 import re
 from pathlib import Path
-from typing import Any, Callable, Union, cast
+from typing import Any
 
 import yaml
 from dotenv import dotenv_values
 
-from lib.models import (
-    Env,
-    Ingress,
-    IngressV2,
-    Plugin,
-    PluginRegistry,
-    Project,
-    Service,
-    TraefikConfig,
-)
+from lib.models import TraefikConfig
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def load_secrets() -> dict[str, str]:
     """Load all secrets from secrets/ (decrypted .txt files)"""
-    secrets = {}
+    secrets: dict[str, str] = {}
     secrets_dir = Path("secrets")
 
     if not secrets_dir.exists():
@@ -59,7 +49,7 @@ def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
         # Expand ${VAR} and $VAR syntax
         # Pattern matches: ${VAR_NAME} or $VAR_NAME
         # Variable names must start with letter/underscore, followed by alphanumeric/underscore
-        def replacer(match):
+        def replacer(match: re.Match[str]) -> str:
             var_name = match.group(1) or match.group(2)
             return secrets.get(var_name, match.group(0))
 

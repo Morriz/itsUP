@@ -5,6 +5,9 @@ itsUP CLI - Command-line interface for itsUP management
 
 Usage:
     itsup init              Initialize new installation from samples
+    itsup apply             Apply configurations (regenerate + deploy)
+    itsup svc               Service operations (docker compose passthrough)
+    itsup validate          Validate project configurations
     itsup --version         Show version
     itsup --help            Show help
 """
@@ -18,18 +21,26 @@ sys.path.insert(0, str(project_root))
 
 import click
 
+from lib.logging_config import setup_logging
 from commands.init import init
+from commands.apply import apply
+from commands.svc import svc
+from commands.validate import validate
 
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="itsup")
-def cli():
+@click.option("--verbose", "-v", is_flag=True, help="Verbose logging")
+def cli(verbose):
     """itsUP - Infrastructure management CLI"""
-    pass
+    setup_logging(level="DEBUG" if verbose else "INFO")
 
 
 # Register commands
 cli.add_command(init)
+cli.add_command(apply)
+cli.add_command(svc)
+cli.add_command(validate)
 
 if __name__ == "__main__":
     cli()
