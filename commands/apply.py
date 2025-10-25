@@ -71,7 +71,7 @@ def apply(project):
         logger.info(f"Running: {' '.join(cmd)}")
 
         try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
             logger.info(f"✓ {project} deployed")
         except subprocess.CalledProcessError as e:
             logger.error(f"✗ {project} deployment failed")
@@ -105,7 +105,7 @@ def apply(project):
 
             logger.info(f"Deploying {proj}...")
             try:
-                result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
                 logger.info(f"  ✓ {proj}")
             except subprocess.CalledProcessError as e:
                 logger.error(f"  ✗ {proj} failed")

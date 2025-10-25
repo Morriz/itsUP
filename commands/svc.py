@@ -10,24 +10,10 @@ from pathlib import Path
 import click
 import yaml
 
+from commands.common import complete_project
 from lib.data import list_projects
 
 logger = logging.getLogger(__name__)
-
-
-def complete_project(ctx, param, incomplete):
-    """
-    Autocomplete project names.
-
-    Args:
-        ctx: Click context
-        param: Click parameter
-        incomplete: Partially typed string to complete
-
-    Returns:
-        List of project names matching the incomplete string
-    """
-    return [p for p in list_projects() if p.startswith(incomplete)]
 
 
 def complete_svc_command(ctx, param, incomplete):
