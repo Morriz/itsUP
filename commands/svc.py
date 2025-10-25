@@ -69,8 +69,10 @@ def complete_svc_command(ctx, param, incomplete):
                     compose = yaml.safe_load(f)
                     services = list(compose.get("services", {}).keys())
                     return [s for s in services if s.startswith(incomplete)]
-            except Exception as e:
+            except yaml.YAMLError as e:
                 logger.debug(f"Failed to parse compose file for autocomplete: {e}")
+            except Exception as e:
+                logger.debug(f"Unexpected error reading compose file for autocomplete: {e}")
 
     return []
 

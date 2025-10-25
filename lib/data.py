@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Callable, Union, cast
+from typing import Any, Callable, Optional, Union, cast
 
 import yaml
 from dotenv import dotenv_values
@@ -176,7 +176,7 @@ def get_project(project_name: Union[str, Project], throw: bool = False) -> Union
     )
 
 
-def get_projects(filter: Union[Callable, None] = None) -> list[Project]:  # type: ignore[type-arg]
+def get_projects(filter: Optional[Callable[..., bool]] = None) -> list[Project]:
     """V1 API - Not implemented in V2. Use list_projects() instead."""
     raise NotImplementedError("get_projects() is V1 API. Use list_projects() for V2 (returns list[str])")
 

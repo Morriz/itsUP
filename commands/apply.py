@@ -71,12 +71,10 @@ def apply(project):
         logger.info(f"Running: {' '.join(cmd)}")
 
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, check=True)
             logger.info(f"✓ {project} deployed")
         except subprocess.CalledProcessError as e:
             logger.error(f"✗ {project} deployment failed")
-            if e.stderr:
-                logger.error(f"Error details: {e.stderr}")
             sys.exit(e.returncode)
 
     else:
@@ -105,12 +103,10 @@ def apply(project):
 
             logger.info(f"Deploying {proj}...")
             try:
-                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                subprocess.run(cmd, check=True)
                 logger.info(f"  ✓ {proj}")
             except subprocess.CalledProcessError as e:
                 logger.error(f"  ✗ {proj} failed")
-                if e.stderr:
-                    logger.error(f"  Error details: {e.stderr}")
                 failed_projects.append(proj)
 
         if failed_projects:
