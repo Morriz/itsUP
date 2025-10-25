@@ -59,10 +59,15 @@ Still interested? Then read on...
 
 ## Key concepts
 
-### Single source of truth
+### Configuration as Code
 
-One file (`db.yml`) is used for all the infra and workloads it creates and manages, to ensure a predictable and reliable automated workflow.
-This means abstractions are used which means a trade off between flexibility and reliability, but the stack is easily modified and enhanced to meet your needs. We strive to mirror docker compose functionality, which means no concessions are necessary from a docker compose enthusiast's perspective.
+itsUP uses a **git submodule-based configuration** approach:
+
+- **`projects/traefik.yml`**: Main configuration for infrastructure and services
+- **`secrets/global.txt`**: Encrypted secrets managed with SOPS
+- **Git submodules**: Keep your configs separate from the itsUP codebase
+
+This ensures a predictable and reliable automated workflow while maintaining separation of concerns. Configuration is validated against schemas at runtime, and variables support `${VAR}` expansion from secrets.
 
 ### Managed proxy setup
 
@@ -85,8 +90,8 @@ itsUP generates and manages `proxy/docker-compose.yml` which operates Traefik in
 
 ### Managed service deployments & updates
 
-itsUP generates and manages `upstream/{project}/docker-compose.yml` files to deploy container workloads as defined as a service in `db.yml`.
-This centralizes and abstracts away the plethora of custom docker compose setups that are mostly uniform in their approach anyway, so controlling their artifacts from one source of truth makes a lot of sense.
+itsUP generates and manages `upstream/{project}/docker-compose.yml` files to deploy container workloads defined in your `projects/` configuration files.
+This centralizes and abstracts away custom docker compose setups, controlling artifacts from your configuration files while maintaining full docker compose compatibility.
 
 ### <sup>\*</sup>Zero downtime?
 
@@ -137,51 +142,51 @@ It is surely possible to deploy stateful services but beware that those might no
 
 **Infra:**
 
-- Portforwarding of port `80` and `443` to the machine running this stack. This stack MUST overtake whatever routing you now have, but don't worry, as it supports your home assistant setup and forwards any traffic it expects to it (if you finish the pre-configured `home-assistant` project in `db.yml`)
+- Portforwarding of port `80` and `443` to the machine running this stack. This stack MUST overtake whatever routing you now have, but don't worry, as it supports your home assistant setup and forwards any traffic it expects to it (configure your home-assistant service in `projects/home-assistant.yml`)
 - A wildcard dns domain like `*.itsup.example.com` that points to your home ip. This allows to choose whatever subdomain for your services. You may of course choose and manage any domain in a similar fashion for a public service, but I suggest not going through such trouble for anything private.
 
 ## Dev/ops tools
 
-### utility functions
+### itsUP CLI
 
-Source `lib/functions.sh` to get:
+The `itsup` command provides interactive initialization:
 
-- `dcp <cmd> [service]`: Smart proxy management with zero-downtime
+```bash
+./itsup init              # Initialize from samples with validation
+./itsup --version         # Show version
+./itsup --help            # Show help
+```
 
-  - `dcp up` - Smart update all proxy services (detects changes, only rollout if needed)
-  - `dcp up traefik` - Smart update traefik only
-  - `dcp restart [service]` - Smart restart (defaults to traefik)
-  - `dcp logs -f` - Regular docker compose passthrough for other commands
+### Management Scripts
 
-- `dcu <project> <cmd> [service]`: Smart upstream management
+- `bin/apply.py`: Apply configuration changes with smart zero-downtime updates
+- `bin/write-artifacts.py`: Regenerate Docker Compose files without deploying
+- `bin/backup.py`: Backup upstream/ directory to S3
+- `bin/requirements-update.sh`: Update Python dependencies
 
-  - `dcu myproject up` - Smart update all services (auto-rollout when changed)
-  - `dcu myproject restart myservice` - Smart restart specific service
-  - `dcu myproject logs -f` - Regular docker compose passthrough
+### Docker Management
 
-- `dca <cmd>`: Run docker compose command for all upstreams: `dca ps`
+Use direct `docker compose` commands from project root:
 
-- `dcpx <service> <cmd>`: Execute command in proxy container
+```bash
+# Proxy management
+docker compose -f proxy/docker-compose.yml ps
+docker compose -f proxy/docker-compose.yml logs -f traefik
 
-  - Example: `dcpx traefik 'rm -rf /etc/acme/acme.json'`
+# Upstream service management (example: whoami project)
+docker compose -f upstream/whoami/docker-compose.yml ps
+docker compose -f upstream/whoami/docker-compose.yml logs -f
 
-- `dcux <project> <service> <cmd>`: Execute command in upstream container
-  - Example: `dcux test web env`
+# Smart updates with change detection
+bin/apply.py              # Apply all config changes with zero-downtime
+```
 
 **Smart Behavior:**
 
-- `up` and `restart` commands use Python's smart detection (via `update_proxy()`/`update_upstream()`)
-- Other commands pass through to docker compose directly
-- Zero-downtime rollouts only happen when actual changes detected
-
-In effect these wrapper commands achieve the same as when going into an `upstream/*` folder and running `docker compose` there, but with added intelligence.
-I don't want to switch folders/terminals all the time and want to keep a "project root" history of my commands so I choose this approach.
-
-### Utility scripts
-
-- `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
-- `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
-- `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
+`bin/apply.py` uses intelligent change detection:
+- Compares config hashes stored in container labels
+- Only performs rollouts when changes detected
+- Zero-downtime updates via `docker rollout` plugin
 
 ### Makefile
 
@@ -193,7 +198,7 @@ make install           # Install dependencies
 make test              # Run all tests
 make lint              # Run linter
 make format            # Format code
-make validate          # Validate db.yml
+make validate          # Validate configuration
 make apply             # Apply configuration changes
 make rollout           # Apply with zero-downtime rollout
 make backup            # Backup upstream directory to S3
@@ -304,24 +309,31 @@ git submodule update --init --recursive
 - `projects/`: Contains your service configurations (YAML files). This keeps your infrastructure-as-code separate from the itsUP codebase, allowing you to manage and version your configurations independently.
 - `secrets/`: Contains encrypted secrets (using SOPS). Keeping secrets in a separate repository improves security and access control.
 
-#### 2. Run installation
+#### 2. Initialize configuration
 
-The installation script will:
-- Validate that submodules are initialized
-- Copy sample configuration files (won't overwrite existing files)
-- Set up Python virtual environment
-- Install dependencies
+Use the `itsup init` command to set up your installation:
 
 ```bash
-bin/install.py
+./itsup init
 ```
 
-The script will copy sample files to:
-- `.env` (environment variables)
-- `projects/traefik.yml` (base Traefik configuration)
-- `secrets/global.txt` (template for required secrets)
+This will:
+- Validate that submodules are initialized
+- Copy sample configuration files (won't overwrite existing files):
+  - `samples/env` → `.env`
+  - `samples/traefik.yml` → `projects/traefik.yml`
+  - `samples/secrets/global.txt` → `secrets/global.txt`
+- Provide next steps for configuration
 
-#### 3. Configure your installation
+#### 3. Install dependencies
+
+Set up Python environment and install dependencies:
+
+```bash
+make install                # or: bin/install.sh
+```
+
+#### 4. Configure your installation
 
 Edit the copied files:
 
@@ -329,7 +341,7 @@ Edit the copied files:
 2. **`projects/traefik.yml`**: Change `domain_suffix` to your domain
 3. **`secrets/global.txt`**: Fill in ALL required secrets (validation will fail if any are empty)
 
-#### 4. Encrypt and commit secrets
+#### 5. Encrypt and commit secrets
 
 ```bash
 # Encrypt secrets with SOPS
@@ -348,17 +360,14 @@ git commit -m "Initial configuration"
 git push
 ```
 
-#### 5. Deploy
+#### 6. Deploy
 
 ```bash
-# Start the proxy and API
-bin/start-all.sh
-
 # Apply your configuration with zero-downtime updates
 bin/apply.py
 ```
 
-#### 6. Monitor
+#### 7. Monitor
 
 ```bash
 # Tail all logs
@@ -370,12 +379,14 @@ make logs
 
 ### Configure services
 
-Project and service configuration is explained below with the following scenarios. Please also check `db.yml.sample` as it contains more examples.
+Service configuration is managed through YAML files in the `projects/` submodule. You can create multiple project files (e.g., `projects/whoami.yml`, `projects/home-assistant.yml`) or keep everything in `projects/traefik.yml`.
+
+**Note:** See [CLAUDE.md](CLAUDE.md) for detailed documentation on the configuration schema and examples.
 
 #### Scenario 1: Adding an upstream service that will be deployed and managed
 
-Edit `db.yml` and add your projects with their service(s). Any service that is given an `image: ` prop will be deployed with `docker compose`.
-Example:
+Create or edit a YAML file in `projects/` directory. Any service with an `image:` property will be deployed with `docker compose`.
+Example (`projects/whoami.yml`):
 
 ```yaml
 projects:
@@ -497,7 +508,7 @@ The following docker service properties exist at the service root level and MUST
 
 ### Configure plugins
 
-You can enable and configure plugins in `db.yml`. Right now we support the following:
+You can enable and configure plugins in `projects/traefik.yml`. Right now we support the following:
 
 #### CrowdSec
 
@@ -505,7 +516,7 @@ You can enable and configure plugins in `db.yml`. Right now we support the follo
 
 **Step 1: generate api key**
 
-First set `enable: true`, run `bin/write-artifacts.py`, and bring up the `crowdsec` container:
+First set `enabled: true` in `projects/traefik.yml` under `plugins.crowdsec`, run `bin/apply.py`, and bring up the `crowdsec` container:
 
 ```
 docker compose up -d crowdsec
@@ -517,7 +528,7 @@ Now we can execute the command to get the key:
 docker compose exec crowdsec cscli bouncers add crowdsecBouncer
 ```
 
-Put the resulting api key in the `plugins.crowdsec.apikey` configuration in `db.yml` and apply with `bin/apply.py`.
+Put the resulting api key in `secrets/global.txt` as `CROWDSEC_API_KEY`, re-encrypt with SOPS, and apply with `bin/apply.py`.
 Crowdsec is now running and wired up, but does not use any blocklists yet. Those can be managed manually, but preferable is to become part of the community by creating an account with CrowdSec to get access and contribute to the community blocklists, as well as view results in your account's dashboards.
 
 **Step 2: connect your instance with the CrowdSec console**
@@ -540,8 +551,8 @@ Example:
 **Step 4: add ip (or cidr) to whitelist**
 
 ```
-dcpx crowdsec 'cscli allowlists create me -d "my dev ips"'
-dcpx crowdsec csli allowlists add me 123.123.123.0/24
+docker compose -f proxy/docker-compose.yml exec crowdsec cscli allowlists create me -d "my dev ips"
+docker compose -f proxy/docker-compose.yml exec crowdsec cscli allowlists add me 123.123.123.0/24
 ```
 
 ### Using the Api & OpenApi spec
@@ -686,8 +697,8 @@ This setup contains a project called "vpn" which runs an openvpn service that gi
 #### 1. Initialize the configuration files and certificates
 
 ```
-dcu vpn run vpn-openvpn ovpn_genconfig -u udp4://vpn.itsup.example.com
-dcu vpn run vpn-openvpn ovpn_initpki
+docker compose -f upstream/vpn/docker-compose.yml run vpn-openvpn ovpn_genconfig -u udp4://vpn.itsup.example.com
+docker compose -f upstream/vpn/docker-compose.yml run vpn-openvpn ovpn_initpki
 ```
 
 Save the signing passphrase you created.
@@ -696,7 +707,7 @@ Save the signing passphrase you created.
 
 ```
 export CLIENTNAME='github'
-dcu vpn run vpn-openvpn easyrsa build-client-full $CLIENTNAME
+docker compose -f upstream/vpn/docker-compose.yml run vpn-openvpn easyrsa build-client-full $CLIENTNAME
 ```
 
 Save the client passphrase you created as it will be used for `OVPN_PASSWORD` below.
@@ -704,7 +715,7 @@ Save the client passphrase you created as it will be used for `OVPN_PASSWORD` be
 #### 3. Retrieve the client configuration with embedded certificates and place in github workflow folder
 
 ```
-dcu vpn run vpn-openvpn ovpn_getclient $CLIENTNAME combined > .github/workflows/client.ovpn
+docker compose -f upstream/vpn/docker-compose.yml run vpn-openvpn ovpn_getclient $CLIENTNAME combined > .github/workflows/client.ovpn
 ```
 
 **IMPORTANT:** Now change `udp` to `udp4` in the `remote: ...` line to target UDP with IPv4 as docker is still not there.
