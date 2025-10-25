@@ -32,8 +32,8 @@ def _write_upstreams() -> bool:
 
 @click.command()
 @click.argument("project", required=False)
-@click.option("--force", is_flag=True, help="Force regeneration")
-def apply(project, force):
+
+def apply(project):
     """
     Apply configurations (regenerate + deploy)
 
