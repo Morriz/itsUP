@@ -99,7 +99,7 @@ make logs                   # Same as above
 ### Utilities
 
 ```bash
-bin/write-artifacts.py      # Regenerate proxy and upstream configs without deploying
+bin/write_artifacts.py      # Regenerate upstream configs without deploying
 bin/backup.py               # Backup upstream/ directory to S3
 bin/requirements-update.sh  # Update Python dependencies
 ```

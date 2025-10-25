@@ -10,7 +10,6 @@ import click
 
 from bin.write_artifacts import write_upstream, write_upstreams
 from lib.data import list_projects
-from lib.proxy import update_proxy, write_proxies
 
 logger = logging.getLogger(__name__)
 
@@ -81,19 +80,11 @@ def apply(project):
         # Apply all
         logger.info("Deploying all projects...")
 
-        # Regenerate proxy configs
-        logger.info("Writing proxy configs...")
-        write_proxies()
-
         # Regenerate all upstreams
         logger.info("Writing upstream configs...")
         if not write_upstreams():
             logger.error("Failed to generate some upstream configs")
             sys.exit(1)
-
-        # Deploy proxy
-        logger.info("Updating proxy...")
-        update_proxy()
 
         # Deploy all upstreams
         logger.info("Deploying all upstreams...")
