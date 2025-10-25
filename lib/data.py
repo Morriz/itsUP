@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def load_secrets() -> dict[str, str]:
     """Load all secrets from secrets/ (decrypted .txt files)"""
-    secrets = {}
+    secrets: dict[str, str] = {}
     secrets_dir = Path("secrets")
 
     if not secrets_dir.exists():
@@ -59,7 +59,7 @@ def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
         # Expand ${VAR} and $VAR syntax
         # Pattern matches: ${VAR_NAME} or $VAR_NAME
         # Variable names must start with letter/underscore, followed by alphanumeric/underscore
-        def replacer(match):
+        def replacer(match: re.Match[str]) -> str:
             var_name = match.group(1) or match.group(2)
             return secrets.get(var_name, match.group(0))
 
@@ -162,3 +162,90 @@ def validate_all() -> dict[str, list[str]]:
         if errors:
             results[project] = errors
     return results
+
+
+# === V1 API Compatibility Stubs (for gradual migration) ===
+# These functions are imported by legacy code but not implemented in V2.
+# They exist only to satisfy mypy type checking during the migration period.
+
+
+def get_project(project_name: Union[str, Project], throw: bool = False) -> Union[Project, None]:
+    """V1 API - Not implemented in V2. Use load_project() instead."""
+    raise NotImplementedError(
+        "get_project() is V1 API. Use load_project() for V2 (returns tuple[dict, TraefikConfig])"
+    )
+
+
+def get_projects(filter: Union[Callable, None] = None) -> list[Project]:  # type: ignore[type-arg]
+    """V1 API - Not implemented in V2. Use list_projects() instead."""
+    raise NotImplementedError("get_projects() is V1 API. Use list_projects() for V2 (returns list[str])")
+
+
+def get_service(project: str, service: str) -> Union[Service, None]:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_service() is V1 API and not implemented in V2")
+
+
+def get_services(project: str) -> list[Service]:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_services() is V1 API and not implemented in V2")
+
+
+def get_plugin_registry() -> PluginRegistry:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_plugin_registry() is V1 API and not implemented in V2")
+
+
+def get_plugins() -> list[Plugin]:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_plugins() is V1 API and not implemented in V2")
+
+
+def get_versions() -> dict[str, str]:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_versions() is V1 API and not implemented in V2")
+
+
+def get_env(project: str, key: str) -> Union[str, None]:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_env() is V1 API and not implemented in V2")
+
+
+def get_db() -> dict[str, Any]:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_db() is V1 API. V2 uses projects/ directory structure")
+
+
+def upsert_project(project: Project) -> None:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("upsert_project() is V1 API. V2 uses direct file editing in projects/")
+
+
+def upsert_service(project: str, service: Service) -> None:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("upsert_service() is V1 API. V2 uses direct file editing in projects/")
+
+
+def upsert_env(project: str, key: str, value: str) -> None:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("upsert_env() is V1 API. V2 uses direct file editing in projects/")
+
+
+def write_db() -> None:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("write_db() is V1 API. V2 uses projects/ directory, no central db.yml")
+
+
+def write_projects() -> None:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("write_projects() is V1 API. V2 uses projects/ directory")
+
+
+def validate_db() -> list[str]:
+    """V1 API - Not implemented in V2. Use validate_all() instead."""
+    raise NotImplementedError("validate_db() is V1 API. Use validate_all() for V2")
+
+
+def get_plugin_model(plugin_name: str) -> type:
+    """V1 API - Not implemented in V2."""
+    raise NotImplementedError("get_plugin_model() is V1 API and not implemented in V2")
