@@ -99,7 +99,7 @@ class TestVPNExclusion(unittest.TestCase):
 
     @patch("monitor.core.logger")
     def test_vpn_container_not_blacklisted(self, mock_logger):
-        """VPN containers should be reported but NOT blacklisted"""
+        """VPN containers should be silently skipped (no blacklist, no reporting)"""
         monitor = ContainerMonitor(skip_sync=True)
 
         # Simulate VPN container detection
@@ -108,20 +108,15 @@ class TestVPNExclusion(unittest.TestCase):
         # Should NOT be in blacklist
         self.assertNotIn("1.2.3.4", monitor.blacklist.get_all())
 
-    @patch("monitor.core.logger")
-    def test_vpn_container_is_reported(self, mock_logger):
-        """VPN containers should still be reported as compromised"""
-        monitor = ContainerMonitor(skip_sync=True)
+        # Should NOT be in reported compromises
+        self.assertNotIn("vpn-vpn-openvpn-server1:1.2.3.4", monitor._reported_compromises)
 
-        # Simulate VPN container detection
-        monitor._handle_hardcoded_ip_detection("vpn-vpn-openvpn-server1", "1.2.3.4", "443", log_blacklist=True)
-
-        # Should be in reported compromises
-        self.assertIn("vpn-vpn-openvpn-server1:1.2.3.4", monitor._reported_compromises)
+        # Should only log at DEBUG level
+        self.assertEqual(mock_logger.warning.call_count, 0, "Should not log warnings for VPN containers")
 
     @patch("monitor.core.logger")
     def test_non_vpn_container_is_blacklisted(self, mock_logger):
-        """Non-VPN containers should be blacklisted normally"""
+        """Non-VPN containers should be blacklisted and reported normally"""
         monitor = ContainerMonitor(skip_sync=True)
 
         # Simulate normal container detection
@@ -129,6 +124,12 @@ class TestVPNExclusion(unittest.TestCase):
 
         # Should be in blacklist
         self.assertIn("1.2.3.4", monitor.blacklist.get_all())
+
+        # Should be in reported compromises
+        self.assertIn("test-container:1.2.3.4", monitor._reported_compromises)
+
+        # Should log warning
+        self.assertEqual(mock_logger.warning.call_count, 1, "Should log warning for normal containers")
 
     @patch("monitor.core.logger")
     def test_vpn_exclusion_prefix_match(self, mock_logger):
@@ -145,10 +146,14 @@ class TestVPNExclusion(unittest.TestCase):
         for vpn_name in vpn_names:
             monitor._handle_hardcoded_ip_detection(vpn_name, f"1.2.3.{len(vpn_name)}", "443", log_blacklist=True)
 
-        # None should be blacklisted
+        # None should be blacklisted or reported
         for i, vpn_name in enumerate(vpn_names):
             ip = f"1.2.3.{len(vpn_name)}"
             self.assertNotIn(ip, monitor.blacklist.get_all(), f"{vpn_name} should not be blacklisted")
+            self.assertNotIn(f"{vpn_name}:{ip}", monitor._reported_compromises, f"{vpn_name} should not be reported")
+
+        # Should not log warnings (only DEBUG)
+        self.assertEqual(mock_logger.warning.call_count, 0, "Should not log warnings for VPN containers")
 
 
 class TestWhitelistProtection(unittest.TestCase):

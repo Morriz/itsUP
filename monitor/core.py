@@ -336,7 +336,9 @@ class ContainerMonitor:
         """Get container name from IP address."""
         return self._container_ips.get(container_ip)
 
-    def _handle_hardcoded_ip_detection(self, container_name: str, dst_ip: str, dst_port: str, log_blacklist: bool) -> None:
+    def _handle_hardcoded_ip_detection(
+        self, container_name: str, dst_ip: str, dst_port: str, log_blacklist: bool, is_historical: bool = False
+    ) -> bool:
         """Handle detection of hardcoded IP (no DNS history).
 
         Args:
@@ -344,14 +346,25 @@ class ContainerMonitor:
             dst_ip: Destination IP address
             dst_port: Destination port
             log_blacklist: Whether to log when adding to blacklist
-        """
-        # DIRTY HACK: Skip blacklist for VPN containers but still report
-        if container_name.startswith("vpn-vpn-openvpn-"):
-            logger.info(f"🔓 VPN exclusion: {container_name} → {dst_ip} (reported but not blacklisted)")
-        else:
-            self.add_to_blacklist(dst_ip, log_msg=log_blacklist)
+            is_historical: Whether this is from historical analysis
 
+        Returns:
+            True if detected and handled, False if skipped (e.g., VPN)
+        """
+        # DIRTY HACK: Skip blacklist and reporting for VPN containers
+        if container_name.startswith("vpn-vpn-openvpn-"):
+            logger.debug(f"🔓 VPN exclusion: {container_name} → {dst_ip} (skipped)")
+            return False
+
+        # Log the detection
+        context = "Historical" if is_historical else "Direct"
+        logger.warning(
+            f"🔍 {context}: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨"
+        )
+
+        self.add_to_blacklist(dst_ip, log_msg=log_blacklist)
         self.report_compromise(container_name, dst_ip, "connection to hardcoded IP (no DNS)")
+        return True
 
     def report_compromise(self, container: str, ip: str, evidence: str) -> None:
         """Report compromised container."""
@@ -601,23 +614,13 @@ class ContainerMonitor:
                     else:
                         domain_display = domain
 
-                    logger.log_legacy(
-                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - OK (DNS: {domain_display})",
-                        "INFO",
-                    )
+                    logger.info(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - OK (DNS: {domain_display})")
 
                     # Show all domains in DEBUG log
                     if domain_count > 1:
-                        logger.log_legacy(
-                            f"  ↳ DNS mappings: {', '.join(all_domains)}",
-                            "DEBUG",
-                        )
+                        logger.debug(f"  ↳ DNS mappings: {', '.join(all_domains)}")
                 else:
-                    # NO DNS HISTORY = HARDCODED IP = MALWARE
-                    logger.log_legacy(
-                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
-                        "WARN",
-                    )
+                    # NO DNS HISTORY = HARDCODED IP = MALWARE (or VPN)
                     self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=True)
 
     def _load_opensnitch_blocks(self) -> None:
@@ -804,13 +807,9 @@ class ContainerMonitor:
                 has_dns = dst_ip in self._dns_cache
 
             if not has_dns:
-                # NO DNS HISTORY = HARDCODED IP
-                logger.log_legacy(
-                    f"🔍 Historical: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
-                    "WARN",
-                )
-                self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=False)
-                hardcoded_count += 1
+                # NO DNS HISTORY = HARDCODED IP (or VPN)
+                if self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=False, is_historical=True):
+                    hardcoded_count += 1
 
         return hardcoded_count
 
@@ -882,9 +881,9 @@ class ContainerMonitor:
         logger.info(f"Log level: {LOG_LEVEL}")
 
         if self.use_opensnitch:
-            logger.log_legacy("Monitoring: DNS Honeypot + Direct TCP connections (with OpenSnitch cross-reference)")
+            logger.info("Monitoring: DNS Honeypot + Direct TCP connections (with OpenSnitch cross-reference)")
         else:
-            logger.log_legacy("Monitoring: DNS Honeypot + Direct TCP connections (standalone mode)")
+            logger.info("Monitoring: DNS Honeypot + Direct TCP connections (standalone mode)")
 
         # Setup
         self._setup_signal_handlers()
@@ -917,7 +916,7 @@ class ContainerMonitor:
     def _cleanup_and_exit(self) -> None:
         """Cleanup handler for signals."""
         logger.info("\n=== Shutting down ===")
-        logger.log_legacy("ℹ️  iptables rules remain active (use --clear-iptables to remove)")
+        logger.info("ℹ️  iptables rules remain active (use --clear-iptables to remove)")
         if self._compromise_count_by_container:
             logger.info("Suspicious containers detected:")
             self.log_suspicious_containers()

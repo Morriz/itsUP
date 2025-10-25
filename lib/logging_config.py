@@ -20,25 +20,8 @@ def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None
         self._log(TRACE, message, args, **kwargs)  # pylint: disable=protected-access
 
 
-def log_legacy(self: logging.Logger, message: str, *args: Any, level: str = "INFO", **kwargs: Any) -> None:
-    """Log message with legacy level name format (for backward compatibility)."""
-    level_map = {
-        "TRACE": TRACE,
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARN": logging.WARNING,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL,
-    }
-    level_const = level_map.get(level.upper(), logging.INFO)
-    if self.isEnabledFor(level_const):
-        self._log(level_const, message, args, **kwargs)  # pylint: disable=protected-access
-
-
 # Add custom methods to Logger class
 logging.Logger.trace = trace  # type: ignore[attr-defined]
-logging.Logger.log_legacy = log_legacy  # type: ignore[attr-defined]
 
 
 class PathFormatter(logging.Formatter):
