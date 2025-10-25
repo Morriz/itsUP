@@ -111,19 +111,30 @@ def write_upstream(project_name: str) -> None:
     logger.info(f"Generated {compose_file}")
 
 
-def write_upstreams() -> None:
-    """Generate all upstream/* directories from projects/"""
+def write_upstreams() -> bool:
+    """Generate all upstream/* directories from projects/
+
+    Returns: True if all projects succeeded, False if any failed
+    """
     projects = list_projects()
 
     if not projects:
         logger.warning("No projects found in projects/ directory")
-        return
+        return True
 
+    failed_projects = []
     for project_name in projects:
         try:
             write_upstream(project_name)
         except Exception as e:
             logger.error(f"Failed to generate upstream for {project_name}: {e}")
+            failed_projects.append(project_name)
+
+    if failed_projects:
+        logger.error(f"Failed to generate upstream configs for: {', '.join(failed_projects)}")
+        return False
+
+    return True
 
 
 if __name__ == "__main__":
@@ -142,6 +153,8 @@ if __name__ == "__main__":
     write_proxies()
 
     # Generate upstream configs
-    write_upstreams()
+    if not write_upstreams():
+        logger.error("Failed to generate some upstream configs")
+        sys.exit(1)
 
     logger.info("All artifacts generated successfully")
