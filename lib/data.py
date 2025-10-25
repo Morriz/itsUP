@@ -9,7 +9,16 @@ from typing import Any, Callable, Union, cast
 import yaml
 from dotenv import dotenv_values
 
-from lib.models import Env, Ingress, IngressV2, Plugin, PluginRegistry, Project, Service, TraefikConfig
+from lib.models import (
+    Env,
+    Ingress,
+    IngressV2,
+    Plugin,
+    PluginRegistry,
+    Project,
+    Service,
+    TraefikConfig,
+)
 
 logger = logging.getLogger(__name__)
 
