@@ -16,15 +16,35 @@ logger = logging.getLogger(__name__)
 
 
 def complete_project(ctx, param, incomplete):
-    """Autocomplete project names"""
+    """
+    Autocomplete project names.
+
+    Args:
+        ctx: Click context
+        param: Click parameter
+        incomplete: Partially typed string to complete
+
+    Returns:
+        List of project names matching the incomplete string
+    """
     return [p for p in list_projects() if p.startswith(incomplete)]
 
 
 def complete_svc_command(ctx, param, incomplete):
     """
-    Smart completion for svc command:
-    - First position: docker compose commands
-    - Second+ position: service names from docker-compose.yml
+    Smart completion for svc command arguments.
+
+    Provides context-aware autocompletion:
+    - First argument: docker compose commands (up, down, logs, etc.)
+    - Subsequent arguments: service names from docker-compose.yml
+
+    Args:
+        ctx: Click context
+        param: Click parameter
+        incomplete: Partially typed string to complete
+
+    Returns:
+        List of commands or service names matching the incomplete string
     """
     # Get already-typed arguments
     args = ctx.params.get("command", [])
@@ -63,7 +83,8 @@ def complete_svc_command(ctx, param, incomplete):
                     compose = yaml.safe_load(f)
                     services = list(compose.get("services", {}).keys())
                     return [s for s in services if s.startswith(incomplete)]
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Failed to parse compose file for autocomplete: {e}")
                 pass
 
     return []

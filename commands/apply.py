@@ -8,26 +8,11 @@ import sys
 
 import click
 
+from bin.write_artifacts import write_upstream, write_upstreams
 from lib.data import list_projects
 from lib.proxy import update_proxy, write_proxies
 
 logger = logging.getLogger(__name__)
-
-
-def _write_upstream(project_name: str) -> None:
-    """Generate upstream/{project}/docker-compose.yml - imported from write-artifacts.py"""
-    # Import here to avoid circular dependencies
-    from bin.write_artifacts import write_upstream
-
-    write_upstream(project_name)
-
-
-def _write_upstreams() -> bool:
-    """Generate all upstream configs - imported from write-artifacts.py"""
-    # Import here to avoid circular dependencies
-    from bin.write_artifacts import write_upstreams
-
-    return write_upstreams()
 
 
 @click.command()
@@ -54,7 +39,7 @@ def apply(project):
 
         # Smart sync (regenerate compose file with Traefik labels)
         logger.info(f"Syncing {project}...")
-        _write_upstream(project)
+        write_upstream(project)
 
         # Deploy with -d (daemonize)
         upstream_dir = f"upstream/{project}"
@@ -92,7 +77,7 @@ def apply(project):
 
         # Regenerate all upstreams
         logger.info("Writing upstream configs...")
-        if not _write_upstreams():
+        if not write_upstreams():
             logger.error("Failed to generate some upstream configs")
             sys.exit(1)
 
@@ -102,6 +87,7 @@ def apply(project):
 
         # Deploy all upstreams
         logger.info("Deploying all upstreams...")
+        failed_projects = []
         for proj in list_projects():
             upstream_dir = f"upstream/{proj}"
             compose_file = f"{upstream_dir}/docker-compose.yml"
@@ -125,5 +111,10 @@ def apply(project):
                 logger.info(f"  ✓ {proj}")
             except subprocess.CalledProcessError:
                 logger.error(f"  ✗ {proj} failed")
+                failed_projects.append(proj)
+
+        if failed_projects:
+            logger.error(f"Failed projects: {', '.join(failed_projects)}")
+            sys.exit(1)
 
         logger.info("✓ Apply complete")

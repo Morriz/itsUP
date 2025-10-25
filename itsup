@@ -33,7 +33,7 @@ from commands.validate import validate
 @click.option("--verbose", "-v", is_flag=True, help="Verbose logging")
 def cli(verbose):
     """itsUP - Infrastructure management CLI"""
-    setup_logging(verbose=verbose)
+    setup_logging(level="DEBUG" if verbose else "INFO")
 
 
 # Register commands
