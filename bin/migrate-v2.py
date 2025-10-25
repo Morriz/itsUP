@@ -1,13 +1,14 @@
 #!.venv/bin/python
-"""Migrate current db.yml to V2 architecture"""
+"""Migrate current V1 setup to V2 architecture by copying existing artifacts"""
 
 import argparse
 import logging
 import os
 import sys
 import yaml
+import shutil
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Dict, Any
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__) + "/.."))
 
@@ -15,6 +16,39 @@ from lib.logging_config import setup_logging
 from lib.data import validate_db
 
 logger = logging.getLogger(__name__)
+
+
+def replace_secrets_with_vars(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively replace secret values with ${VAR} references"""
+    # Load secrets map
+    secrets = {}
+    secrets_file = Path('secrets/global.txt')
+    if secrets_file.exists():
+        try:
+            with open(secrets_file, encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        secrets[value.strip()] = key.strip()
+        except (IOError, PermissionError) as e:
+            logger.warning(f"Could not read secrets file {secrets_file}: {e}")
+            # Continue without secret replacement
+
+    def replace_value(val):
+        if isinstance(val, str) and val in secrets:
+            return f"${{{secrets[val]}}}"
+        return val
+
+    def replace_dict(d):
+        if isinstance(d, dict):
+            return {k: replace_dict(v) for k, v in d.items()}
+        elif isinstance(d, list):
+            return [replace_dict(item) for item in d]
+        else:
+            return replace_value(d)
+
+    return replace_dict(data)
 
 
 def migrate_infrastructure(db: Dict[str, Any]) -> Dict[str, Any]:
@@ -50,92 +84,16 @@ def migrate_infrastructure(db: Dict[str, Any]) -> Dict[str, Any]:
 
     return infra
 
-def replace_secrets_with_vars(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Recursively replace secret values with ${VAR} references"""
-    # Load secrets map
-    secrets = {}
-    secrets_file = Path('secrets/global.txt')
-    if secrets_file.exists():
-        try:
-            with open(secrets_file, encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        secrets[value.strip()] = key.strip()
-        except (IOError, PermissionError) as e:
-            logger.warning(f"Could not read secrets file {secrets_file}: {e}")
-            # Continue without secret replacement
 
-    def replace_value(val):
-        if isinstance(val, str) and val in secrets:
-            return f"${{{secrets[val]}}}"
-        return val
-
-    def replace_dict(d):
-        if isinstance(d, dict):
-            return {k: replace_dict(v) for k, v in d.items()}
-        elif isinstance(d, list):
-            return [replace_dict(item) for item in d]
-        else:
-            return replace_value(d)
-
-    return replace_dict(data)
-
-def migrate_project(project: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def migrate_project_traefik_config(project: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Convert project from db.yml to docker-compose.yml + traefik.yml
+    Extract traefik routing config from db.yml project
 
-    Returns: (docker_compose, traefik_config)
+    Returns: traefik_config dict
     """
     name = project.get('name')
     if not name:
         raise ValueError("Project missing required 'name' field")
-
-    # Build docker-compose.yml
-    compose = {
-        'services': {},
-        'networks': {
-            'traefik': {'external': True}
-        }
-    }
-
-    # Project-level env
-    project_env = project.get('env', {})
-
-    for service in project.get('services', []):
-        service_name = service.get('host')
-        if not service_name:
-            raise ValueError(f"Service in project '{name}' missing required 'host' field")
-        compose_service = {}
-
-        # Basic fields
-        if 'image' in service:
-            compose_service['image'] = service['image']
-        if 'command' in service:
-            compose_service['command'] = service['command']
-        if 'depends_on' in service:
-            compose_service['depends_on'] = service['depends_on']
-
-        # Environment
-        env = {}
-        env.update(project_env)
-        env.update(service.get('env', {}))
-        if env:
-            compose_service['environment'] = env
-
-        # Volumes
-        if 'volumes' in service:
-            compose_service['volumes'] = service['volumes']
-
-        # Networks
-        compose_service['networks'] = ['traefik']
-
-        # Additional properties
-        if 'additional_properties' in service:
-            compose_service.update(service['additional_properties'])
-
-        compose['services'][service_name] = compose_service
 
     # Build traefik.yml
     traefik = {
@@ -146,7 +104,7 @@ def migrate_project(project: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, 
     for service in project.get('services', []):
         svc_host = service.get('host')
         if not svc_host:
-            continue  # Already validated above, but skip if somehow missing
+            continue
         for ingress in service.get('ingress', []):
             if not ingress:
                 continue
@@ -163,10 +121,10 @@ def migrate_project(project: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, 
             traefik['ingress'].append(traefik_ingress)
 
     # Replace secrets with ${VAR} references
-    compose = replace_secrets_with_vars(compose)
     traefik = replace_secrets_with_vars(traefik)
 
-    return compose, traefik
+    return traefik
+
 
 def check_file_exists(path: Path, force: bool) -> bool:
     """Check if file exists and return whether to proceed"""
@@ -193,7 +151,7 @@ def validate_project_name(name: str) -> str:
 def main() -> int:
     """Main migration function. Returns exit code."""
     parser = argparse.ArgumentParser(
-        description="Migrate db.yml to V2 architecture (projects/ structure)",
+        description="Migrate V1 setup to V2 architecture (projects/ structure)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -205,8 +163,9 @@ This script:
   1. Validates db.yml before migration
   2. Creates db.yml.v1-backup (WARNING: contains plaintext secrets)
   3. Extracts infrastructure → projects/traefik.yml
-  4. Migrates each project → projects/{name}/docker-compose.yml + traefik.yml
-  5. Replaces secret values with ${VAR} references from secrets/global.txt
+  4. Copies upstream/{name}/docker-compose.yml → projects/{name}/docker-compose.yml
+  5. Generates projects/{name}/traefik.yml from db.yml routing config
+  6. Replaces secret values with ${VAR} references from secrets/global.txt
         """
     )
     parser.add_argument(
@@ -254,6 +213,13 @@ This script:
             logger.error("db.yml is not a valid dictionary")
             return 1
 
+        # Check that upstream/ directory exists
+        upstream_dir = Path('upstream')
+        if not upstream_dir.exists():
+            logger.error("upstream/ directory not found")
+            logger.error("Please run 'bin/write-artifacts.py' first to generate V1 artifacts")
+            return 1
+
         # Dry run mode
         if args.dry_run:
             logger.info("DRY RUN MODE - No files will be written")
@@ -265,7 +231,11 @@ This script:
                 name = project.get('name', '<missing>')
                 try:
                     sanitized_name = validate_project_name(name)
-                    logger.info(f"  - projects/{sanitized_name}/docker-compose.yml")
+                    upstream_compose = upstream_dir / sanitized_name / 'docker-compose.yml'
+                    if upstream_compose.exists():
+                        logger.info(f"  - projects/{sanitized_name}/docker-compose.yml (copied from upstream/)")
+                    else:
+                        logger.warning(f"  - projects/{sanitized_name}/docker-compose.yml (WARNING: upstream file not found)")
                     logger.info(f"  - projects/{sanitized_name}/traefik.yml")
                 except ValueError as e:
                     logger.error(f"  - ERROR: {e}")
@@ -338,19 +308,32 @@ This script:
             project_dir = projects_dir / name
             project_dir.mkdir(exist_ok=True)
 
-            # Generate configs
-            try:
-                compose, traefik = migrate_project(project)
-            except (ValueError, KeyError) as e:
-                logger.error(f"     ✗ Failed to migrate project: {e}")
+            # Copy existing docker-compose.yml from upstream/
+            upstream_compose = upstream_dir / name / 'docker-compose.yml'
+            if not upstream_compose.exists():
+                logger.error(f"     ✗ upstream/{name}/docker-compose.yml not found")
+                logger.error(f"       Run 'bin/write-artifacts.py' first to generate V1 artifacts")
                 return 1
 
-            # Write docker-compose.yml
             try:
+                # Read the upstream docker-compose.yml
+                with open(upstream_compose, encoding='utf-8') as f:
+                    compose_content = f.read()
+
+                # Write to projects/
                 with open(project_dir / 'docker-compose.yml', 'w', encoding='utf-8') as f:
-                    yaml.dump(compose, f, default_flow_style=False, sort_keys=False)
+                    f.write(compose_content)
+
+                logger.info(f"     ✓ {name}/docker-compose.yml (copied from upstream/)")
             except (IOError, PermissionError) as e:
-                logger.error(f"     ✗ Failed to write docker-compose.yml: {e}")
+                logger.error(f"     ✗ Failed to copy docker-compose.yml: {e}")
+                return 1
+
+            # Generate traefik.yml from db.yml routing config
+            try:
+                traefik = migrate_project_traefik_config(project)
+            except (ValueError, KeyError) as e:
+                logger.error(f"     ✗ Failed to generate traefik config: {e}")
                 return 1
 
             # Write traefik.yml
@@ -361,7 +344,6 @@ This script:
                 logger.error(f"     ✗ Failed to write traefik.yml: {e}")
                 return 1
 
-            logger.info(f"     ✓ {name}/docker-compose.yml")
             logger.info(f"     ✓ {name}/traefik.yml")
 
         logger.info("")
@@ -371,7 +353,7 @@ This script:
         logger.info("Files created:")
         logger.info("  - db.yml.v1-backup (old format - CONTAINS PLAINTEXT SECRETS)")
         logger.info("  - projects/traefik.yml (infrastructure)")
-        logger.info("  - projects/*/docker-compose.yml (services)")
+        logger.info("  - projects/*/docker-compose.yml (copied from upstream/)")
         logger.info("  - projects/*/traefik.yml (routing)")
         logger.info("")
         logger.info("Next steps:")
