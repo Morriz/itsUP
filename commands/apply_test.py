@@ -55,7 +55,6 @@ class TestApply(unittest.TestCase):
     ) -> None:
         """Test handling deployment failure for single project."""
         mock_list_projects.return_value = ["myproject"]
-        mock_subprocess.side_effect = mock.Mock(side_effect=Exception("Docker error"))
         mock_subprocess.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(
             __import__("subprocess").CalledProcessError(1, "docker")
         )

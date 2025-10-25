@@ -85,7 +85,6 @@ def complete_svc_command(ctx, param, incomplete):
                     return [s for s in services if s.startswith(incomplete)]
             except Exception as e:
                 logger.debug(f"Failed to parse compose file for autocomplete: {e}")
-                pass
 
     return []
 
