@@ -345,12 +345,12 @@ class ContainerMonitor:
             dst_port: Destination port
             log_blacklist: Whether to log when adding to blacklist
         """
-        # DIRTY HACK: Skip blacklist for VPN containers but still report
+        # DIRTY HACK: Skip blacklist and reporting for VPN containers
         if container_name.startswith("vpn-vpn-openvpn-"):
-            logger.info(f"🔓 VPN exclusion: {container_name} → {dst_ip} (reported but not blacklisted)")
-        else:
-            self.add_to_blacklist(dst_ip, log_msg=log_blacklist)
+            logger.debug(f"🔓 VPN exclusion: {container_name} → {dst_ip} (skipped)")
+            return
 
+        self.add_to_blacklist(dst_ip, log_msg=log_blacklist)
         self.report_compromise(container_name, dst_ip, "connection to hardcoded IP (no DNS)")
 
     def report_compromise(self, container: str, ip: str, evidence: str) -> None:
