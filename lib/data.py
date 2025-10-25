@@ -4,33 +4,17 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Union, cast
 
 import yaml
 from dotenv import dotenv_values
-from pydantic import BaseModel
+
+from lib.models import Env, Ingress, IngressV2, Plugin, PluginRegistry, Project, Service, TraefikConfig
 
 logger = logging.getLogger(__name__)
 
-# === Models ===
+# === V2 API Functions (for projects/ structure) ===
 
-class Ingress(BaseModel):
-    """Traefik ingress rule"""
-    service: str
-    domain: str | None = None
-    port: int = 80
-    router: str = "http"
-    path_prefix: str | None = None
-    hostport: int | None = None
-    passthrough: bool = False
-    tls_sans: list[str] = []
-
-class TraefikConfig(BaseModel):
-    """Traefik routing configuration"""
-    enabled: bool = True
-    ingress: list[Ingress] = []
-
-# === Secret Loading ===
 
 def load_secrets() -> dict[str, str]:
     """Load all secrets from secrets/ (decrypted .txt files)"""
@@ -55,6 +39,7 @@ def load_secrets() -> dict[str, str]:
     logger.info(f"Loaded {len(secrets)} secrets")
     return secrets
 
+
 def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
     """Recursively expand ${VAR} in data structure"""
     if isinstance(data, dict):
@@ -62,21 +47,20 @@ def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
     elif isinstance(data, list):
         return [expand_env_vars(item, secrets) for item in data]
     elif isinstance(data, str):
-        # Expand ${VAR} and $VAR
+        # Expand ${VAR} and $VAR syntax
+        # Pattern matches: ${VAR_NAME} or $VAR_NAME
+        # Variable names must start with letter/underscore, followed by alphanumeric/underscore
         def replacer(match):
             var_name = match.group(1) or match.group(2)
-            if var_name not in secrets:
-                raise ValueError(f"Secret variable '{var_name}' not found in secrets")
-            return secrets[var_name]
+            return secrets.get(var_name, match.group(0))
 
-        pattern = r'\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)'
+        pattern = r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)"
         return re.sub(pattern, replacer, data)
     else:
         return data
 
-# === Project Loading ===
 
-def load_infrastructure() -> dict:
+def load_infrastructure() -> dict[str, Any]:
     """Load infrastructure config from projects/traefik.yml"""
     traefik_file = Path("projects/traefik.yml")
 
@@ -84,7 +68,7 @@ def load_infrastructure() -> dict:
         logger.warning("projects/traefik.yml not found, using defaults")
         return {}
 
-    with open(traefik_file) as f:
+    with open(traefik_file, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Expand secrets
@@ -93,7 +77,8 @@ def load_infrastructure() -> dict:
 
     return config
 
-def load_project(project_name: str) -> tuple[dict, TraefikConfig]:
+
+def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     """
     Load project from projects/{name}/
 
@@ -109,7 +94,7 @@ def load_project(project_name: str) -> tuple[dict, TraefikConfig]:
     if not compose_file.exists():
         raise FileNotFoundError(f"Missing docker-compose.yml for {project_name}")
 
-    with open(compose_file) as f:
+    with open(compose_file, encoding="utf-8") as f:
         compose = yaml.safe_load(f)
 
     # Load traefik.yml
@@ -118,7 +103,7 @@ def load_project(project_name: str) -> tuple[dict, TraefikConfig]:
         logger.warning(f"No traefik.yml for {project_name}, using defaults")
         traefik = TraefikConfig()
     else:
-        with open(traefik_file) as f:
+        with open(traefik_file, encoding="utf-8") as f:
             traefik_data = yaml.safe_load(f)
             traefik = TraefikConfig(**traefik_data)
 
@@ -127,6 +112,7 @@ def load_project(project_name: str) -> tuple[dict, TraefikConfig]:
     compose = expand_env_vars(compose, secrets)
 
     return compose, traefik
+
 
 def list_projects() -> list[str]:
     """List all available projects"""
@@ -137,12 +123,9 @@ def list_projects() -> list[str]:
     return [
         p.name
         for p in projects_dir.iterdir()
-        if p.is_dir()
-        and (p / "docker-compose.yml").exists()
-        and p.name != ".git"  # Exclude .git directory
+        if p.is_dir() and (p / "docker-compose.yml").exists() and not p.name.startswith(".")
     ]
 
-# === Validation ===
 
 def validate_project(project_name: str) -> list[str]:
     """Validate project configuration, return list of errors"""
@@ -154,14 +137,13 @@ def validate_project(project_name: str) -> list[str]:
         return [str(e)]
 
     # Validate traefik references exist in compose
-    services = compose.get('services', {})
+    services = compose.get("services", {})
     for ingress in traefik.ingress:
         if ingress.service not in services:
-            errors.append(
-                f"traefik.yml references unknown service: {ingress.service}"
-            )
+            errors.append(f"traefik.yml references unknown service: {ingress.service}")
 
     return errors
+
 
 def validate_all() -> dict[str, list[str]]:
     """Validate all projects, return dict of project: [errors]"""
