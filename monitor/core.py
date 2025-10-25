@@ -601,22 +601,15 @@ class ContainerMonitor:
                     else:
                         domain_display = domain
 
-                    logger.log_legacy(
-                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - OK (DNS: {domain_display})",
-                        "INFO",
-                    )
+                    logger.info(f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - OK (DNS: {domain_display})")
 
                     # Show all domains in DEBUG log
                     if domain_count > 1:
-                        logger.log_legacy(
-                            f"  ↳ DNS mappings: {', '.join(all_domains)}",
-                            "DEBUG",
-                        )
+                        logger.debug(f"  ↳ DNS mappings: {', '.join(all_domains)}")
                 else:
                     # NO DNS HISTORY = HARDCODED IP = MALWARE
-                    logger.log_legacy(
-                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
-                        "WARN",
+                    logger.warning(
+                        f"🔍 Direct: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨"
                     )
                     self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=True)
 
@@ -805,9 +798,8 @@ class ContainerMonitor:
 
             if not has_dns:
                 # NO DNS HISTORY = HARDCODED IP
-                logger.log_legacy(
-                    f"🔍 Historical: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨",
-                    "WARN",
+                logger.warning(
+                    f"🔍 Historical: {container_name} → {dst_ip}:{dst_port} - NO DNS history (HARDCODED IP - MALWARE?) 🚨"
                 )
                 self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=False)
                 hardcoded_count += 1
@@ -882,9 +874,9 @@ class ContainerMonitor:
         logger.info(f"Log level: {LOG_LEVEL}")
 
         if self.use_opensnitch:
-            logger.log_legacy("Monitoring: DNS Honeypot + Direct TCP connections (with OpenSnitch cross-reference)")
+            logger.info("Monitoring: DNS Honeypot + Direct TCP connections (with OpenSnitch cross-reference)")
         else:
-            logger.log_legacy("Monitoring: DNS Honeypot + Direct TCP connections (standalone mode)")
+            logger.info("Monitoring: DNS Honeypot + Direct TCP connections (standalone mode)")
 
         # Setup
         self._setup_signal_handlers()
@@ -917,7 +909,7 @@ class ContainerMonitor:
     def _cleanup_and_exit(self) -> None:
         """Cleanup handler for signals."""
         logger.info("\n=== Shutting down ===")
-        logger.log_legacy("ℹ️  iptables rules remain active (use --clear-iptables to remove)")
+        logger.info("ℹ️  iptables rules remain active (use --clear-iptables to remove)")
         if self._compromise_count_by_container:
             logger.info("Suspicious containers detected:")
             self.log_suspicious_containers()
