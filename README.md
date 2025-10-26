@@ -1,5 +1,13 @@
 # itsUP <!-- omit in toc -->
 
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/pylint-dev/pylint)
+[![Type checking: mypy](https://img.shields.io/badge/type%20checking-mypy-blue)](http://mypy-lang.org/)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Tests: 87 passing](https://img.shields.io/badge/tests-87%20passing-brightgreen)](https://github.com/Morriz/itsUP)
+[![Code quality: 9.96/10](https://img.shields.io/badge/code%20quality-9.96%2F10-brightgreen)](https://github.com/Morriz/itsUP)
+
 _Lean, secure, automated, zero downtime<sup>\*</sup>, poor man's infra for services running in docker._
 
 <img align="center" src="assets/freight-conductor.png">
