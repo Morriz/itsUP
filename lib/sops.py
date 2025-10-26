@@ -44,8 +44,13 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path) -> bool:
             return False
 
         # Encrypt: sops -e plaintext.txt > encrypted.enc.txt
+        # Use --config to point to .sops.yaml in the secrets directory
+        config_file = plaintext_path.parent / ".sops.yaml"
+        cmd = ["sops", "--config", str(config_file), "-e", str(plaintext_path)]
+        logger.debug("Encrypting: %s → %s", plaintext_path, encrypted_path)
+        logger.debug("Command: %s", " ".join(cmd))
         with open(encrypted_path, "w", encoding="utf-8") as outfile:
-            subprocess.run(["sops", "-e", str(plaintext_path)], stdout=outfile, check=True, text=True)
+            subprocess.run(cmd, stdout=outfile, check=True, text=True)
 
         logger.info("✓ Encrypted %s → %s", plaintext_path.name, encrypted_path.name)
         return True
@@ -76,8 +81,13 @@ def decrypt_file(encrypted_path: Path, plaintext_path: Path) -> bool:
             return False
 
         # Decrypt: sops -d encrypted.enc.txt > plaintext.txt
+        # Use --config to point to .sops.yaml in the secrets directory
+        config_file = encrypted_path.parent / ".sops.yaml"
+        cmd = ["sops", "--config", str(config_file), "-d", str(encrypted_path)]
+        logger.debug("Decrypting: %s → %s", encrypted_path, plaintext_path)
+        logger.debug("Command: %s", " ".join(cmd))
         with open(plaintext_path, "w", encoding="utf-8") as outfile:
-            subprocess.run(["sops", "-d", str(encrypted_path)], stdout=outfile, check=True, text=True)
+            subprocess.run(cmd, stdout=outfile, check=True, text=True)
 
         logger.info("✓ Decrypted %s → %s", encrypted_path.name, plaintext_path.name)
         return True
@@ -98,6 +108,14 @@ def decrypt_to_memory(encrypted_path: Path) -> Optional[str]:
         Decrypted content as string, or None if failed
     """
     try:
+        # Ensure we have a Path object (but don't break mocks in tests)
+        if not isinstance(encrypted_path, Path):
+            try:
+                encrypted_path = Path(encrypted_path)
+            except (TypeError, AttributeError):
+                # Mock object in tests - pass through
+                pass
+
         if not is_sops_available():
             logger.warning("SOPS not available, cannot decrypt %s", encrypted_path.name)
             return None
@@ -106,7 +124,12 @@ def decrypt_to_memory(encrypted_path: Path) -> Optional[str]:
             return None
 
         # Decrypt to stdout
-        result = subprocess.run(["sops", "-d", str(encrypted_path)], capture_output=True, check=True, text=True)
+        # Use --config to point to .sops.yaml in the secrets directory
+        config_file = encrypted_path.parent / ".sops.yaml"
+        cmd = ["sops", "--config", str(config_file), "-d", str(encrypted_path)]
+        logger.debug("Decrypting to memory: %s", encrypted_path)
+        logger.debug("Command: %s", " ".join(cmd))
+        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
 
         return result.stdout
 

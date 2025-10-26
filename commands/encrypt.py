@@ -64,8 +64,8 @@ def encrypt(name: str, delete: bool):
             click.echo(f"{Colors.RED}✗{Colors.NC} File not found: secrets/{name}.txt", err=True)
             sys.exit(1)
     else:
-        # Encrypt all .txt files
-        plaintext_files = list(secrets_dir.glob("*.txt"))
+        # Encrypt all .txt files (exclude .enc.txt)
+        plaintext_files = [f for f in secrets_dir.glob("*.txt") if not f.name.endswith(".enc.txt")]
         if not plaintext_files:
             click.echo(f"{Colors.YELLOW}⚠{Colors.NC} No plaintext secrets found in secrets/")
             return

@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import netifaces  # type: ignore[import-not-found]
+import netifaces
 import yaml
 
 from lib.models import TraefikConfig

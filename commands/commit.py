@@ -73,7 +73,8 @@ def _commit_and_push(path: Path, name: str, message: str, custom_message: str = 
 
 @click.command()
 @click.argument("message", required=False)
-def commit(message):
+@click.option("--force", "-f", is_flag=True, help="Skip encryption prompts and commit as-is")
+def commit(message, force):
     """💾 Commit and push changes to "projects" and "secrets" repos [MESSAGE]
 
     Commits changes to both configuration repos and pushes to origin.
@@ -83,6 +84,7 @@ def commit(message):
     Examples:
         itsup commit                          # Auto-generated message
         itsup commit "feat: add new service"  # Custom message
+        itsup commit -f                       # Force commit, skip encryption prompts
     """
     # Get project root
     root = Path(__file__).resolve().parent.parent
@@ -108,7 +110,7 @@ def commit(message):
 
     # Security check: Warn about plaintext secrets in secrets/
     if secrets_dirty:
-        plaintext_secrets = list(secrets_path.glob("*.txt"))
+        plaintext_secrets = [f for f in secrets_path.glob("*.txt") if not f.name.endswith(".enc.txt")]
         if plaintext_secrets:
             click.echo(f"{Colors.YELLOW}⚠ Warning: Plaintext secrets detected in secrets/{Colors.NC}")
             for secret_file in plaintext_secrets:
@@ -123,7 +125,12 @@ def commit(message):
                 sops_available = False
 
             if sops_available:
-                if click.confirm("Encrypt secrets before committing?", default=True):
+                if force or not click.confirm("Encrypt secrets before committing?", default=True):
+                    click.echo()
+                    click.echo(f"{Colors.YELLOW}⚠{Colors.NC} Proceeding without encryption")
+                    click.echo(f"  Note: Plaintext .txt files are in .gitignore and won't be committed")
+                    click.echo()
+                else:
                     click.echo()
                     click.echo("Encrypting secrets...")
                     # Run itsup encrypt --delete
@@ -134,11 +141,6 @@ def commit(message):
                     except subprocess.CalledProcessError as e:
                         click.echo(f"{Colors.RED}✗{Colors.NC} Failed to encrypt secrets: {e}", err=True)
                         sys.exit(1)
-                else:
-                    click.echo()
-                    click.echo(f"{Colors.YELLOW}⚠{Colors.NC} Proceeding without encryption")
-                    click.echo(f"  Note: Plaintext .txt files are in .gitignore and won't be committed")
-                    click.echo()
             else:
                 click.echo(f"{Colors.YELLOW}⚠{Colors.NC} SOPS not installed - cannot encrypt")
                 click.echo("  Install with: brew install sops")

@@ -50,7 +50,7 @@ def _get_project_root() -> Path:
 
 def _validate_project_structure(root: Path) -> None:
     """Validate we're in the correct directory"""
-    if not (root / "itsup").exists() or not (root / "samples").exists():
+    if not (root / "bin" / "itsup").exists() or not (root / "samples").exists():
         _error("Must be run from itsUP project root\n" "  Expected to find itsup and samples/ directory")
 
 

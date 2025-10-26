@@ -109,7 +109,14 @@ def svc(project, command):
     upstream_dir = f"upstream/{project}"
     compose_file = f"{upstream_dir}/docker-compose.yml"
 
-    cmd = ["docker", "compose", "--project-directory", upstream_dir, "-p", project, "-f", compose_file, *command]
+    # Auto-add -d flag for 'up' command (V1 compatibility)
+    command_list = list(command)
+    if command_list and command_list[0] == "up":
+        # Don't add -d if user explicitly wants attached mode
+        if not any(flag in command_list for flag in ["-d", "--detach", "--no-detach"]):
+            command_list.insert(1, "-d")
+
+    cmd = ["docker", "compose", "--project-directory", upstream_dir, "-p", project, "-f", compose_file, *command_list]
 
     logger.debug(f"Running: {' '.join(cmd)}")
 

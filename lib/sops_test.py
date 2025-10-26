@@ -121,7 +121,7 @@ class TestSOPS(unittest.TestCase):
         """Test loading environment variables from plaintext file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             env_file = Path(tmpdir) / "test.txt"
-            env_file.write_text("# Comment\n" "SECRET_KEY=mysecret\n" "API_KEY=test123\n" "\n" "DB_PASSWORD=secure\n")
+            env_file.write_text("# Comment\nSECRET_KEY=mysecret\nAPI_KEY=test123\n\nDB_PASSWORD=secure\n")
 
             env_vars = load_env_file(env_file)
 
@@ -142,7 +142,7 @@ class TestSOPS(unittest.TestCase):
             encrypted_path.write_text("encrypted")
 
             with patch("lib.sops.decrypt_to_memory") as mock_decrypt:
-                mock_decrypt.return_value = "SECRET_KEY=encrypted_value\n" "API_KEY=test123\n"
+                mock_decrypt.return_value = "SECRET_KEY=encrypted_value\nAPI_KEY=test123\n"
 
                 env_vars = load_encrypted_env(encrypted_path)
 

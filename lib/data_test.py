@@ -52,7 +52,7 @@ class TestDataV2(unittest.TestCase):
         # Only VALID_VAR should be expanded
         self.assertEqual(result, "${123INVALID} ${VALID-NAME} value")
 
-    @mock.patch("lib.data.load_env_file")
+    @mock.patch("lib.data.load_encrypted_env")
     @mock.patch("lib.data.Path")
     def test_load_secrets_with_files(self, mock_path: Mock, mock_load_env: Mock) -> None:
         """Test loading secrets from files."""

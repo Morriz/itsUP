@@ -54,7 +54,8 @@ from commands.sops_key import sops_key
 @click.option("--verbose", "-v", is_flag=True, help="Verbose logging")
 def cli(verbose):
     """itsUP - Infrastructure management CLI"""
-    setup_logging(level="DEBUG" if verbose else "INFO")
+    # Pass None to honor LOG_LEVEL env var, or "DEBUG" if --verbose flag set
+    setup_logging(level="DEBUG" if verbose else None)
 
 
 # Register commands
