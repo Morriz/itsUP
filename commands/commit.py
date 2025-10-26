@@ -37,7 +37,7 @@ def _has_changes(path: Path) -> bool:
         return False
 
 
-def _commit_and_push(path: Path, name: str, message: str, custom_message: str = None) -> bool:
+def _commit_and_push(path: Path, name: str, message: str, custom_message: str = None, force: bool = False) -> bool:
     """Commit and push changes in a repo
 
     Args:
@@ -45,6 +45,7 @@ def _commit_and_push(path: Path, name: str, message: str, custom_message: str = 
         name: Display name of the repo
         message: Commit message to use (only if custom_message not provided)
         custom_message: Optional custom message (overrides message)
+        force: If True, skip rebase and force push
 
     Returns: True if successful, False if failed
     """
@@ -60,20 +61,24 @@ def _commit_and_push(path: Path, name: str, message: str, custom_message: str = 
 
         click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ committed: {commit_msg}")
 
-        # Pull with rebase to handle diverged branches
-        try:
-            subprocess.run(["git", "pull", "--rebase"], cwd=path, check=True, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            # Rebase conflict - abort and warn user
-            subprocess.run(["git", "rebase", "--abort"], cwd=path, check=False)
-            click.echo(f"{Colors.RED}✗{Colors.NC} {name}/ pull --rebase failed (conflicts)", err=True)
-            click.echo(f"  Run manually: cd {name} && git pull --rebase", err=True)
-            return False
+        # Pull with rebase to handle diverged branches (unless force)
+        if not force:
+            try:
+                subprocess.run(["git", "pull", "--rebase"], cwd=path, check=True, capture_output=True)
+            except subprocess.CalledProcessError as e:
+                # Rebase conflict - abort and warn user
+                subprocess.run(["git", "rebase", "--abort"], cwd=path, check=False)
+                click.echo(f"{Colors.RED}✗{Colors.NC} {name}/ pull --rebase failed (conflicts)", err=True)
+                click.echo(f"  Run manually: cd {name} && git pull --rebase", err=True)
+                click.echo(f"  Or use --force to override remote", err=True)
+                return False
 
-        # Push
-        subprocess.run(["git", "push"], cwd=path, check=True)
+        # Push (force if requested)
+        push_cmd = ["git", "push", "--force-with-lease"] if force else ["git", "push"]
+        subprocess.run(push_cmd, cwd=path, check=True)
 
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ pushed to origin")
+        push_msg = "force pushed" if force else "pushed"
+        click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ {push_msg} to origin")
         return True
 
     except subprocess.CalledProcessError as e:
@@ -187,7 +192,7 @@ def commit(message, force):
     if projects_dirty:
         projects_msg = message if message else "Update configuration"
         click.echo(f"projects/ message: {Colors.YELLOW}{projects_msg}{Colors.NC}")
-        if not _commit_and_push(projects_path, "projects", projects_msg):
+        if not _commit_and_push(projects_path, "projects", projects_msg, force=force):
             success = False
 
     if secrets_dirty:
@@ -199,7 +204,7 @@ def commit(message, force):
             secrets_msg = "Update secrets"
 
         click.echo(f"secrets/ message: {Colors.YELLOW}{secrets_msg}{Colors.NC}")
-        if not _commit_and_push(secrets_path, "secrets", secrets_msg):
+        if not _commit_and_push(secrets_path, "secrets", secrets_msg, force=force):
             success = False
 
     click.echo()
