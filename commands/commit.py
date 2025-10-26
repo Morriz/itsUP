@@ -60,6 +60,16 @@ def _commit_and_push(path: Path, name: str, message: str, custom_message: str = 
 
         click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ committed: {commit_msg}")
 
+        # Pull with rebase to handle diverged branches
+        try:
+            subprocess.run(["git", "pull", "--rebase"], cwd=path, check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            # Rebase conflict - abort and warn user
+            subprocess.run(["git", "rebase", "--abort"], cwd=path, check=False)
+            click.echo(f"{Colors.RED}✗{Colors.NC} {name}/ pull --rebase failed (conflicts)", err=True)
+            click.echo(f"  Run manually: cd {name} && git pull --rebase", err=True)
+            return False
+
         # Push
         subprocess.run(["git", "push"], cwd=path, check=True)
 
