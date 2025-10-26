@@ -8,7 +8,6 @@ Provides transparent encryption of secrets/*.txt files using SOPS.
 
 import logging
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -41,18 +40,18 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path) -> bool:
             return False
 
         if not plaintext_path.exists():
-            logger.error(f"Plaintext file not found: {plaintext_path}")
+            logger.error("Plaintext file not found: %s", plaintext_path)
             return False
 
         # Encrypt: sops -e plaintext.txt > encrypted.enc.txt
-        with open(encrypted_path, "w") as outfile:
+        with open(encrypted_path, "w", encoding="utf-8") as outfile:
             subprocess.run(["sops", "-e", str(plaintext_path)], stdout=outfile, check=True, text=True)
 
-        logger.info(f"✓ Encrypted {plaintext_path.name} → {encrypted_path.name}")
+        logger.info("✓ Encrypted %s → %s", plaintext_path.name, encrypted_path.name)
         return True
 
     except subprocess.CalledProcessError as e:
-        logger.error(f"✗ Failed to encrypt {plaintext_path.name}: {e}")
+        logger.error("✗ Failed to encrypt %s: %s", plaintext_path.name, e)
         return False
 
 
@@ -73,18 +72,18 @@ def decrypt_file(encrypted_path: Path, plaintext_path: Path) -> bool:
             return False
 
         if not encrypted_path.exists():
-            logger.error(f"Encrypted file not found: {encrypted_path}")
+            logger.error("Encrypted file not found: %s", encrypted_path)
             return False
 
         # Decrypt: sops -d encrypted.enc.txt > plaintext.txt
-        with open(plaintext_path, "w") as outfile:
+        with open(plaintext_path, "w", encoding="utf-8") as outfile:
             subprocess.run(["sops", "-d", str(encrypted_path)], stdout=outfile, check=True, text=True)
 
-        logger.info(f"✓ Decrypted {encrypted_path.name} → {plaintext_path.name}")
+        logger.info("✓ Decrypted %s → %s", encrypted_path.name, plaintext_path.name)
         return True
 
     except subprocess.CalledProcessError as e:
-        logger.error(f"✗ Failed to decrypt {encrypted_path.name}: {e}")
+        logger.error("✗ Failed to decrypt %s: %s", encrypted_path.name, e)
         return False
 
 
@@ -100,7 +99,7 @@ def decrypt_to_memory(encrypted_path: Path) -> Optional[str]:
     """
     try:
         if not is_sops_available():
-            logger.warning(f"SOPS not available, cannot decrypt {encrypted_path.name}")
+            logger.warning("SOPS not available, cannot decrypt %s", encrypted_path.name)
             return None
 
         if not encrypted_path.exists():
@@ -112,7 +111,7 @@ def decrypt_to_memory(encrypted_path: Path) -> Optional[str]:
         return result.stdout
 
     except subprocess.CalledProcessError as e:
-        logger.error(f"✗ Failed to decrypt {encrypted_path.name}: {e}")
+        logger.error("✗ Failed to decrypt %s: %s", encrypted_path.name, e)
         return None
 
 
@@ -126,12 +125,12 @@ def load_env_file(file_path: Path) -> Dict[str, str]:
     Returns:
         Dictionary of environment variables
     """
-    env_vars = {}
+    env_vars: Dict[str, str] = {}
 
     if not file_path.exists():
         return env_vars
 
-    with open(file_path, "r") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             # Skip comments and empty lines

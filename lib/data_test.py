@@ -71,13 +71,12 @@ class TestDataV2(unittest.TestCase):
         mock_project.exists.return_value = True
 
         # Mock __truediv__ to return correct file mocks
-        def mock_truediv(self: Mock, name: str) -> Mock:
+        def mock_truediv(_self: Mock, name: str) -> Mock:
             if "itsup" in name:
                 return mock_global
-            elif "myproject" in name:
+            if "myproject" in name:
                 return mock_project
-            else:
-                return Mock(exists=Mock(return_value=False))
+            return Mock(exists=Mock(return_value=False))
 
         mock_secrets_dir.__truediv__ = mock_truediv
 

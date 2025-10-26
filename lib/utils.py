@@ -27,7 +27,7 @@ def run_command(command: List[str], cwd: str = None) -> int:
             )
         return process.returncode
     except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed: {' '.join(command)} (exit code: {e.returncode})")
+        logger.error("Command failed: %s (exit code: %d)", " ".join(command), e.returncode)
         raise
 
 
@@ -47,5 +47,5 @@ def run_command_output(command: List[str], cwd: str = None) -> str:
         )
         return process.stdout
     except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed: {' '.join(command)} (exit code: {e.returncode})")
+        logger.error("Command failed: %s (exit code: %d)", " ".join(command), e.returncode)
         raise

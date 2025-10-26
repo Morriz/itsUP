@@ -7,9 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import netifaces
+import netifaces  # type: ignore[import-not-found]
 import yaml
-from dotenv import dotenv_values
 
 from lib.models import TraefikConfig
 from lib.sops import load_encrypted_env, load_env_file
@@ -53,17 +52,16 @@ def load_secrets(project_name: str | None = None) -> dict[str, str]:
         if encrypted_file.exists():
             env_vars = load_encrypted_env(encrypted_file)
             if env_vars:
-                logger.debug(f"Loaded {len(env_vars)} secrets from {name}.enc.txt (SOPS encrypted)")
+                logger.debug("Loaded %d secrets from %s.enc.txt (SOPS encrypted)", len(env_vars), name)
                 return env_vars
-            else:
-                logger.warning(f"Failed to decrypt {name}.enc.txt, trying plaintext...")
+            logger.warning("Failed to decrypt %s.enc.txt, trying plaintext...", name)
 
         # Fall back to plaintext (development)
         if plaintext_file.exists():
             env_vars = load_env_file(plaintext_file)
-            logger.debug(f"Loaded {len(env_vars)} secrets from {name}.txt (plaintext - development only)")
+            logger.debug("Loaded %d secrets from %s.txt (plaintext - development only)", len(env_vars), name)
             if os.environ.get("PYTHON_ENV") == "production":
-                logger.warning(f"⚠ Using plaintext secrets in production: {name}.txt")
+                logger.warning("⚠ Using plaintext secrets in production: %s.txt", name)
             return env_vars
 
         return {}
@@ -76,9 +74,8 @@ def load_secrets(project_name: str | None = None) -> dict[str, str]:
         # Infrastructure: load ONLY itsup secrets
         secrets.update(_load_secret_file("itsup"))
 
-    logger.info(
-        f"Loaded {len(secrets)} secrets" + (f" for {project_name}" if project_name else " for itsUP infrastructure")
-    )
+    context = f" for {project_name}" if project_name else " for itsUP infrastructure"
+    logger.info("Loaded %d secrets%s", len(secrets), context)
     return secrets
 
 
@@ -98,8 +95,6 @@ def get_env_with_secrets(project_name: str | None = None) -> dict[str, str]:
         env = get_env_with_secrets()
         subprocess.run(cmd, env=env, check=True)
     """
-    import os
-
     secrets = load_secrets(project_name)
     return {**os.environ, **secrets}
 
@@ -112,9 +107,9 @@ def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
     """
     if isinstance(data, dict):
         return {k: expand_env_vars(v, secrets) for k, v in data.items()}
-    elif isinstance(data, list):
+    if isinstance(data, list):
         return [expand_env_vars(item, secrets) for item in data]
-    elif isinstance(data, str):
+    if isinstance(data, str):
         # Expand ${VAR} and $VAR syntax
         # Pattern matches: ${VAR_NAME} or $VAR_NAME
         # Variable names must start with letter/underscore, followed by alphanumeric/underscore
@@ -137,8 +132,7 @@ def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
             )
 
         return result
-    else:
-        return data
+    return data
 
 
 def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
@@ -167,7 +161,7 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     # Load ingress.yml
     ingress_file = project_dir / "ingress.yml"
     if not ingress_file.exists():
-        logger.warning(f"No ingress.yml for {project_name}, using defaults")
+        logger.warning("No ingress.yml for %s, using defaults", project_name)
         traefik = TraefikConfig()
     else:
         with open(ingress_file, encoding="utf-8") as f:
@@ -229,22 +223,22 @@ def get_router_ip() -> str:
             config = yaml.safe_load(f) or {}
             router_ip = config.get("routerIP")
             if router_ip:
-                logger.info(f"Using router IP from projects/itsup.yml: {router_ip}")
+                logger.info("Using router IP from projects/itsup.yml: %s", router_ip)
                 return router_ip
 
     # Auto-detect using netifaces
     try:
         gateways = netifaces.gateways()
         router_ip = gateways["default"][netifaces.AF_INET][0]
-        logger.info(f"Auto-detected router IP: {router_ip}")
+        logger.info("Auto-detected router IP: %s", router_ip)
 
         # Write back to projects/itsup.yml since it was empty
         update_itsup_yml_router_ip(router_ip)
 
         return router_ip
     except Exception as e:
-        logger.error(f"Could not auto-detect router IP and none configured in projects/itsup.yml: {e}")
-        raise ValueError("Router IP required: set in projects/itsup.yml or ensure network detection works")
+        logger.error("Could not auto-detect router IP and none configured in projects/itsup.yml: %s", e)
+        raise ValueError("Router IP required: set in projects/itsup.yml or ensure network detection works") from e
 
 
 def update_itsup_yml_router_ip(ip: str) -> None:
@@ -270,7 +264,7 @@ def update_itsup_yml_router_ip(ip: str) -> None:
     with open(itsup_file, "w", encoding="utf-8") as f:
         f.write(updated)
 
-    logger.info(f"Updated projects/itsup.yml with router IP: {ip}")
+    logger.info("Updated projects/itsup.yml with router IP: %s", ip)
 
 
 def get_trusted_ips() -> list[str]:

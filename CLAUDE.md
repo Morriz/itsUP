@@ -10,6 +10,18 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 - Use relative paths from root (e.g., `upstream/instrukt-ai/docker-compose.yml`)
 - If you need to run a command in a subdirectory, use `(cd dir && command)`
 
+🚨 **CODE FORMATTING AND LINTING** 🚨
+
+- **ALWAYS** use the exact same commands as pre-commit hooks to avoid formatting loops
+- **Pre-commit runs:** `bin/format.sh` → `bin/lint.sh` → `bin/test.sh`
+- **Commands:**
+  ```bash
+  bin/format.sh    # isort + black on api/ and lib/
+  bin/lint.sh      # pylint + mypy
+  bin/test.sh      # Run all *_test.py files
+  ```
+- **Before committing:** Run `bin/format.sh` manually to ensure files are formatted correctly
+
 🚨 **PYTHON UNDERSCORE NAMING CONVENTION** 🚨
 
 - **ALWAYS** use single leading underscore `_` for instance variables that are internal/private
