@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+
+"""
+itsUP CLI - Command-line interface for itsUP management
+
+Usage:
+    itsup init                  Initialize "projects" and "secrets" repos from samples
+    itsup status                Show git status for "projects" and "secrets" repos
+    itsup commit <msg>          Commit and push changes to "projects" and "secrets" repos
+    itsup run                   Run complete stack (orchestrated: dns→proxy→api→monitor)
+    itsup down                  Stop ALL containers: DNS, proxy, AND upstream projects (in parallel)
+    itsup down --clean          Same as down + remove stopped itsUP containers (in parallel)
+    itsup dns <cmd>             DNS stack management (up/down/restart/logs)
+    itsup proxy <cmd>           Proxy stack management (up/down/restart/logs)
+    itsup apply                 Apply configs to upstream projects only (regenerate + deploy in parallel)
+    itsup apply <project>       Apply config to single upstream project
+    itsup svc <proj> <cmd>      Project service operations (docker compose passthrough)
+    itsup validate              Validate project configurations
+    itsup monitor               Container security monitor management
+    itsup --version             Show version
+    itsup --help                Show help
+"""
+
+import sys
+from pathlib import Path
+
+# Add project root to Python path for imports
+# itsup is in bin/, so project root is parent of bin/
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+
+import click
+
+from lib.logging_config import setup_logging
+from commands.init import init
+from commands.status import status
+from commands.commit import commit
+from commands.run import run
+from commands.down import down
+from commands.dns import dns
+from commands.proxy import proxy
+from commands.apply import apply
+from commands.svc import svc
+from commands.validate import validate
+from commands.monitor import monitor
+from commands.encrypt import encrypt
+from commands.decrypt import decrypt
+from commands.edit_secret import edit_secret
+from commands.sops_key import sops_key
+
+
+@click.group()
+@click.version_option(version="0.1.0", prog_name="itsup")
+@click.option("--verbose", "-v", is_flag=True, help="Verbose logging")
+def cli(verbose):
+    """itsUP - Infrastructure management CLI"""
+    setup_logging(level="DEBUG" if verbose else "INFO")
+
+
+# Register commands
+cli.add_command(init)
+cli.add_command(status)
+cli.add_command(commit)
+cli.add_command(run)
+cli.add_command(down)
+cli.add_command(dns)
+cli.add_command(proxy)
+cli.add_command(apply)
+cli.add_command(svc)
+cli.add_command(validate)
+cli.add_command(monitor)
+cli.add_command(encrypt)
+cli.add_command(decrypt)
+cli.add_command(edit_secret)
+cli.add_command(sops_key)
+
+if __name__ == "__main__":
+    cli()

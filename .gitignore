@@ -9,3 +9,7 @@ __pycache__
 /reports/
 /upstream/
 /db.yml
+
+# Independent git repos (not submodules)
+/projects/
+/secrets/

@@ -43,6 +43,19 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 
 - **Be consistent!** Don't mix conventions within the same class
 
+🚨 **THIS REPO DOES NOT CONTAINERIZE ITS OWN CODE** 🚨
+
+- **NEVER** containerize the itsUP codebase itself (Python code, CLI, API)
+- **Reason:** Traefik runs on host network for zero-downtime deployments
+- **What IS containerized:** Upstream project services (user workloads)
+- **What is NOT containerized:**
+  - DNS honeypot management code
+  - Proxy/Traefik configuration code
+  - API server (runs as Python process via `bin/start-api.sh`)
+  - CLI tool (`itsup`)
+  - All monitoring and management scripts
+- This is an architectural decision for operational flexibility and zero-downtime
+
 🚨 **NEVER MODIFY OR MOVE OPENSNITCH DATABASE** 🚨
 
 - OpenSnitch database (`/var/lib/opensnitch/opensnitch.sqlite3`) is the **permanent security audit log**
@@ -58,27 +71,123 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 
 ### Setup and Installation
 
-**First-time setup requires git submodules:**
+**First-time setup:**
 
-The `projects/` and `secrets/` directories are git submodules that MUST be initialized before running `bin/install.py`. Users must create their own private repositories for these and add them as submodules. See [README.md](README.md) for detailed submodule setup instructions.
+1. **Install Python dependencies** (MUST be done first):
+   ```bash
+   make install             # Creates .venv, installs dependencies
+   ```
 
-```bash
-# After initializing submodules (see README.md)
-bin/install.py              # Validates submodules, copies samples, creates .venv, installs deps
-bin/start-all.sh            # Start proxy and API server
-bin/apply.py                # Apply configuration with smart zero-downtime updates
-```
+2. **Add itsup to PATH** (recommended):
+   ```bash
+   source env.sh            # Activates venv, adds bin/ to PATH, enables shell completion
+   ```
 
-**What `bin/install.py` does:**
-- Validates that `projects/` and `secrets/` submodules are initialized
+   To make this permanent, add to your `~/.bashrc` or `~/.zshrc`:
+   ```bash
+   source /path/to/itsup/env.sh
+   ```
+
+   This enables:
+   - Python virtual environment activation
+   - `itsup` command in PATH
+   - Tab completion for commands, options, and project names
+
+3. **Initialize configuration** (prompts for git repos if needed):
+   ```bash
+   itsup init               # Clone/setup projects/ and secrets/ repos, copy samples
+   ```
+
+**What `itsup init` does:**
+
+- Prompts for git URLs and clones `projects/` and `secrets/` repos (if not present)
 - Copies sample files (won't overwrite existing files):
   - `samples/env` → `.env`
+  - `samples/itsup.yml` → `projects/itsup.yml` (infrastructure config with secrets)
   - `samples/traefik.yml` → `projects/traefik.yml`
-  - `samples/secrets/global.txt` → `secrets/global.txt`
-- Creates Python virtual environment
-- Installs dependencies from `requirements-prod.txt`
+  - `samples/example-project/` → `projects/example-project/`
+  - `samples/secrets/itsup.txt` → `secrets/itsup.txt`
+- Init is idempotent - can be run multiple times safely
 
-**Note:** `bin/apply.py` uses smart change detection via config hash comparison - only performs rollouts when changes detected.
+**Deploy:**
+```bash
+itsup apply                 # Apply all configurations (regenerate + deploy in parallel)
+itsup apply <project>       # Apply single project configuration
+```
+
+**Note:** `itsup apply` (without project arg) deploys all projects in parallel. Uses smart change detection via config hash comparison - only performs rollouts when changes detected.
+
+### Stack Management
+
+**Orchestrated Operations:**
+
+```bash
+itsup run                              # Run complete stack (orchestrated: dns→proxy→api→monitor)
+itsup down                             # Stop EVERYTHING (all projects + infrastructure, in parallel)
+itsup down --clean                     # Stop everything + cleanup (removes stopped itsUP containers in parallel)
+```
+
+**Stack-Specific Operations:**
+
+Every stack follows the same pattern: `up`, `down`, `restart`, `logs [service]`
+
+```bash
+# DNS stack (creates proxynet network)
+itsup dns up                         # Start DNS stack
+itsup dns down                       # Stop DNS stack
+itsup dns restart                    # Restart DNS stack
+itsup dns logs                       # Tail DNS stack logs
+
+# Proxy stack (Traefik + dockerproxy)
+itsup proxy up                       # Start proxy stack
+itsup proxy up traefik               # Start only Traefik
+itsup proxy down                     # Stop proxy stack
+itsup proxy restart                  # Restart proxy stack
+itsup proxy logs                     # Tail all proxy logs
+itsup proxy logs traefik             # Tail Traefik logs only
+```
+
+**Directory → Command Mapping:**
+
+- `dns/docker-compose.yml` → `itsup dns`
+- `proxy/docker-compose.yml` → `itsup proxy`
+- `upstream/project/` → `itsup svc project`
+
+**Orchestrated vs Stack Operations:**
+
+- `itsup run` = Full orchestrated startup (dns→proxy→api→monitor) in correct dependency order
+- `itsup down` = Full orchestrated shutdown (monitor→api→ALL PROJECTS→proxy→dns) - projects stopped in parallel
+- `itsup down --clean` = Shutdown + cleanup - removes stopped containers from itsUP-managed stacks (in parallel)
+- `itsup dns up` = Stack-specific operation (just DNS)
+- `itsup proxy up` = Stack-specific operation (just proxy)
+- Different semantics: `run`/`down` do everything, stack commands are surgical
+
+### Project Service Management
+
+```bash
+itsup svc <project> <cmd> [service]  # Docker compose operations for project services
+itsup svc <project> up               # Start all services in project
+itsup svc <project> up <service>     # Start specific service
+itsup svc <project> down             # Stop all services in project
+itsup svc <project> restart          # Restart all services
+itsup svc <project> logs -f          # Tail logs for all services
+itsup svc <project> logs -f <svc>    # Tail logs for specific service
+itsup svc <project> exec <svc> sh    # Execute shell in service container
+```
+
+**Tab Completion:** Project names, docker compose commands, and service names all support tab completion.
+
+### Container Security Monitor
+
+```bash
+itsup monitor start                  # Start monitor with full protection
+itsup monitor start --report-only    # Detection only, no blocking
+itsup monitor start --use-opensnitch # With OpenSnitch integration
+itsup monitor stop                   # Stop monitor
+itsup monitor logs                   # Tail monitor logs
+itsup monitor cleanup                # Review and cleanup blacklist
+itsup monitor report                 # Generate threat intelligence report
+```
 
 ### Testing and Validation
 
@@ -86,92 +195,131 @@ bin/apply.py                # Apply configuration with smart zero-downtime updat
 bin/test.sh                 # Run all Python unit tests (*_test.py files)
 bin/lint.sh                 # Run linting
 bin/format.sh               # Format code
-bin/validate-db.py          # Validate db.yml schema
+itsup validate              # Validate all project configurations
+itsup validate <project>    # Validate single project configuration
 ```
 
-### Monitoring and Logs
+🚨 **ALWAYS TEST CODE AFTER CHANGES!!!!!** 🚨
+
+### Makefile (Development Tools)
+
+The Makefile is minimal and focused on development workflow:
 
 ```bash
-bin/tail-logs.sh            # Tail all logs (Traefik, API, errors) with flat formatting
-make logs                   # Same as above
+make help                   # Show available targets
+make install                # Install dependencies (calls itsup init)
+make test                   # Run all tests
+make lint                   # Run linter
+make format                 # Format code
+make clean                  # Remove generated artifacts
+```
+
+**Note:** For runtime operations (start/stop/logs/monitor), use `itsup` commands instead.
+
+### Artifact Generation
+
+```bash
+itsup apply               # Regenerate all artifacts + deploy
+itsup apply <project>     # Regenerate single project + deploy
+bin/write_artifacts.py      # Regenerate proxy and upstream configs WITHOUT deploying (for testing)
 ```
 
 ### Utilities
 
 ```bash
-bin/write-artifacts.py      # Regenerate proxy and upstream configs without deploying
 bin/backup.py               # Backup upstream/ directory to S3
 bin/requirements-update.sh  # Update Python dependencies
 ```
 
-### Shell Utility Functions
-
-Source `lib/functions.sh` to get helper functions:
+### CLI Options
 
 ```bash
-source lib/functions.sh
-
-dcp <cmd> [service]         # Smart proxy management
-                            # - dcp up [service]: Smart update (detects changes)
-                            # - dcp restart [service]: Smart restart
-                            # - Other commands pass through to docker compose
-
-dcu <project> <cmd> [svc]   # Smart upstream management
-                            # - dcu project up [service]: Smart update with auto-rollout
-                            # - dcu project restart [service]: Smart restart
-                            # - Other commands pass through to docker compose
-
-dca <cmd>                   # Run docker compose command for all upstream projects
-dcpx <service> <cmd>        # Execute command in proxy container
-dcux <project> <svc> <cmd>  # Execute command in upstream service container
+itsup --help              # Show help for all commands
+itsup --version           # Show version
+itsup --verbose           # Enable DEBUG logging for any command
 ```
 
-**Smart Behavior:**
+## V2 Architecture Patterns
 
-- `up` and `restart` commands call Python's `update_proxy()`/`update_upstream()` which use config hash comparison
-- Only performs zero-downtime rollout when actual changes detected
-- Other commands pass through directly to docker compose
+### Project Structure
 
-## Implementation Patterns
+Configuration lives in `projects/`:
+
+```
+projects/
+├── itsup.yml                # Infrastructure config (router IP, versions, backup S3 settings)
+├── traefik.yml              # Traefik overrides (merged on top of generated config)
+└── example-project/
+    ├── docker-compose.yml   # Standard Docker Compose file
+    └── ingress.yml          # Routing configuration (IngressV2 schema)
+```
+
+**Key files:**
+- `itsup.yml` - Contains secrets as `${VAR}` placeholders (expanded at runtime from `secrets/itsup.txt`)
+- `traefik.yml` - Custom Traefik overrides (plugins, log levels, etc.)
+- `{project}/docker-compose.yml` - Service definitions (secrets as `${VAR}` placeholders)
+- `{project}/ingress.yml` - Routing config (auto-generates Traefik labels)
+
+### Secret Management
+
+**Loading Order (later overrides earlier):**
+
+1. `secrets/itsup.txt` - Shared secrets for all projects
+2. `secrets/{project}.txt` - Project-specific secrets (optional)
+
+**At Generation Time:**
+
+- Secrets are LEFT as `${VAR}` placeholders in generated files
+- Generated files are safe to backup/log (no actual secrets)
+
+**At Deployment Time:**
+
+- `itsup apply` loads secrets and passes them as environment variables
+- `itsup run` loads secrets for infrastructure stacks (dns, proxy)
+- `itsup proxy up` loads secrets for proxy stack
+- Docker Compose expands `${VAR}` at runtime from the environment
+- Each project gets itsup + project-specific secrets
+
+**Important:**
+- All docker compose commands that start containers MUST pass secrets via `env` parameter
+- Use the helper function: `from lib.data import get_env_with_secrets`
+- Format: `subprocess.run(cmd, env=get_env_with_secrets(project), check=True)`
+- For infrastructure stacks (no project): `subprocess.run(cmd, env=get_env_with_secrets(), check=True)`
+- This ensures ${VAR} placeholders in compose files are expanded correctly
 
 ### Template Generation
 
-All Docker Compose files are generated from Jinja2 templates:
+Minimal Jinja2 templates generate base configs:
 
-- `tpl/upstream/docker-compose.yml.j2`: Upstream service deployments
-- `tpl/proxy/docker-compose.yml.j2`: Proxy stack
-- `tpl/proxy/routers-{http,tcp,udp}.yml.j2`: Traefik dynamic configuration
+- `tpl/proxy/traefik.yml.j2` - Minimal Traefik base (entryPoints, providers, trustedIPs)
+- `tpl/proxy/docker-compose.yml.j2` - Proxy stack (Traefik, DNS, dockerproxy, optional CrowdSec)
 
-Templates have access to:
+**Override Flow:**
 
-- `project`: Project object with all services
-- Pydantic enum types (Protocol, Router, ProxyProtocol)
-- Python builtins (isinstance, len, list, str)
+1. Generate minimal base from template
+2. Deep merge `projects/traefik.yml` (user overrides) on top
+3. Result: base + user customizations
 
-### Filtering Pattern
+### Label Injection
 
-Many functions accept filter callbacks with variable arity:
+Traefik labels are auto-generated from `ingress.yml`:
 
 ```python
-get_projects(filter=lambda p: p.enabled)                          # Filter by project
-get_projects(filter=lambda p, s: s.image)                         # Filter by service
-get_projects(filter=lambda p, s, i: i.router == Router.http)      # Filter by ingress
+# projects/example-project/ingress.yml
+enabled: true
+ingress:
+  - service: web
+    domain: my-app.example.com
+    port: 3000
+    router: http
+
+# Generated labels in upstream/example-project/docker-compose.yml:
+labels:
+  - traefik.enable=true
+  - traefik.http.routers.example-project-web.rule=Host(`my-app.example.com`)
+  - traefik.http.routers.example-project-web.tls.certresolver=letsencrypt
+  - traefik.http.services.example-project-web.loadbalancer.server.port=3000
 ```
-
-The system detects arity via `filter.__code__.co_argcount` and filters at the appropriate level.
-
-### Plugin System
-
-Plugins configured in `db.yml` under `plugins:` section. Currently supported:
-
-**CrowdSec:**
-
-- `enabled`: Enable/disable plugin
-- `apikey`: Bouncer API key from CrowdSec container
-- `version`: Plugin version
-- `options`: Plugin-specific settings (log level, timeouts, CAPI credentials)
-
-Plugins instantiated using dynamic model loading in `lib/data.py:get_plugin_model()`.
 
 ## Testing
 

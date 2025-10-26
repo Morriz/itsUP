@@ -1,0 +1,6 @@
+enabled: true
+
+ingress:
+  - service: web
+    domain: my-app.example.com # CHANGE THIS
+    port: 3000

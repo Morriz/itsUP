@@ -1,112 +1,40 @@
-accessLog:
-  filePath: /var/log/traefik/access.log
-  format: json
-log:
-  # level: INFO
-  level: DEBUG
+itsup:
+  checkNewVersion: false
+  sendAnonymousUsage: false
 
 api:
-  insecure: false
   dashboard: true
-  debug: true
+  insecure: false
 
 ping:
   entryPoint: web
 
-certificatesResolvers:
-  letsencrypt:
-    acme:
-{%- if le_staging %}    
-      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
-{%- endif %}
-      email: {{ le_email }}
-      storage: /etc/acme/acme.json
-      tlsChallenge: {}
-
 entryPoints:
   web:
     address: ':8080'
-    reusePort: true
     forwardedHeaders:
       trustedIPs:
-        - 172.0.0.0/8
 {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
     proxyProtocol:
       trustedIPs:
-        - 127.0.0.1/32
 {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
-    # http:
-    #   redirections:
-    #     entryPoint:
-    #       to: ':443'
-    #       scheme: https
-  web-secure:
+
+  websecure:
     address: ':8443'
-    asDefault: true
-    reusePort: true
-    http3:
-      advertisedPort: 8443
     forwardedHeaders:
       trustedIPs:
-        - 172.0.0.0/8
 {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
     proxyProtocol:
       trustedIPs:
-        - 127.0.0.1/32
 {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
-    http:
-      middlewares:
-        - default-headers@file
-        - rate-limit@file
-{%- if plugin_registry.crowdsec.enabled %}
-        - crowdsec@file
-{%- endif %}
-
-{%- for p in projects %}
-  {%- for s in p.services %}
-    {%- for i in s.ingress %}
-      {%- set protocol = Protocol(i.protocol).value %}
-      {%- set router = Router(i.router).value %}
-  {{ router }}-{{ i.hostport }}:
-    address: ':{{ i.hostport }}/{{ protocol }}'
-    reusePort: true
-    forwardedHeaders:
-      trustedIPs:
-        - 127.0.0.1/32
-      {%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-      {%- endfor %}
-    proxyProtocol:
-      trustedIPs:
-        - 127.0.0.1/32
-      {%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-      {%- endfor %}
-    {%- endfor %}
-  {%- endfor %}
-{%- endfor %}
-
-{%- if has_plugins %}  
-experimental:
-  plugins:
-  {%- if plugin_registry.crowdsec.enabled %}
-    {%- set p = plugin_registry.crowdsec %}
-    bouncer:
-      modulename: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
-      version: {{ p.version }}
-  {%- endif %}
-{%- endif %}
-
-global:
-  sendAnonymousUsage: true
 
 providers:
   docker:
@@ -114,5 +42,12 @@ providers:
     endpoint: tcp://127.0.0.1:2375
     network: proxynet
   file:
-    directory: /etc/traefik/
+    directory: /etc/traefik/dynamic
     watch: true
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  format: json
+
+log:
+  level: INFO

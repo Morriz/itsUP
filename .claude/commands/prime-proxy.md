@@ -85,15 +85,16 @@ db.yml change → bin/apply.py → write_proxies() → docker compose up -d → 
 
 **Regenerate proxy config**:
 ```bash
-python3 bin/write-artifacts.py  # Generates all configs
+python3 bin/write_artifacts.py  # Generates all configs
 docker compose -f proxy/docker-compose.yml config --quiet  # Validate
 ```
 
 **Update proxy with rollout**:
 ```bash
-bin/apply.py  # Smart update with change detection
+itsup apply  # Smart update with change detection for all projects
+itsup apply traefik  # Smart update for proxy only
 # OR manually:
-dcp up traefik  # Uses update_proxy() from lib/functions.sh
+itsup svc traefik up  # Direct docker compose passthrough
 ```
 
 **Debug routing**:

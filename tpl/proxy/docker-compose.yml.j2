@@ -1,45 +1,8 @@
----
 networks:
   proxynet:
-    name: proxynet
-    driver: bridge
-    driver_opts:
-      encrypted: 'true'
+    external: true
 
 services:
-  # watchtower:
-  #   container_name: watchtower
-  #   image: containrrr/watchtower:1.7.1
-  #   networks:
-  #     - traefik
-  #   restart: always
-
-  dns:
-    image: alpine:latest
-    container_name: dns-honeypot
-    restart: unless-stopped
-    networks:
-      proxynet:
-        ipv4_address: 172.30.0.253
-    dns:
-      - 1.1.1.1
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-    command:
-      - sh
-      - -c
-      - |
-        echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/main" > /etc/apk/repositories &&
-        echo "http://dl-cdn.alpinelinux.org/alpine/v3.22/community" >> /etc/apk/repositories &&
-        apk add --no-cache dnsmasq bind-tools &&
-        dnsmasq -k -q --log-queries --log-facility=- --no-hosts --no-resolv --server=127.0.0.11 --port=53 --bind-interfaces --interface=eth0 --except-interface=lo 2>&1 | while read line; do echo "$$(date +'%Y-%m-%d %H:%M:%S') $$line"; done
-    healthcheck:
-      test: ["CMD", "sh", "-c", "pidof dnsmasq"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
   dockerproxy:
     image: wollomatic/socket-proxy:1 # see https://github.com/wollomatic/simple-traefik for reference
     container_name: dockerproxy
@@ -75,18 +38,16 @@ services:
     network_mode: host
     restart: always
     dns:
-      - 172.30.0.253
+      - 172.20.0.253  # DNS honeypot from DNS stack
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ../data/acme:/etc/acme
       - ../logs:/var/log/traefik
     depends_on:
-      dns:
-        condition: service_healthy
       dockerproxy:
         condition: service_started
-{%- if plugin_registry.crowdsec.enabled %}
+{%- if traefik.crowdsec.enabled %}
   {%- set cs = plugin_registry.crowdsec %}
       crowdsec:
         condition: service_healthy
@@ -108,11 +69,8 @@ services:
     networks:
       - default
       - proxynet
-    depends_on:
-      dns:
-        condition: service_healthy
     dns:
-      - 172.30.0.253
+      - 172.20.0.253  # DNS honeypot from DNS stack
     ports:
       - '127.0.0.1:7422:7422'
       - '127.0.0.1:18080:8080'

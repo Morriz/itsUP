@@ -1,4 +1,4 @@
-#!.venv/bin/python
+#!/usr/bin/env python3
 """
 Analyze blacklisted IPs individually, track subnet membership, perform reverse DNS lookups,
 whois lookups, and generate a threat actor report. Only analyzes NEW IPs not in existing report.
@@ -31,7 +31,7 @@ _cancelled = False
 
 def signal_handler(sig, frame):
     """Handle Ctrl-C gracefully"""
-    global _cancelled
+    itsup _cancelled
     _cancelled = True
     print("\n\n❌ Analysis cancelled by user")
     sys.exit(130)

@@ -1,5 +1,7 @@
-#!.venv/bin/python
+#!/usr/bin/env python3
 import os
+import subprocess
+import sys
 from functools import cache
 from logging import info
 from typing import List
@@ -11,20 +13,12 @@ from fastapi.datastructures import QueryParams
 from github_webhooks import create_app
 from github_webhooks.schemas import WebhookHeaders
 
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from lib.auth import verify_apikey
-from lib.data import (
-    get_project,
-    get_projects,
-    get_service,
-    get_services,
-    upsert_env,
-    upsert_project,
-    upsert_service,
-)
-from lib.git import update_repo
-from lib.models import Env, PingPayload, Project, Service, WorkflowJobPayload
-from lib.proxy import update_proxy, write_proxies
-from lib.upstream import check_upstream, update_upstream, write_upstreams
+from lib.data import list_projects
+from lib.models import PingPayload, WorkflowJobPayload
 
 dotenv.load_dotenv()
 
@@ -33,27 +27,53 @@ api_token = os.environ["API_KEY"]
 app = create_app(secret_token=api_token)
 
 
-def _after_config_change(project: str, service: str = None) -> None:
-    """Run after a project is updated"""
-    info("Config change detected")
-    # get_certs(project)
-    write_proxies()
-    write_upstreams()
-    update_upstream(project, service)
-    update_proxy()
+def _handle_update_upstream(project: str, service: str = None) -> None:
+    """Handle incoming requests to update the upstream - delegates to itsup apply command"""
+    try:
+        info(f"Updating {project} via webhook...")
+        # Use the CLI command which has all the logic
+        subprocess.run(["bin/itsup", "apply", project], check=True)
+        info(f"✓ {project} updated successfully")
+    except subprocess.CalledProcessError as e:
+        info(f"✗ Failed to update {project}: {e}")
+        raise
 
 
-def _handle_update_upstream(project: str, service: str) -> None:
-    """handle incoming requests to update the upstream"""
-    update_upstream(project, service)
+def _handle_itsup_update() -> None:
+    """Handle updates to itsUP itself (git pull and apply changes)"""
+    try:
+        # Update repository
+        if os.environ.get("PYTHON_ENV") == "production":
+            info("Updating repository from origin/main")
+            subprocess.run(["git", "fetch", "origin", "main"], cwd=".", check=True)
+            subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=".", check=True)
+            info("Repository updated successfully")
+
+        # Apply all changes (regenerates proxy + upstreams + deploys)
+        info("Applying all changes...")
+        subprocess.run(["bin/itsup", "apply"], check=True)
+
+        # Restart API to pick up new code
+        info("Restarting API server")
+        subprocess.run(["./bin/start-api.sh"], check=True)
+
+    except Exception as e:
+        info(f"✗ Failed to update itsUP: {e}")
+        raise
 
 
 def _handle_hook(project: str, background_tasks: BackgroundTasks, service: str = None) -> None:
-    """Handle incoming requests to update the upstream"""
+    """Handle incoming webhook requests to update projects"""
     if project == "itsUP":
-        background_tasks.add_task(update_repo)
+        background_tasks.add_task(_handle_itsup_update)
         return
-    check_upstream(project, service)
+
+    # Validate project exists
+    projects = list_projects()
+    if project not in projects:
+        info(f"Project {project} not found. Available: {', '.join(projects)}")
+        return
+
     background_tasks.add_task(_handle_update_upstream, project=project, service=service)
 
 
@@ -93,78 +113,11 @@ async def github_workflow_job_handler(
         _handle_hook(project, background_tasks, service)
 
 
-@app.get("/projects", response_model=List[Project])
-@app.get("/projects/{project}", response_model=Project)
+@app.get("/projects", response_model=List[str])
 @cache
-def get_projects_handler(project: str = None, _: None = Depends(verify_apikey)) -> List[Project] | Project:
-    """Get the list of all or one project"""
-    if project:
-        return get_project(project, throw=True)
-    return get_projects()
-
-
-@app.get("/projects/{project}/services", response_model=List[Service])
-@app.get("/projects/{project}/services/{service}", response_model=Service)
-def get_project_services_handler(
-    project: str, service: str = None, _: None = Depends(verify_apikey)
-) -> Service | List[Service]:
-    """Get the list of a project's services, or a specific one"""
-    if service:
-        return get_service(project, service, throw=True)
-    return get_project(project, throw=True).services
-
-
-# @app.get("/projects/{project}/services/{service}/env", response_model=Env)
-# def get_env_handler(project: str, service: str, _: None = Depends(verify_apikey)) -> Dict[str, str]:
-#     """Get the list of a project's service' env vars"""
-#     return get_env(project, service)
-
-
-@app.post("/projects", tags=["Project"])
-@app.put("/projects", tags=["Project"])
-def upsert_project_handler(
-    project: Project,
-    background_tasks: BackgroundTasks,
-    _: None = Depends(verify_apikey),
-) -> None:
-    """Create or update a project"""
-    upsert_project(project)
-    background_tasks.add_task(_after_config_change, project.name)
-
-
-@app.get("/services", response_model=List[Service])
-def get_services_handler(_: None = Depends(verify_apikey)) -> List[Service]:
-    """Get the list of all services"""
-    return get_services()
-
-
-@app.post("/services", tags=["Service"])
-@app.put("/services", tags=["Service"])
-def upsert_service_handler(
-    project: str,
-    service: Service,
-    background_tasks: BackgroundTasks,
-    _: None = Depends(verify_apikey),
-) -> None:
-    """Create or update a service"""
-    upsert_service(project, service)
-    background_tasks.add_task(_after_config_change, project, service.host)
-
-
-@app.patch(
-    "/projects/{project}/services/{service}/env",
-    tags=["Env"],
-)
-def patch_env_handler(
-    project: str,
-    service: str,
-    env: Env,
-    background_tasks: BackgroundTasks,
-    _: None = Depends(verify_apikey),
-) -> None:
-    """Update env for a project service"""
-    upsert_env(project, service, env)
-    background_tasks.add_task(_after_config_change, project, service)
+def list_projects_handler(_: None = Depends(verify_apikey)) -> List[str]:
+    """Get the list of all projects (V2 - file-based configuration)"""
+    return list_projects()
 
 
 if __name__ == "__main__":

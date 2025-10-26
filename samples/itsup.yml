@@ -1,0 +1,19 @@
+# itsUP minimal config
+
+# Backup configuration (optional), can be added to cron:
+# 0 5 * * * cd /path/to/itsup && .venv/bin/python bin/backup.py
+backup:
+  exclude: [] # project names to exclude from backup
+  s3:
+    host: ${AWS_S3_HOST} # from secrets
+    region: ${AWS_S3_REGION} # from secrets
+    bucket: ${AWS_S3_BUCKET} # from secrets
+
+# Set this to your router's IP, or let itsUP detect it and write it here
+# override it if it does not detect it correctly
+# 192.168.1.1
+routerIP: 192.168.1.1 # Auto-detected on 2025-10-25
+
+versions:
+  traefik: v3.2
+  crowdsec: v1.6.8

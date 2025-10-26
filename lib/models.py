@@ -48,7 +48,6 @@ class Protocol(str, Enum):
 class ProxyProtocol(str, Enum):
     """ProxyProtocol enum"""
 
-    v1 = 1
     v2 = 2
 
 
@@ -165,3 +164,36 @@ class WorkflowJobPayload(WebhookCommonPayload):
         conclusion: str | None = None
 
     workflow_job: WorkflowJob
+
+
+# V2 Models for projects/ structure
+
+
+class IngressV2(BaseModel):
+    """Traefik ingress rule for V2 projects"""
+
+    service: str
+    """The service name in docker-compose.yml"""
+    domain: str | None = None
+    """The domain to use for the service"""
+    port: int = 80
+    """The port to use for the service"""
+    router: str = "http"
+    """The type of router (http, tcp, udp)"""
+    path_prefix: str | None = None
+    """Should the service be exposed under a specific path?"""
+    hostport: int | None = None
+    """The port to expose on the host"""
+    passthrough: bool = False
+    """Whether traffic is forwarded as-is without terminating SSL"""
+    tls_sans: List[str] = []
+    """A list of SANs for the domain"""
+
+
+class TraefikConfig(BaseModel):
+    """Traefik routing configuration for V2 projects"""
+
+    enabled: bool = True
+    """Whether the project is enabled"""
+    ingress: List[IngressV2] = []
+    """List of ingress rules"""

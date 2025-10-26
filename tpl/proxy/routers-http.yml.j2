@@ -11,7 +11,7 @@ http:
         - web-secure
       rule: {{ traefik_rule }}
       tls:
-        certResolver: letsencrypt
+         certResolver: letsencrypt
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
@@ -93,14 +93,6 @@ http:
 {%- endif %}
 
 tls:
-  # stores:
-  #   default:
-  #     defaultGeneratedCert:
-  #       domain:
-  #         main: {{ domain_suffix }}
-  #         sans: 
-  #           - '*.{{ domain_suffix }}'
-  #       resolver: letsencrypt
   options:
     default:
       minVersion: VersionTLS12

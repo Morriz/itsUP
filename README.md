@@ -19,13 +19,19 @@ Still interested? Then read on...
 - [Apps included](#apps-included)
 - [Prerequisites](#prerequisites)
 - [Dev/ops tools](#devops-tools)
-  - [utility functions](#utility-functions)
+  - [itsup CLI](#itsup-cli)
   - [Utility scripts](#utility-scripts)
   - [Makefile](#makefile)
   - [DNS Honeypot](#dns-honeypot)
   - [Container Security Monitor](#container-security-monitor)
 - [Howto](#howto)
   - [Install \& run](#install--run)
+    - [1. Initialize git submodules](#1-initialize-git-submodules)
+    - [2. Run installation](#2-run-installation)
+    - [3. Configure your installation](#3-configure-your-installation)
+    - [4. Encrypt and commit secrets](#4-encrypt-and-commit-secrets)
+    - [5. Deploy](#5-deploy)
+    - [6. Monitor](#6-monitor)
   - [Configure services](#configure-services)
     - [Scenario 1: Adding an upstream service that will be deployed and managed](#scenario-1-adding-an-upstream-service-that-will-be-deployed-and-managed)
     - [Scenario 2: Adding a TLS passthrough endpoint](#scenario-2-adding-a-tls-passthrough-endpoint)
@@ -142,81 +148,95 @@ It is surely possible to deploy stateful services but beware that those might no
 
 ## Dev/ops tools
 
-### utility functions
+### itsup CLI
 
-Source `lib/functions.sh` to get:
+The `itsup` CLI is the main interface for managing your infrastructure. It provides smart change detection and zero-downtime deployments:
 
-- `dcp <cmd> [service]`: Smart proxy management with zero-downtime
+**Main commands:**
 
-  - `dcp up` - Smart update all proxy services (detects changes, only rollout if needed)
-  - `dcp up traefik` - Smart update traefik only
-  - `dcp restart [service]` - Smart restart (defaults to traefik)
-  - `dcp logs -f` - Regular docker compose passthrough for other commands
+```bash
+# Initialization
+itsup init                           # Initialize installation (validate submodules, copy samples, create .venv, install deps)
 
-- `dcu <project> <cmd> [service]`: Smart upstream management
+# Orchestrated Operations
+itsup run                            # Run complete stack (orchestrated: dns→proxy→api→monitor)
 
-  - `dcu myproject up` - Smart update all services (auto-rollout when changed)
-  - `dcu myproject restart myservice` - Smart restart specific service
-  - `dcu myproject logs -f` - Regular docker compose passthrough
+# Stack-Specific Operations
+# Every stack follows the same pattern: up, down, restart, logs [service]
 
-- `dca <cmd>`: Run docker compose command for all upstreams: `dca ps`
+itsup dns up                         # Start DNS stack
+itsup dns down                       # Stop DNS stack
+itsup dns restart                    # Restart DNS stack
+itsup dns logs                       # Tail DNS stack logs
 
-- `dcpx <service> <cmd>`: Execute command in proxy container
+itsup proxy up                       # Start proxy stack
+itsup proxy up traefik               # Start only Traefik
+itsup proxy down                     # Stop proxy stack
+itsup proxy restart                  # Restart proxy stack
+itsup proxy logs                     # Tail all proxy logs
+itsup proxy logs traefik             # Tail Traefik logs only
 
-  - Example: `dcpx traefik 'rm -rf /etc/acme/acme.json'`
+# Configuration & Deployment
+itsup apply [project]                # Apply configurations with smart zero-downtime updates
+itsup validate [project]             # Validate project configurations
 
-- `dcux <project> <service> <cmd>`: Execute command in upstream container
-  - Example: `dcux test web env`
+# Project Service Management
+itsup svc <project> <cmd> [service]  # Docker compose operations for project services
+itsup svc <project> up               # Start all services in a project
+itsup svc <project> logs -f          # Tail project logs
+itsup svc <project> exec web sh      # Execute commands in containers
+
+# Container Security Monitor
+itsup monitor start [--flags]        # Start security monitor
+itsup monitor stop                   # Stop monitor
+itsup monitor logs                   # Tail monitor logs
+itsup monitor cleanup                # Review blacklist
+itsup monitor report                 # Generate threat report
+
+# Options
+itsup --version                      # Show version
+itsup --verbose                      # Enable DEBUG logging for any command
+```
 
 **Smart Behavior:**
 
-- `up` and `restart` commands use Python's smart detection (via `update_proxy()`/`update_upstream()`)
-- Other commands pass through to docker compose directly
+- `apply` command uses config hash comparison - only performs rollouts when changes detected
+- Tab completion for project names, docker compose commands, and service names
+- All commands work from project root (no need to cd into directories)
 - Zero-downtime rollouts only happen when actual changes detected
 
-In effect these wrapper commands achieve the same as when going into an `upstream/*` folder and running `docker compose` there, but with added intelligence.
-I don't want to switch folders/terminals all the time and want to keep a "project root" history of my commands so I choose this approach.
+**Directory → Command Mapping:**
+
+- `dns/docker-compose.yml` → `itsup dns`
+- `proxy/docker-compose.yml` → `itsup proxy`
+- `upstream/project/` → `itsup svc project`
+
+**Orchestrated vs Stack Operations:**
+
+- `itsup run` = Full orchestrated startup (dns→proxy→api→monitor) in correct dependency order
+- `itsup dns up` = Stack-specific operation (just DNS)
+- `itsup proxy up` = Stack-specific operation (just proxy)
+- Different semantics: `run` does everything, stack commands are surgical
 
 ### Utility scripts
 
-- `bin/write-artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
-- `bin/validate-db.py`: also ran from `bin/write-artifacts.py`
+- `bin/write_artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
+- `bin/validate-db.py`: also ran from `bin/write_artifacts.py`
 - `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
 
 ### Makefile
 
-A comprehensive Makefile is provided for common operations. Run `make help` to see all available targets:
+A minimal Makefile focused on development workflow. Run `make help` to see all available targets:
 
 ```bash
-make help              # Show all available commands
-make install           # Install dependencies
+make install           # Install dependencies (calls itsup init)
 make test              # Run all tests
 make lint              # Run linter
 make format            # Format code
-make validate          # Validate db.yml
-make apply             # Apply configuration changes
-make rollout           # Apply with zero-downtime rollout
-make backup            # Backup upstream directory to S3
+make clean             # Remove generated artifacts
 ```
 
-**DNS Honeypot management:**
-
-```bash
-make dns-up            # Start DNS honeypot
-make dns-down          # Stop DNS honeypot
-make dns-restart       # Restart DNS honeypot
-make dns-logs          # Tail DNS honeypot logs
-```
-
-**Container Security Monitor:**
-
-```bash
-make monitor-start     # Start container security monitor and tail logs
-make monitor-stop      # Stop container security monitor
-make monitor-cleanup   # Run cleanup mode to review blacklist
-make monitor-logs      # Tail security monitor logs
-make monitor-report    # Generate threat intelligence report
-```
+**For runtime operations** (run/dns/proxy/svc/monitor), use `itsup` commands instead. The Makefile is intentionally minimal to avoid command sprawl.
 
 ### DNS Honeypot
 
@@ -241,16 +261,19 @@ Real-time container security monitoring that detects compromised containers by i
 
 ```bash
 # Start monitor with full protection (blocking enabled by default)
-make monitor-start FLAGS="--use-opensnitch"
+itsup monitor start --use-opensnitch
 
 # Detection only (no blocking)
-make monitor-start FLAGS="--report-only --use-opensnitch"
+itsup monitor start --report-only --use-opensnitch
 
 # Stop monitor
-make monitor-stop
+itsup monitor stop
 
 # View logs
-make monitor-logs
+itsup monitor logs
+
+# Generate threat intelligence report
+itsup monitor report
 ```
 
 **📖 For complete documentation, see [monitor/README.md](monitor/README.md)**
@@ -307,19 +330,21 @@ git submodule update --init --recursive
 #### 2. Run installation
 
 The installation script will:
+
 - Validate that submodules are initialized
 - Copy sample configuration files (won't overwrite existing files)
 - Set up Python virtual environment
 - Install dependencies
 
 ```bash
-bin/install.py
+itsup init
 ```
 
 The script will copy sample files to:
+
 - `.env` (environment variables)
 - `projects/traefik.yml` (base Traefik configuration)
-- `secrets/global.txt` (template for required secrets)
+- `secrets/itsup.txt` (template for required secrets)
 
 #### 3. Configure your installation
 
@@ -327,17 +352,17 @@ Edit the copied files:
 
 1. **`.env`**: Configure environment variables as needed
 2. **`projects/traefik.yml`**: Change `domain_suffix` to your domain
-3. **`secrets/global.txt`**: Fill in ALL required secrets (validation will fail if any are empty)
+3. **`secrets/itsup.txt`**: Fill in ALL required secrets (validation will fail if any are empty)
 
 #### 4. Encrypt and commit secrets
 
 ```bash
 # Encrypt secrets with SOPS
 cd secrets
-sops -e global.txt > global.enc.txt
+sops -e itsup.txt > itsup.enc.txt
 
 # Commit to your secrets repository
-git add global.enc.txt
+git add itsup.enc.txt
 git commit -m "Initial secrets"
 git push
 
@@ -351,11 +376,8 @@ git push
 #### 5. Deploy
 
 ```bash
-# Start the proxy and API
-bin/start-all.sh
-
 # Apply your configuration with zero-downtime updates
-bin/apply.py
+itsup apply
 ```
 
 #### 6. Monitor
@@ -389,7 +411,7 @@ projects:
         host: web
 ```
 
-Run `bin/apply.py` to write all artifacts and deploy/update relevant docker stacks.
+Run `itsup apply` to write all artifacts and deploy/update relevant docker stacks.
 
 #### Scenario 2: Adding a TLS passthrough endpoint
 
@@ -505,27 +527,27 @@ You can enable and configure plugins in `db.yml`. Right now we support the follo
 
 **Step 1: generate api key**
 
-First set `enable: true`, run `bin/write-artifacts.py`, and bring up the `crowdsec` container:
+First set `enable: true`, run `bin/write_artifacts.py`, and bring up the `crowdsec` container:
 
-```
-docker compose up -d crowdsec
+```bash
+itsup svc traefik up crowdsec
 ```
 
 Now we can execute the command to get the key:
 
-```
-docker compose exec crowdsec cscli bouncers add crowdsecBouncer
+```bash
+itsup svc traefik exec crowdsec cscli bouncers add crowdsecBouncer
 ```
 
-Put the resulting api key in the `plugins.crowdsec.apikey` configuration in `db.yml` and apply with `bin/apply.py`.
+Put the resulting api key in the `plugins.crowdsec.apikey` configuration in `db.yml` and apply with `itsup apply`.
 Crowdsec is now running and wired up, but does not use any blocklists yet. Those can be managed manually, but preferable is to become part of the community by creating an account with CrowdSec to get access and contribute to the community blocklists, as well as view results in your account's dashboards.
 
 **Step 2: connect your instance with the CrowdSec console**
 
 After creating an account create a machine instance in the console, and register the enrollment key in your stack:
 
-```
-docker compose exec crowdsec cscli console enroll ${enrollment key}
+```bash
+itsup svc traefik exec crowdsec cscli console enroll ${enrollment key}
 ```
 
 **Step 3: subscribe to 3rd party blocklists**
@@ -539,9 +561,9 @@ Example:
 
 **Step 4: add ip (or cidr) to whitelist**
 
-```
-dcpx crowdsec 'cscli allowlists create me -d "my dev ips"'
-dcpx crowdsec csli allowlists add me 123.123.123.0/24
+```bash
+itsup svc traefik exec crowdsec cscli allowlists create me -d "my dev ips"
+itsup svc traefik exec crowdsec cscli allowlists add me 123.123.123.0/24
 ```
 
 ### Using the Api & OpenApi spec
@@ -685,26 +707,26 @@ This setup contains a project called "vpn" which runs an openvpn service that gi
 
 #### 1. Initialize the configuration files and certificates
 
-```
-dcu vpn run vpn-openvpn ovpn_genconfig -u udp4://vpn.itsup.example.com
-dcu vpn run vpn-openvpn ovpn_initpki
+```bash
+itsup svc vpn run vpn-openvpn ovpn_genconfig -u udp4://vpn.itsup.example.com
+itsup svc vpn run vpn-openvpn ovpn_initpki
 ```
 
 Save the signing passphrase you created.
 
 #### 2. Create a client file
 
-```
+```bash
 export CLIENTNAME='github'
-dcu vpn run vpn-openvpn easyrsa build-client-full $CLIENTNAME
+itsup svc vpn run vpn-openvpn easyrsa build-client-full $CLIENTNAME
 ```
 
 Save the client passphrase you created as it will be used for `OVPN_PASSWORD` below.
 
 #### 3. Retrieve the client configuration with embedded certificates and place in github workflow folder
 
-```
-dcu vpn run vpn-openvpn ovpn_getclient $CLIENTNAME combined > .github/workflows/client.ovpn
+```bash
+itsup svc vpn run vpn-openvpn ovpn_getclient $CLIENTNAME combined > .github/workflows/client.ovpn
 ```
 
 **IMPORTANT:** Now change `udp` to `udp4` in the `remote: ...` line to target UDP with IPv4 as docker is still not there.

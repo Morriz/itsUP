@@ -24,7 +24,6 @@ else
 fi
 
 # Start in background with proper daemonization
-cd "$(dirname "$0")/.."
 sudo $ENV_VARS setsid python3 bin/docker_monitor.py $FLAGS < /dev/null &> /dev/null &
 
 echo "Container security monitor started in background"

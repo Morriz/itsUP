@@ -1,40 +1,30 @@
-# Infrastructure configuration
+# Traefik configuration overrides
+# This file uses native Traefik YAML schema and will be merged on top of generated config
 # Edit values below, then commit to git
-# Secrets referenced as ${VAR} - actual values in secrets/global.txt
-
-domain_suffix: example.com  # CHANGE THIS
-
-letsencrypt:
-  email: ${LETSENCRYPT_EMAIL}  # From secrets/global.txt
-  staging: false  # Set to true for testing
-
-trusted_ips:
-  - 192.168.1.1  # Your router IP
-  - 172.0.0.0/8  # Docker networks
-  - 10.0.0.0/8   # Private networks
-
-traefik:
-  log_level: INFO  # DEBUG, INFO, WARN
-  dashboard_enabled: true
-  dashboard_domain: traefik.${domain_suffix}
-  dashboard_auth: ${TRAEFIK_ADMIN}  # From secrets (htpasswd)
-
-middleware:
-  rate_limit:
-    enabled: true
-    average: 100  # requests per second
-    burst: 50
-
-  headers:
-    ssl_redirect: true
-    sts_seconds: 31536000
-    sts_include_subdomains: true
-    sts_preload: true
+# Secrets referenced as ${VAR} - actual values in secrets/itsup.txt
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${LETSENCRYPT_EMAIL}
+      # Uncomment for Let's Encrypt staging (testing)
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+log:
+  level: INFO # DEBUG, INFO, WARN, ERROR
+middlewares:
+  rate-limit:
+    rateLimit:
+      period: 1s
+      average: 100
+      burst: 200
+experimental:
+  plugins:
+    bouncer:
+      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      version: v1.2.0
 
 plugins:
   crowdsec:
-    enabled: true
-    version: v1.2.0
+    apikey: ${CROWDSEC_APIKEY}
     collections:
       - crowdsecurity/linux
       - crowdsecurity/traefik
@@ -42,29 +32,34 @@ plugins:
       - crowdsecurity/sshd
       - crowdsecurity/whitelist-good-actors
       - crowdsecurity/appsec-virtual-patching
-    scenarios:
-      - crowdsecurity/http-admin-interface-probing
-      - crowdsecurity/http-backdoors-attempts
-      - crowdsecurity/http-bad-user-agent
-      - crowdsecurity/http-crawl-non_statics
-      - crowdsecurity/http-generic-bf
-      - crowdsecurity/http-open-proxy
-      - crowdsecurity/http-path-traversal-probing
-      - crowdsecurity/http-probing
-      - crowdsecurity/http-sensitive-files
-      - crowdsecurity/http-sqli-probing
-      - crowdsecurity/http-xss-probing
-      - ltsich/http-w00tw00t
+    enabled: true
     options:
-      logLevel: WARN
-      updateIntervalSeconds: 60
+      crowdsecCapiMachineId: login
+      crowdsecCapiPassword: password
+      crowdsecCapiScenarios:
+        - crowdsecurity/http-admin-interface-probing
+        - crowdsecurity/http-backdoors-attempts
+        - crowdsecurity/http-bad-user-agent
+        - crowdsecurity/http-crawl-non_statics
+        - crowdsecurity/http-generic-bf
+        - crowdsecurity/http-open-proxy
+        - crowdsecurity/http-path-traversal-probing
+        - crowdsecurity/http-probing
+        - crowdsecurity/http-sensitive-files
+        - crowdsecurity/http-sqli-probing
+        - crowdsecurity/http-xss-probing
+        - ltsich/http-w00tw00t
       defaultDecisionSeconds: 600
       httpTimeoutSeconds: 10
-      # Secrets from secrets/global.txt
-      apikey: ${CROWDSEC_API_KEY}
-      capiMachineId: ${CROWDSEC_CAPI_MACHINE_ID}
-      capiPassword: ${CROWDSEC_CAPI_PASSWORD}
-
-versions:
-  traefik: v3.2
-  crowdsec: v1.6.8
+      logLevel: WARN
+      updateIntervalSeconds: 60
+    version: v1.2.0
+    # tls:
+    #   stores:
+    #     default:
+    #       defaultGeneratedCert:
+    #         domain:
+    #           main: ${DOMAIN_SUFFIX}
+    #           sans:
+    #             - '*.${DOMAIN_SUFFIX}'
+    #         resolver: letsencrypt

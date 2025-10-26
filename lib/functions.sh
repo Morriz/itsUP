@@ -41,18 +41,16 @@ dcx_() {
   dc_ $dir $project exec $svc sh -c "'$@'"
 }
 
-# Run docker compose in the proxy
+# Run docker compose in the root (dns, networks)
 dcp() {
-  if [ "$1" = "up" ] || [ "$1" = "restart" ]; then
-    # Smart update with optional service arg
-    service=$2
-    if [ -n "$service" ]; then
-      .venv/bin/python -c "from lib.proxy import update_proxy; update_proxy('$service')"
-    else
-      .venv/bin/python -c "from lib.proxy import update_proxy; update_proxy()"
-    fi
+  cmd=$1
+  shift
+  [ -z "$cmd" ] && echo "No command given!" && return 1
+
+  if [ "$cmd" = "up" ]; then
+    docker compose up -d $@
   else
-    dc_ proxy proxy $@
+    docker compose $cmd $@
   fi
 }
 dcpx() {
