@@ -1,8 +1,10 @@
 boto3
+click
 fastapi
 github-webhooks-framework2
 ipwhois
 jinja2-cli
+netifaces
 python-dotenv
 pyyaml
 requests
