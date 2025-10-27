@@ -9,6 +9,7 @@ import sys
 import click
 
 from lib.data import get_env_with_secrets
+from lib.deploy import deploy_dns_stack
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def dns():
 @click.argument("service", required=False)
 def up(service):
     """
-    Start DNS stack
+    Start DNS stack with smart deployment
 
     Starts the DNS honeypot container. This creates the proxynet network
     that other stacks will join.
@@ -46,18 +47,12 @@ def up(service):
         itsup dns up                # Start all DNS services
         itsup dns up dns-honeypot   # Start specific service
     """
-    logger.info("Starting DNS stack...")
-
-    cmd = ["docker", "compose", "-f", f"{DNS_DIR}/docker-compose.yml", "up", "-d", "--pull", "always"]
-    if service:
-        cmd.append(service)
-
     try:
-        subprocess.run(cmd, env=get_env_with_secrets(), check=True)
-        logger.info("✓ DNS stack started")
-    except subprocess.CalledProcessError as e:
-        logger.error("✗ Failed to start DNS stack")
-        sys.exit(e.returncode)
+        deploy_dns_stack(service=service)
+        logger.info("✓ DNS stack deployed")
+    except Exception as e:
+        logger.error(f"✗ Failed to deploy DNS stack: {e}")
+        sys.exit(1)
 
 
 @dns.command()

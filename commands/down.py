@@ -4,7 +4,6 @@
 
 import logging
 import subprocess
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -24,11 +23,7 @@ def _stop_project(project: str) -> tuple[str, bool, str]:
     env = get_env_with_secrets(project)
     try:
         subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "down"],
-            env=env,
-            check=True,
-            capture_output=True,
-            text=True
+            ["docker", "compose", "-f", str(compose_file), "down"], env=env, check=True, capture_output=True, text=True
         )
         return (project, True, "")
     except subprocess.CalledProcessError as e:
@@ -60,7 +55,7 @@ def down(clean: bool):
     # Step 1: Stop monitor
     logger.info("  🛡️  Stopping container security monitor...")
     try:
-        subprocess.run(["pkill", "-f", "bin/docker_monitor.py"], check=False)
+        subprocess.run(["pkill", "-f", "bin/monitor.py"], check=False)
         logger.info("  ✓ Monitor stopped")
     except subprocess.CalledProcessError:
         logger.warning("  ⚠ Monitor may not have been running")
@@ -95,25 +90,17 @@ def down(clean: bool):
     logger.info("  🔀 Stopping proxy stack...")
     env = get_env_with_secrets()
     try:
-        subprocess.run(
-            ["docker", "compose", "-f", "proxy/docker-compose.yml", "down"],
-            env=env,
-            check=True
-        )
+        subprocess.run(["docker", "compose", "-f", "proxy/docker-compose.yml", "down"], env=env, check=True)
         logger.info("  ✓ Proxy stack stopped")
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         logger.error("  ✗ Failed to stop proxy stack")
 
     # Step 5: Stop DNS stack
     logger.info("  📡 Stopping DNS stack...")
     try:
-        subprocess.run(
-            ["docker", "compose", "-f", "dns/docker-compose.yml", "down"],
-            env=env,
-            check=True
-        )
+        subprocess.run(["docker", "compose", "-f", "dns/docker-compose.yml", "down"], env=env, check=True)
         logger.info("  ✓ DNS stack stopped")
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         logger.error("  ✗ Failed to stop DNS stack")
 
     logger.info("✅ Everything stopped")
@@ -132,10 +119,7 @@ def down(clean: bool):
             env = get_env_with_secrets(project)
             try:
                 subprocess.run(
-                    ["docker", "compose", "-f", str(compose_file), "rm", "-f"],
-                    env=env,
-                    check=True,
-                    capture_output=True
+                    ["docker", "compose", "-f", str(compose_file), "rm", "-f"], env=env, check=True, capture_output=True
                 )
                 return (project, True)
             except subprocess.CalledProcessError:
@@ -149,7 +133,7 @@ def down(clean: bool):
                     ["docker", "compose", "-f", f"{stack}/docker-compose.yml", "rm", "-f"],
                     env=env,
                     check=True,
-                    capture_output=True
+                    capture_output=True,
                 )
                 return (stack, True)
             except subprocess.CalledProcessError:

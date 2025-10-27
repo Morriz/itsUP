@@ -24,7 +24,7 @@ else
 fi
 
 # Start in background with proper daemonization
-sudo $ENV_VARS setsid python3 bin/docker_monitor.py $FLAGS < /dev/null &> /dev/null &
+sudo $ENV_VARS setsid python3 bin/monitor.py $FLAGS < /dev/null &> /dev/null &
 
 echo "Container security monitor started in background"
 echo "View logs: tail -f $log_file"

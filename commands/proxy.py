@@ -10,6 +10,7 @@ import click
 
 from bin.write_artifacts import write_proxy_artifacts
 from lib.data import get_env_with_secrets
+from lib.deploy import deploy_proxy_stack
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,11 @@ def proxy():
 @click.argument("service", required=False)
 def up(service):
     """
-    Start proxy stack (regenerates configs first)
+    Start proxy stack with smart zero-downtime rollout
 
-    Always regenerates proxy configuration to ensure it's up to date,
-    then starts containers.
+    Regenerates proxy configuration, then deploys with smart rollout:
+    - Traefik: zero-downtime rollout (stateless)
+    - Other services: normal restart
 
     SERVICE: Optional service name (traefik, dockerproxy)
 
@@ -47,25 +49,12 @@ def up(service):
         itsup proxy up            # Start all proxy services
         itsup proxy up traefik    # Start only Traefik
     """
-    # Always regenerate proxy artifacts (they're templates, always need refresh)
     try:
-        write_proxy_artifacts()
+        deploy_proxy_stack(service=service)
+        logger.info("✓ Proxy stack deployed")
     except Exception as e:
-        logger.error(f"✗ Failed to regenerate proxy config: {e}")
+        logger.error(f"✗ Failed to deploy proxy stack: {e}")
         sys.exit(1)
-
-    logger.info("Starting proxy stack...")
-
-    cmd = ["docker", "compose", "-f", f"{PROXY_DIR}/docker-compose.yml", "up", "-d", "--pull", "always"]
-    if service:
-        cmd.append(service)
-
-    try:
-        subprocess.run(cmd, env=get_env_with_secrets(), check=True)
-        logger.info("✓ Proxy stack started")
-    except subprocess.CalledProcessError as e:
-        logger.error("✗ Failed to start proxy stack")
-        sys.exit(e.returncode)
 
 
 @proxy.command()

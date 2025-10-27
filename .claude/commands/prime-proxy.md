@@ -6,12 +6,14 @@ You are now working on the **proxy infrastructure** for this system.
 
 This system uses a **template-based proxy generation** paradigm:
 
-1. **Source of Truth**: `db.yml` defines all services and their routing rules
-2. **Code Generation**: Python templates generate:
+1. **Source of Truth**: `projects/` directory with per-project `docker-compose.yml` and `ingress.yml` files
+2. **Infrastructure Config**: `projects/itsup.yml` and `projects/traefik.yml` for infrastructure settings
+3. **Code Generation**: Python templates in `tpl/` generate:
    - `proxy/docker-compose.yml` - Traefik stack configuration
-   - `proxy/traefik/traefik.yml` - Traefik static configuration
+   - `proxy/traefik/traefik.yml` - Traefik static configuration (merged with user overrides)
    - `proxy/traefik/dynamic/*.yml` - Dynamic routing rules
-3. **Zero-Downtime Deployment**:
+   - `upstream/{project}/docker-compose.yml` - Per-project service configs with Traefik labels
+4. **Zero-Downtime Deployment**:
    - Stateless services (traefik, crowdsec) use `docker-rollout`
    - Infrastructure services (dockerproxy, dns) restart normally
 
@@ -36,11 +38,12 @@ This system uses a **template-based proxy generation** paradigm:
 
 **Start here** to understand the proxy system:
 
-1. **lib/proxy.py** - Proxy management logic
-   - `update_proxy()` - Smart update with change detection
-   - `write_compose()` - Generate docker-compose.yml
-   - `write_routers()` - Generate dynamic routing config
-   - `write_config()` - Generate Traefik static config
+1. **bin/write_artifacts.py** - Proxy and upstream artifact generation
+   - `write_proxy_compose()` - Generate proxy/docker-compose.yml
+   - `write_traefik_config()` - Generate proxy/traefik/traefik.yml
+   - `write_dynamic_routers()` - Generate dynamic routing configs
+   - `write_proxy_artifacts()` - Master function for all proxy generation
+   - `inject_traefik_labels()` - Generate Traefik labels from ingress.yml
 
 2. **tpl/proxy/docker-compose.yml.j2** - Compose template
    - Service definitions for traefik, dockerproxy, dns, crowdsec
@@ -78,7 +81,7 @@ This system uses a **template-based proxy generation** paradigm:
 
 ### Update Flow
 ```
-db.yml change → bin/apply.py → write_proxies() → docker compose up -d → rollout stateless services
+projects/ change → itsup apply → write_artifacts.py → docker compose up -d → rollout stateless services
 ```
 
 ## Common Tasks
@@ -104,9 +107,9 @@ itsup svc traefik up  # Direct docker compose passthrough
 
 ## Important Constraints
 
-1. **Never modify generated files directly** - Always edit templates or db.yml
+1. **Never modify generated files directly** - Always edit templates in `tpl/` or project configs in `projects/`
 2. **Validate YAML** after template changes with `docker compose config --quiet`
-3. **Only stateless services use docker-rollout** - Check `STATELESS_SERVICES` list in lib/proxy.py
+3. **Only stateless services use docker-rollout** - Check `STATELESS_SERVICES` constant in bin/write_artifacts.py
 4. **Hostport services need static routers** - They bypass dynamic label discovery
 
 ## Ready to Work

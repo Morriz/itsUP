@@ -234,7 +234,7 @@ When our monitor detects a hardcoded IP connection:
 
 **Typical Workflow**:
 
-1. Run monitor in detection mode first: `bin/docker_monitor.py --report-only`
-2. Periodically validate with OpenSnitch: `bin/docker_monitor.py --cleanup`
+1. Run monitor in detection mode first: `bin/monitor.py --report-only`
+2. Periodically validate with OpenSnitch: `bin/monitor.py --cleanup`
 3. Review false positives, move to whitelist
-4. Enable blocking when confident: `bin/docker_monitor.py --use-opensnitch`
+4. Enable blocking when confident: `bin/monitor.py --use-opensnitch`

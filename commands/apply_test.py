@@ -21,20 +21,17 @@ class TestApply(unittest.TestCase):
         self.runner = CliRunner()
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_upstream")
-    @patch("commands.apply.subprocess.run")
+    @patch("commands.apply.deploy_upstream_project")
     def test_apply_single_project_success(
-        self, mock_subprocess: Mock, mock_write_upstream: Mock, mock_list_projects: Mock
+        self, mock_deploy: Mock, mock_list_projects: Mock
     ) -> None:
         """Test applying a single project successfully."""
         mock_list_projects.return_value = ["myproject", "other"]
-        mock_subprocess.return_value = Mock(returncode=0)
 
         result = self.runner.invoke(apply, ["myproject"])
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_upstream.assert_called_once_with("myproject")
-        mock_subprocess.assert_called_once()
+        mock_deploy.assert_called_once_with("myproject")
 
     @patch("commands.apply.list_projects")
     def test_apply_single_project_not_found(self, mock_list_projects: Mock) -> None:
@@ -48,107 +45,86 @@ class TestApply(unittest.TestCase):
         self.assertIn("Available: other, another", result.output)
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_upstream")
-    @patch("commands.apply.subprocess.run")
+    @patch("commands.apply.deploy_upstream_project")
     def test_apply_single_project_deployment_failure(
-        self, mock_subprocess: Mock, mock_write_upstream: Mock, mock_list_projects: Mock
+        self, mock_deploy: Mock, mock_list_projects: Mock
     ) -> None:
         """Test handling deployment failure for single project."""
         mock_list_projects.return_value = ["myproject"]
-        mock_subprocess.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(
-            __import__("subprocess").CalledProcessError(1, "docker")
-        )
+        mock_deploy.side_effect = Exception("Deployment failed")
 
         result = self.runner.invoke(apply, ["myproject"])
 
         self.assertEqual(result.exit_code, 1)
-        mock_write_upstream.assert_called_once_with("myproject")
+        mock_deploy.assert_called_once_with("myproject")
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_upstreams")
-    @patch("commands.apply.subprocess.run")
+    @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_success(
         self,
-        mock_subprocess: Mock,
-        mock_write_upstreams: Mock,
+        mock_deploy: Mock,
         mock_list_projects: Mock,
     ) -> None:
         """Test applying all projects successfully."""
         mock_list_projects.return_value = ["project1", "project2"]
-        mock_write_upstreams.return_value = True
-        mock_subprocess.return_value = Mock(returncode=0)
 
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_upstreams.assert_called_once()
-        self.assertEqual(mock_subprocess.call_count, 2)
+        self.assertEqual(mock_deploy.call_count, 2)
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_upstreams")
+    @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_upstream_generation_failure(
-        self, mock_write_upstreams: Mock, mock_list_projects: Mock
+        self, mock_deploy: Mock, mock_list_projects: Mock
     ) -> None:
-        """Test handling upstream generation failure."""
+        """Test handling upstream generation/deployment failure."""
         mock_list_projects.return_value = ["project1", "project2"]
-        mock_write_upstreams.return_value = False
+        mock_deploy.side_effect = Exception("Generation failed")
 
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 1)
-        mock_write_upstreams.assert_called_once()
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_upstreams")
-    @patch("commands.apply.subprocess.run")
+    @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_with_partial_failures(
         self,
-        mock_subprocess: Mock,
-        mock_write_upstreams: Mock,
+        mock_deploy: Mock,
         mock_list_projects: Mock,
     ) -> None:
         """Test applying all projects with some failures."""
         mock_list_projects.return_value = ["project1", "project2", "project3"]
-        mock_write_upstreams.return_value = True
 
         # First and third succeed, second fails
-        def subprocess_side_effect(*args, **kwargs):
-            cmd = args[0]
-            project = cmd[cmd.index("-p") + 1]
+        def deploy_side_effect(project: str):
             if project == "project2":
-                raise __import__("subprocess").CalledProcessError(1, "docker")
-            return Mock(returncode=0)
+                raise Exception("Deployment failed")
 
-        mock_subprocess.side_effect = subprocess_side_effect
+        mock_deploy.side_effect = deploy_side_effect
 
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 1)
         self.assertIn("Failed projects: project2", result.output)
-        self.assertEqual(mock_subprocess.call_count, 3)
+        self.assertEqual(mock_deploy.call_count, 3)
 
     @patch("commands.apply.list_projects")
-    @patch("commands.apply.write_upstreams")
-    @patch("commands.apply.subprocess.run")
+    @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_with_multiple_failures(
         self,
-        mock_subprocess: Mock,
-        mock_write_upstreams: Mock,
+        mock_deploy: Mock,
         mock_list_projects: Mock,
     ) -> None:
         """Test applying all projects with multiple failures."""
         mock_list_projects.return_value = ["project1", "project2", "project3"]
-        mock_write_upstreams.return_value = True
 
         # First succeeds, second and third fail
-        def subprocess_side_effect(*args, **kwargs):
-            cmd = args[0]
-            project = cmd[cmd.index("-p") + 1]
+        def deploy_side_effect(project: str):
             if project in ["project2", "project3"]:
-                raise __import__("subprocess").CalledProcessError(1, "docker")
-            return Mock(returncode=0)
+                raise Exception("Deployment failed")
 
-        mock_subprocess.side_effect = subprocess_side_effect
+        mock_deploy.side_effect = deploy_side_effect
 
         result = self.runner.invoke(apply, [])
 
@@ -159,7 +135,7 @@ class TestApply(unittest.TestCase):
             or "Failed projects: project3, project2" in result.output,
             f"Expected failed projects message, got: {result.output}"
         )
-        self.assertEqual(mock_subprocess.call_count, 3)
+        self.assertEqual(mock_deploy.call_count, 3)
 
 
 if __name__ == "__main__":

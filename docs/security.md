@@ -55,11 +55,11 @@ Reproducible 100% of the time. Mechanism: unknown.
 
 Yet empirical evidence shows blocking reverse DNS prevents exfiltration entirely.
 
-**Actual Mechanism (Confirmed 2025-10-20):**
+**Actual Mechanism:**
 
-OpenSnitch uses eBPF to intercept outbound connections and performs reverse DNS lookup on destination IPs. When a container connects to a **hardcoded IP** (without prior DNS lookup), OpenSnitch:
+OpenSnitch intercepts outbound connections and performs reverse DNS lookup on destination IPs. When a container connects to a **hardcoded IP** (without prior DNS lookup), OpenSnitch:
 
-1. Intercepts the connection via eBPF hooks
+1. Intercepts the connection via iptables
 2. Performs reverse DNS to get the `X.X.X.X.in-addr.arpa` domain
 3. Applies rules based on this reverse domain
 4. The `0-deny-arpa-53` rule matches all `*.in-addr.arpa` connections
@@ -70,21 +70,11 @@ OpenSnitch uses eBPF to intercept outbound connections and performs reverse DNS 
 - **Malware behavior**: Connects to hardcoded IPs → triggers reverse DNS → matches in-addr.arpa rule → BLOCKED
 - **Legitimate services**: Query DNS first (e.g., "api.openai.com") → connect to resolved IP → matches forward domain rule → ALLOWED
 
-The "accidental" discovery was actually OpenSnitch's designed behavior for blocking direct IP connections.
-
-**Previous theories (for historical context):**
-
-~~**Theory A:** OpenSnitch performs reverse DNS lookup as part of its interception mechanism~~ ✅ **CORRECT** - Confirmed via investigation
-
-~~**Theory B:** Docker daemon performs mandatory reverse DNS~~ ❌ Incorrect - Docker doesn't require reverse DNS
-
-~~**Theory C:** Intermediate network layer requires reverse DNS~~ ❌ Incorrect - conntrack/libnetwork don't require it
-
-~~**Theory D:** Malware performs reverse DNS as covert channel~~ ❌ Incorrect - It's OpenSnitch performing the reverse DNS, not the malware
+The "accidental" discovery is actually OpenSnitch's designed behavior for blocking direct IP connections.
 
 ## 7. Automated Defense System
 
-Built Python-based correlation engine (`bin/docker_monitor.py`):
+Built Python-based correlation engine (`bin/monitor.py`):
 
 **Architecture:**
 
@@ -172,13 +162,13 @@ sudo systemctl restart opensnitchd
 
 ```bash
 # Start real-time monitoring
-sudo python3 bin/docker_monitor.py
+sudo python3 bin/monitor.py
 
 # Run cleanup to identify false positives
-sudo python3 bin/docker_monitor.py --cleanup
+sudo python3 bin/monitor.py --cleanup
 
 # Clear iptables rules (stop monitoring)
-sudo python3 bin/docker_monitor.py --clear-iptables
+sudo python3 bin/monitor.py --clear-iptables
 ```
 
 ## 10. Current Defense Posture

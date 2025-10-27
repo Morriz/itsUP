@@ -201,7 +201,7 @@ def cleanup_blacklist():
 def main():
     """Main entry point."""
     if os.geteuid() != 0:
-        print("Run as root: sudo python3 bin/docker_monitor.py")
+        print("Run as root: sudo python3 bin/monitor.py")
         sys.exit(1)
 
     # Setup logging (with file output)
@@ -228,13 +228,13 @@ def main():
         else:
             print(f"Unknown flag: {arg}")
             print("\nUsage:")
-            print("  sudo python3 bin/docker_monitor.py                       # Detection + iptables blocking (default)")
-            print("  sudo python3 bin/docker_monitor.py --report-only         # Detection only, no blocking")
-            print("  sudo python3 bin/docker_monitor.py --use-opensnitch      # Blocking + OpenSnitch integration")
-            print("  sudo python3 bin/docker_monitor.py --report-only --use-opensnitch  # Detection-only with OpenSnitch")
-            print("  sudo python3 bin/docker_monitor.py --skip-sync           # Memory-only mode (no file I/O)")
-            print("  sudo python3 bin/docker_monitor.py --cleanup             # Validate blacklist with OpenSnitch")
-            print("  sudo python3 bin/docker_monitor.py --clear-iptables      # Remove iptables rules")
+            print("  sudo python3 bin/monitor.py                       # Detection + iptables blocking (default)")
+            print("  sudo python3 bin/monitor.py --report-only         # Detection only, no blocking")
+            print("  sudo python3 bin/monitor.py --use-opensnitch      # Blocking + OpenSnitch integration")
+            print("  sudo python3 bin/monitor.py --report-only --use-opensnitch  # Detection-only with OpenSnitch")
+            print("  sudo python3 bin/monitor.py --skip-sync           # Memory-only mode (no file I/O)")
+            print("  sudo python3 bin/monitor.py --cleanup             # Validate blacklist with OpenSnitch")
+            print("  sudo python3 bin/monitor.py --clear-iptables      # Remove iptables rules")
             sys.exit(1)
 
     # Design by contract: If --use-opensnitch is used, DB must exist

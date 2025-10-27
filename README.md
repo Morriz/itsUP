@@ -75,8 +75,8 @@ Still interested? Then read on...
 
 ### Single source of truth
 
-One file (`db.yml`) is used for all the infra and workloads it creates and manages, to ensure a predictable and reliable automated workflow.
-This means abstractions are used which means a trade off between flexibility and reliability, but the stack is easily modified and enhanced to meet your needs. We strive to mirror docker compose functionality, which means no concessions are necessary from a docker compose enthusiast's perspective.
+The `projects/` directory is used for all the infra and workloads it creates and manages, to ensure a predictable and reliable automated workflow. Each project has its own `docker-compose.yml` and `ingress.yml` files, while infrastructure configuration lives in `projects/itsup.yml` and `projects/traefik.yml`.
+This project-based structure provides both flexibility and reliability, and we strive to mirror standard docker compose functionality, which means no concessions are necessary from a docker compose enthusiast's perspective.
 
 ### Managed proxy setup
 
@@ -99,8 +99,8 @@ itsUP generates and manages `proxy/docker-compose.yml` which operates Traefik in
 
 ### Managed service deployments & updates
 
-itsUP generates and manages `upstream/{project}/docker-compose.yml` files to deploy container workloads as defined as a service in `db.yml`.
-This centralizes and abstracts away the plethora of custom docker compose setups that are mostly uniform in their approach anyway, so controlling their artifacts from one source of truth makes a lot of sense.
+itsUP generates and manages `upstream/{project}/docker-compose.yml` files to deploy container workloads based on your project configurations in `projects/{project}/`. Each project has a `docker-compose.yml` (service definitions) and `ingress.yml` (routing configuration).
+This centralizes and abstracts away the plethora of custom docker compose setups that are mostly uniform in their approach anyway, so controlling their artifacts from a project-based structure makes a lot of sense.
 
 ### <sup>\*</sup>Zero downtime?
 
@@ -151,7 +151,7 @@ It is surely possible to deploy stateful services but beware that those might no
 
 **Infra:**
 
-- Portforwarding of port `80` and `443` to the machine running this stack. This stack MUST overtake whatever routing you now have, but don't worry, as it supports your home assistant setup and forwards any traffic it expects to it (if you finish the pre-configured `home-assistant` project in `db.yml`)
+- Portforwarding of port `80` and `443` to the machine running this stack. This stack MUST overtake whatever routing you now have, but don't worry, as it supports your home assistant setup and forwards any traffic it expects to it (configure your home-assistant project in `projects/home-assistant/`)
 - A wildcard dns domain like `*.itsup.example.com` that points to your home ip. This allows to choose whatever subdomain for your services. You may of course choose and manage any domain in a similar fashion for a public service, but I suggest not going through such trouble for anything private.
 
 ## Dev/ops tools
@@ -228,8 +228,7 @@ itsup --verbose                      # Enable DEBUG logging for any command
 
 ### Utility scripts
 
-- `bin/write_artifacts.py`: after updating `db.yml` you can run this script to generate new artifacts.
-- `bin/validate-db.py`: also ran from `bin/write_artifacts.py`
+- `bin/write_artifacts.py`: after updating project configurations in `projects/` you can run this script to generate new artifacts (or use `itsup apply` which does this automatically).
 - `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
 
 ### Makefile
@@ -400,134 +399,182 @@ make logs
 
 ### Configure services
 
-Project and service configuration is explained below with the following scenarios. Please also check `db.yml.sample` as it contains more examples.
+Project and service configuration uses a project-based structure in the `projects/` directory. Each project has its own subdirectory with `docker-compose.yml` and `ingress.yml` files.
 
 #### Scenario 1: Adding an upstream service that will be deployed and managed
 
-Edit `db.yml` and add your projects with their service(s). Any service that is given an `image: ` prop will be deployed with `docker compose`.
-Example:
+Create a new directory in `projects/` with two files:
 
+**projects/whoami/docker-compose.yml:**
 ```yaml
-projects:
-  ...
-  - description: whoami service
-    name: whoami
-    services:
-      - image: traefik/whoami:latest
-        ingress:
-          - domain: whoami.example.com
-        host: web
+services:
+  web:
+    image: traefik/whoami:latest
+    restart: unless-stopped
+    networks:
+      - proxynet
+
+networks:
+  proxynet:
+    external: true
 ```
 
-Run `itsup apply` to write all artifacts and deploy/update relevant docker stacks.
+**projects/whoami/ingress.yml:**
+```yaml
+enabled: true
+ingress:
+  - service: web
+    domain: whoami.example.com
+    port: 80
+    router: http
+```
+
+Run `itsup apply whoami` to generate artifacts and deploy the service.
 
 #### Scenario 2: Adding a TLS passthrough endpoint
 
-Add a service with ingress and set `passthrough: true`.
-Example:
+Create a project with `passthrough: true` in the ingress configuration.
 
+**projects/home-assistant/ingress.yml:**
 ```yaml
-projects:
-  ...
-  - description: Home Assistant passthrough
-    enabled: true
-    name: home-assistant
-    services:
-      - ingress:
-        - domain: home.example.com
-          passthrough: true
-          port: 443
-        host: 192.168.1.111
+enabled: true
+ingress:
+  - service: hass
+    domain: home.example.com
+    port: 443
+    router: http
+    passthrough: true
 ```
 
-If you also need port 80 to listen for http challenges for your endpoint (home-assistant may do its own), then you may also add:
-
+**projects/home-assistant/docker-compose.yml:**
 ```yaml
-  ...
-      - ingress:
-        ...
-        - domain: home.example.com
-          passthrough: true
-          path_prefix: /.well-known/acme-challenge/
-          port: 80
+services:
+  hass:
+    image: homeassistant/home-assistant:latest
+    restart: unless-stopped
+    networks:
+      - proxynet
+    ports:
+      - "8123:8123"
+
+networks:
+  proxynet:
+    external: true
 ```
 
-(Port 80 is disallowed for any other other cases.)
+If you also need port 80 for HTTP challenges, add another ingress entry:
+
+```yaml
+ingress:
+  - service: hass
+    domain: home.example.com
+    port: 443
+    router: http
+    passthrough: true
+  - service: hass
+    domain: home.example.com
+    port: 80
+    router: http
+    path_prefix: /.well-known/acme-challenge/
+```
+
+(Port 80 is only allowed for ACME challenges with passthrough.)
 
 #### Scenario 3: Adding a TCP endpoint
 
-Add a service with ingress and set `router: tcp`.
-Example:
+Use `router: tcp` in the ingress configuration.
 
+**projects/minio/docker-compose.yml:**
 ```yaml
-projects:
-  ...
-  - description: Minio service
-    name: minio
-    services:
-      - command: server --console-address ":9001" /data
-        env:
-          MINIO_ROOT_USER: root
-          MINIO_ROOT_PASSWORD: xx
-        host: app
-        image: minio/minio:latest
-        ingress:
-          - domain: minio-api.example.com
-            port: 9000
-            router: tcp
-          - domain: minio-ui.example.com
-            port: 9001
-        volumes:
-          - /data
+services:
+  app:
+    image: minio/minio:latest
+    command: server --console-address ":9001" /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - /data/minio:/data
+    restart: unless-stopped
+    networks:
+      - proxynet
+
+networks:
+  proxynet:
+    external: true
+```
+
+**projects/minio/ingress.yml:**
+```yaml
+enabled: true
+ingress:
+  - service: app
+    domain: minio-api.example.com
+    port: 9000
+    router: tcp
+  - service: app
+    domain: minio-ui.example.com
+    port: 9001
+    router: http
+```
+
+**projects/minio/secrets.txt:** (optional project-specific secrets)
+```
+MINIO_ROOT_USER=admin
+MINIO_ROOT_PASSWORD=secret123
 ```
 
 #### Scenario 4: Adding a local (host) endpoint
 
-You can expose an existing service that is already running on the host by creating a service:
+For services running on the host (not in Docker), create a minimal ingress-only configuration.
 
-- without an `image` prop
-- targeting the host from within docker
-- configuring it's ingress
-
-Example:
-
+**projects/itsup/ingress.yml:**
 ```yaml
-projects:
-  ...
-  - description: itsUP API running on the host
-    name: itsUP
-    services:
-      - ingress:
-          - domain: itsup.example.com
-            port: 8888
-        host: 172.17.0.1 # change this to host.docker.internal when on Docker Desktop
+enabled: true
+ingress:
+  - service: api
+    domain: itsup.example.com
+    port: 8888
+    router: http
+    target: 172.17.0.1  # Docker bridge IP (use host.docker.internal on Docker Desktop)
 ```
 
-#### Additional docker properties
-
-One can add additional docker properties to a service by adding them to the `additional_properties` dictionary:
-
+**projects/itsup/docker-compose.yml:**
 ```yaml
-additional_properties:
-  cpus: 0.1
+# Empty or minimal - no containers needed for host services
+services: {}
 ```
 
-The following docker service properties exist at the service root level and MUST NOT be added via `additional_properties`:
+#### Project structure reference
 
-- command
-- depends_on
-- env
-- image
-- port
-- name
-- restart
-- volumes
+Each project directory follows this pattern:
 
-(Also see `lib/models.py`)
+```
+projects/
+└── {project-name}/
+    ├── docker-compose.yml   # Standard Docker Compose file
+    ├── ingress.yml          # Routing configuration (IngressV2 schema)
+    └── secrets.txt          # (Optional) Project-specific secrets
+```
+
+**IngressV2 schema:**
+```yaml
+enabled: true  # Enable/disable routing for this project
+ingress:
+  - service: web           # Service name from docker-compose.yml
+    domain: example.com    # Domain for routing
+    port: 80              # Container port
+    router: http          # Router type: http, tcp, udp
+    passthrough: false    # (Optional) TLS passthrough
+    path_prefix: /        # (Optional) Path-based routing
+    hostport: 8080        # (Optional) Expose on host port
+```
+
+See `samples/example-project/` for a complete working example.
 
 ### Configure plugins
 
-You can enable and configure plugins in `db.yml`. Right now we support the following:
+You can enable and configure plugins in `projects/traefik.yml`. Right now we support the following:
 
 #### CrowdSec
 
@@ -547,7 +594,7 @@ Now we can execute the command to get the key:
 itsup svc traefik exec crowdsec cscli bouncers add crowdsecBouncer
 ```
 
-Put the resulting api key in the `plugins.crowdsec.apikey` configuration in `db.yml` and apply with `itsup apply`.
+Put the resulting api key in `secrets/itsup.txt` as `CROWDSEC_API_KEY=<your-key>`, then reference it in `projects/traefik.yml` configuration and apply with `itsup apply`.
 Crowdsec is now running and wired up, but does not use any blocklists yet. Those can be managed manually, but preferable is to become part of the community by creating an account with CrowdSec to get access and contribute to the community blocklists, as well as view results in your account's dashboards.
 
 **Step 2: connect your instance with the CrowdSec console**

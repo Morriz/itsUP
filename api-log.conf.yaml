@@ -17,7 +17,7 @@ handlers:
   access:
     formatter: access
     class: logging.FileHandler
-    filename: logs/api-access.log
+    filename: logs/access.log
     encoding: utf8
     mode: a
 loggers:

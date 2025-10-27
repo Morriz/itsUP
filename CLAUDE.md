@@ -58,7 +58,7 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 🚨 **THIS REPO DOES NOT CONTAINERIZE ITS OWN CODE** 🚨
 
 - **NEVER** containerize the itsUP codebase itself (Python code, CLI, API)
-- **Reason:** Traefik runs on host network for zero-downtime deployments
+- **Reason:** Traefik runs on host network for zero-downtime deployments via scaling
 - **What IS containerized:** Upstream project services (user workloads)
 - **What is NOT containerized:**
   - DNS honeypot management code

@@ -1,55 +1,30 @@
 #!/usr/bin/env python3
 
-"""Apply configurations (regenerate + deploy)"""
+"""Apply configurations (regenerate + deploy with smart rollout)"""
 
 import logging
-import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 
-from bin.write_artifacts import write_upstream, write_upstreams
-from lib.data import get_env_with_secrets, list_projects
+from lib.data import list_projects
+from lib.deploy import deploy_upstream_project
 
 logger = logging.getLogger(__name__)
-
-
-def _build_docker_compose_cmd(project: str) -> list[str]:
-    """
-    Build docker compose command for deploying a project.
-
-    Args:
-        project: Project name
-
-    Returns:
-        List of command arguments for docker compose up -d
-    """
-    upstream_dir = f"upstream/{project}"
-    compose_file = f"{upstream_dir}/docker-compose.yml"
-    return [
-        "docker",
-        "compose",
-        "--project-directory",
-        upstream_dir,
-        "-p",
-        project,
-        "-f",
-        compose_file,
-        "up",
-        "-d",
-        "--pull",
-        "always",
-    ]
 
 
 @click.command()
 @click.argument("project", required=False)
 def apply(project):
     """
-    ⚙️ Apply configurations to upstream projects [PROJECT] (regenerate + deploy)
+    ⚙️ Apply configurations with smart zero-downtime rollout [PROJECT]
 
-    Regenerates docker-compose files with Traefik labels and deploys projects.
+    Regenerates docker-compose files with Traefik labels and deploys with smart rollout:
+    - Stateless services: zero-downtime rollout via docker-rollout
+    - Stateful services: normal restart via docker compose up -d
+    - Change detection: skips rollout if config unchanged
+
     Does NOT touch DNS or proxy stacks - only upstream projects.
 
     Examples:
@@ -58,7 +33,7 @@ def apply(project):
     """
     if project:
         # Apply single project
-        logger.info(f"Deploying {project}...")
+        logger.info(f"Deploying {project} with smart rollout...")
 
         # Validate project exists
         projects = list_projects()
@@ -67,48 +42,28 @@ def apply(project):
             click.echo(f"Available: {', '.join(projects)}", err=True)
             sys.exit(1)
 
-        # Smart sync (regenerate compose file with Traefik labels)
-        logger.info(f"Syncing {project}...")
-        write_upstream(project)
-
-        # Deploy with -d (daemonize)
-        cmd = _build_docker_compose_cmd(project)
-        logger.info(f"Running: {' '.join(cmd)}")
-
+        # Deploy with smart rollout
         try:
-            subprocess.run(cmd, env=get_env_with_secrets(project), check=True)
+            deploy_upstream_project(project)
             logger.info(f"✓ {project} deployed")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"✗ {project} deployment failed")
-            sys.exit(e.returncode)
+        except Exception as e:
+            logger.error(f"✗ {project} deployment failed: {e}")
+            sys.exit(1)
 
     else:
         # Apply all
-        logger.info("Deploying all projects...")
-
-        # Regenerate all upstreams
-        logger.info("Writing upstream configs...")
-        if not write_upstreams():
-            logger.error("Failed to generate some upstream configs")
-            sys.exit(1)
+        logger.info("Deploying all projects with smart rollout...")
 
         # Deploy all upstreams IN PARALLEL
         logger.info("Deploying all upstreams (in parallel)...")
 
         def _deploy_project(proj: str) -> tuple[str, bool, str]:
-            """Deploy a single project. Returns (project, success, error_msg)"""
-            cmd = _build_docker_compose_cmd(proj)
+            """Deploy a single project with smart rollout. Returns (project, success, error_msg)"""
             try:
-                subprocess.run(
-                    cmd,
-                    env=get_env_with_secrets(proj),
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
+                deploy_upstream_project(proj)
                 return (proj, True, "")
-            except subprocess.CalledProcessError as e:
-                return (proj, False, e.stderr if e.stderr else str(e))
+            except Exception as e:
+                return (proj, False, str(e))
 
         failed_projects = []
         projects = list_projects()

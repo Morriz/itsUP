@@ -7,6 +7,7 @@ You are now working on the **Container Security Monitor** system. Read and under
 ## Product Requirements Document
 
 Read the PRD at `prds/monitor.md` to understand:
+
 - Functional requirements (FR1-FR9)
 - Design decisions
 - OpenSnitch integration architecture
@@ -15,6 +16,7 @@ Read the PRD at `prds/monitor.md` to understand:
 ## User Guide & Implementation
 
 Read the user guide at `monitor/README.md` to understand:
+
 - System architecture and components
 - DNS Registry implementation (persistent storage)
 - Grace period (3s delay for timing issues)
@@ -25,7 +27,8 @@ Read the user guide at `monitor/README.md` to understand:
 ## Key Implementation Files
 
 Familiarize yourself with:
-- `bin/docker_monitor.py` - Entry point script (runs as root)
+
+- `bin/monitor.py` - Entry point script (runs as root)
 - `bin/start-monitor.sh` - Start/restart script (kills old instance, starts new)
 - `monitor/core.py` - Main ContainerMonitor class with threading
 - `monitor/constants.py` - Configuration constants
@@ -37,7 +40,7 @@ Familiarize yourself with:
 
 **CRITICAL**: The monitor is NOT a Docker container. It runs as a **standalone Python process on the host** (requires root).
 
-- **Current process**: `python3 bin/docker_monitor.py` (check with `ps aux | grep docker_monitor.py`)
+- **Current process**: `python3 bin/monitor.py` (check with `ps aux | grep docker_monitor.py`)
 - **Log file**: `logs/monitor.log` (view with `tail -f logs/monitor.log`)
 - **Start/Restart**: `bin/start-monitor.sh [flags]` (auto-kills old instance)
 - **Stop**: `sudo pkill -f docker_monitor.py`
@@ -53,6 +56,7 @@ Familiarize yourself with:
 ## Monitoring Threads
 
 The monitor runs 5-6 concurrent threads:
+
 1. **Docker events** - Track container start/stop for IP mapping
 2. **DNS honeypot** - Parse dns-honeypot container logs for DNS queries
 3. **Direct connections** - Monitor journalctl for [CONTAINER-TCP] kernel logs
@@ -70,6 +74,7 @@ The monitor runs 5-6 concurrent threads:
 ## Troubleshooting
 
 If logs stop appearing:
+
 1. Check if monitor is running: `ps aux | grep docker_monitor.py`
 2. Check log file: `tail -f logs/monitor.log`
 3. Check DNS honeypot: `docker logs dns-honeypot --tail 20`

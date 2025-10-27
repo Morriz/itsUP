@@ -120,7 +120,7 @@ def cleanup():
     logger.info("Running cleanup mode...")
 
     try:
-        subprocess.run(["sudo", "python3", "bin/docker_monitor.py", "--cleanup"], check=True)
+        subprocess.run(["sudo", "python3", "bin/monitor.py", "--cleanup"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error("Failed to run cleanup")
         sys.exit(e.returncode)

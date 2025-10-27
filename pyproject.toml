@@ -53,6 +53,8 @@ init_forbid_extra = true
 warn_untyped_fields = true
 
 [tool.pylint.'MESSAGES CONTROL']
+# CRITICAL: import-outside-toplevel is enforced via --fail-on flag in bin/lint.sh
+# ALL imports MUST be at the top of the file (see CLAUDE.md)
 disable = [
   "invalid-name",
   "missing-docstring",

@@ -44,7 +44,7 @@ When a container uses a hardcoded IP address (common malware behavior), the Dock
 2. Docker daemon attempts reverse DNS: `89.10.148.45.in-addr.arpa`
 3. OpenSnitch checks whitelist rule first → IP not whitelisted
 4. OpenSnitch blocks the query (this deny rule)
-5. Our monitor (`bin/docker_monitor.py`) sees the blocked query
+5. Our monitor (`bin/monitor.py`) sees the blocked query
 6. Monitor checks: did any container do forward DNS for this IP?
 7. If NO forward DNS found → hardcoded IP → malware → blacklist IP
 
@@ -62,7 +62,7 @@ sudo journalctl -u opensnitch --since "10 seconds ago" --no-pager | grep -i "loa
 
 ## Optional Usage
 
-The monitoring system (`bin/docker_monitor.py`) works with **OR** without OpenSnitch:
+The monitoring system (`bin/monitor.py`) works with **OR** without OpenSnitch:
 
 - **Default**: Does iptables/journalctl logs + DNS honeypot analysis and blacklists IPs not having previous DNS resolution attempt
 - **With OpenSnitch**: Uses OpenSnitch database for extra confidence score.
@@ -76,7 +76,7 @@ After installing the rules, test it works:
 sudo journalctl -u opensnitchd -f | grep "0-deny-arpa-53"
 
 # Run the monitor and watch for ARPA blocks
-sudo python3 bin/docker_monitor.py
+sudo python3 bin/monitor.py
 ```
 
 You should see logs like:
@@ -111,4 +111,4 @@ All conditions in the list must match (AND logic).
 ## See Also
 
 - [Security Documentation](../docs/security.md) - Full explanation of the detection system
-- [Monitor Script](../bin/docker_monitor.py) - Real-time correlation engine
+- [Monitor Script](../bin/monitor.py) - Real-time correlation engine
