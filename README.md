@@ -45,7 +45,7 @@ Still interested? Then read on...
     - [Scenario 2: Adding a TLS passthrough endpoint](#scenario-2-adding-a-tls-passthrough-endpoint)
     - [Scenario 3: Adding a TCP endpoint](#scenario-3-adding-a-tcp-endpoint)
     - [Scenario 4: Adding a local (host) endpoint](#scenario-4-adding-a-local-host-endpoint)
-    - [Additional docker properties](#additional-docker-properties)
+    - [Project structure reference](#project-structure-reference)
   - [Configure plugins](#configure-plugins)
     - [CrowdSec](#crowdsec)
   - [Using the Api \& OpenApi spec](#using-the-api--openapi-spec)
@@ -406,6 +406,7 @@ Project and service configuration uses a project-based structure in the `project
 Create a new directory in `projects/` with two files:
 
 **projects/whoami/docker-compose.yml:**
+
 ```yaml
 services:
   web:
@@ -420,6 +421,7 @@ networks:
 ```
 
 **projects/whoami/ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
@@ -436,6 +438,7 @@ Run `itsup apply whoami` to generate artifacts and deploy the service.
 Create a project with `passthrough: true` in the ingress configuration.
 
 **projects/home-assistant/ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
@@ -447,6 +450,7 @@ ingress:
 ```
 
 **projects/home-assistant/docker-compose.yml:**
+
 ```yaml
 services:
   hass:
@@ -455,7 +459,7 @@ services:
     networks:
       - proxynet
     ports:
-      - "8123:8123"
+      - '8123:8123'
 
 networks:
   proxynet:
@@ -485,6 +489,7 @@ ingress:
 Use `router: tcp` in the ingress configuration.
 
 **projects/minio/docker-compose.yml:**
+
 ```yaml
 services:
   app:
@@ -505,6 +510,7 @@ networks:
 ```
 
 **projects/minio/ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
@@ -519,6 +525,7 @@ ingress:
 ```
 
 **projects/minio/secrets.txt:** (optional project-specific secrets)
+
 ```
 MINIO_ROOT_USER=admin
 MINIO_ROOT_PASSWORD=secret123
@@ -529,6 +536,7 @@ MINIO_ROOT_PASSWORD=secret123
 For services running on the host (not in Docker), create a minimal ingress-only configuration.
 
 **projects/itsup/ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
@@ -536,10 +544,11 @@ ingress:
     domain: itsup.example.com
     port: 8888
     router: http
-    target: 172.17.0.1  # Docker bridge IP (use host.docker.internal on Docker Desktop)
+    target: 172.17.0.1 # Docker bridge IP (use host.docker.internal on Docker Desktop)
 ```
 
 **projects/itsup/docker-compose.yml:**
+
 ```yaml
 # Empty or minimal - no containers needed for host services
 services: {}
@@ -558,16 +567,17 @@ projects/
 ```
 
 **IngressV2 schema:**
+
 ```yaml
-enabled: true  # Enable/disable routing for this project
+enabled: true # Enable/disable routing for this project
 ingress:
-  - service: web           # Service name from docker-compose.yml
-    domain: example.com    # Domain for routing
-    port: 80              # Container port
-    router: http          # Router type: http, tcp, udp
-    passthrough: false    # (Optional) TLS passthrough
-    path_prefix: /        # (Optional) Path-based routing
-    hostport: 8080        # (Optional) Expose on host port
+  - service: web # Service name from docker-compose.yml
+    domain: example.com # Domain for routing
+    port: 80 # Container port
+    router: http # Router type: http, tcp, udp
+    passthrough: false # (Optional) TLS passthrough
+    path_prefix: / # (Optional) Path-based routing
+    hostport: 8080 # (Optional) Expose on host port
 ```
 
 See `samples/example-project/` for a complete working example.
@@ -710,7 +720,12 @@ To restore from a backup, you'll need to:
 tar -xzf itsup.tar.gz.{timestamp} -C /path/to/itsup/
 ```
 
-3. Run `bin/apply.py` to apply the restored configurations
+3. Run the following to apply the restored configurations (assuming itsup installed and activated with `source env.sh`):
+
+```sh
+itsup run # to start the proxy stack
+itsup apply # to deploy restored services
+```
 
 ### Threat Intelligence Reports
 

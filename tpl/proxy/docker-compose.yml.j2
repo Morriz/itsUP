@@ -54,6 +54,10 @@ services:
 {%- endif %}
     environment:
       - DOCKER_HOST=tcp://127.0.0.1:2375
+      - CROWDSEC_APIKEY=${CROWDSEC_APIKEY:?}
+      - CROWDSEC_CAPI_MACHINE_ID=${CROWDSEC_CAPI_MACHINE_ID:?}
+      - CROWDSEC_CAPI_PASSWORD=${CROWDSEC_CAPI_PASSWORD:?}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:?}
     healthcheck:
       test: ["CMD-SHELL", "test ! -f /tmp/drain && traefik healthcheck"]
       interval: 30s
@@ -64,6 +68,7 @@ services:
   {%- set cs = plugin_registry.crowdsec %}
 
   crowdsec:
+    container_name: crowdsec
     image: crowdsecurity/crowdsec:{{ versions.crowdsec }}
     restart: unless-stopped
     networks:

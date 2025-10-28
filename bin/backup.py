@@ -2,14 +2,16 @@
 import os
 import sys
 import tarfile
+from pathlib import Path
 
 import boto3
 import botocore.exceptions
 from botocore.client import Config
-from dotenv import load_dotenv
 
-# Ensure dotenv variables take precedence over existing environment variables
-load_dotenv(override=True)
+# Add parent directory to path to import lib modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from lib.data import load_itsup_config, load_secrets
 
 
 def main() -> None:
@@ -21,11 +23,10 @@ def main() -> None:
         print("Error: './upstream' directory not found.")
         sys.exit(1)
 
-    # Get exclusions from environment variable
-    excluded_folders = []
-    backup_exclude = os.environ.get("BACKUP_EXCLUDE", "")
-    if backup_exclude:
-        excluded_folders = [folder.strip() for folder in backup_exclude.split(",")]
+    # Load backup config from itsup.yml
+    itsup_config = load_itsup_config()
+    backup_config = itsup_config.get("backup", {})
+    excluded_folders = backup_config.get("exclude", [])
 
     # Debugging: Print excluded folders
     print(f"Excluded folders: {excluded_folders}")
@@ -41,16 +42,28 @@ def main() -> None:
                 print(f"Adding to tarball: {item_path}")
                 tar.add(item_path, arcname=item)
 
-    # Use boto3 instead of s3cmd
-    aws_access_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
-    aws_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
-    aws_s3_host = os.environ.get("AWS_S3_HOST", "")
-    aws_s3_region = os.environ.get("AWS_S3_REGION", "")
-    aws_s3_bucket = os.environ.get("AWS_S3_BUCKET", "")
+    # Load AWS credentials from secrets
+    secrets = load_secrets()
 
-    if not all([aws_access_key, aws_secret_key, aws_s3_host, aws_s3_bucket]):
-        print("Error: AWS credentials or configuration missing.")
+    required_secrets = [
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_S3_HOST",
+        "AWS_S3_REGION",
+        "AWS_S3_BUCKET",
+    ]
+
+    missing = [key for key in required_secrets if key not in secrets]
+    if missing:
+        print(f"Error: Missing required secrets for backup: {', '.join(missing)}")
+        print("Add to secrets/itsup.txt or secrets/itsup.enc.txt")
         sys.exit(1)
+
+    aws_access_key = secrets["AWS_ACCESS_KEY_ID"]
+    aws_secret_key = secrets["AWS_SECRET_ACCESS_KEY"]
+    aws_s3_host = secrets["AWS_S3_HOST"]
+    aws_s3_region = secrets["AWS_S3_REGION"]
+    aws_s3_bucket = secrets["AWS_S3_BUCKET"]
 
     print("Uploading backup to S3")
 

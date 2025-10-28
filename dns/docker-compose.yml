@@ -14,6 +14,8 @@ services:
              echo 'server=192.168.1.1' >> /etc/dnsmasq.conf &&
              echo 'strict-order' >> /etc/dnsmasq.conf &&
              dnsmasq --no-daemon --conf-file=/etc/dnsmasq.conf"
+    expose:
+      - '53/udp'
     networks:
       proxynet:
         ipv4_address: 172.20.0.253
@@ -26,8 +28,11 @@ services:
 
 networks:
   proxynet:
+    name: proxynet
     driver: bridge
     ipam:
       config:
         - subnet: 172.20.0.0/16
           gateway: 172.20.0.1
+    driver_opts:
+      encrypted: 'true'

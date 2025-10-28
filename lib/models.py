@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from github_webhooks.schemas import WebhookCommonPayload
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Env(BaseModel):
@@ -62,23 +62,23 @@ class Router(str, Enum):
 class TLS(BaseModel):
     """TLS model"""
 
-    main: str = None
+    main: str | None = None
     """The main domain"""
-    sans: List[str] = []
+    sans: List[str] = Field(default_factory=list)
     """A list of SANs for the domain"""
 
 
 class Ingress(BaseModel):
     """Ingress model"""
 
-    domain: str = None
-    """The domain to use for the service. If omitted, the service will not be publicly accessible. 
+    domain: str | None = None
+    """The domain to use for the service. If omitted, the service will not be publicly accessible.
     When set TLS termination is done for this domain only."""
-    hostport: int = None
+    hostport: int | None = None
     """The port to expose on the host"""
     passthrough: bool = False
     """Wether or not traffic to this service is forwarded as-is (without terminating SSL)"""
-    path_prefix: str = None
+    path_prefix: str | None = None
     """Should the service be exposed under a specific path?"""
     path_remove: bool = False
     """When set, the path prefix will be removed from the request before forwarding it to the service"""
@@ -87,11 +87,11 @@ class Ingress(BaseModel):
     protocol: Protocol = Protocol.tcp
     """The protocol to use for the port"""
     proxyprotocol: ProxyProtocol | None = ProxyProtocol.v2
-    """When set, the service is expected to accept the given PROXY protocol version. 
+    """When set, the service is expected to accept the given PROXY protocol version.
     Explicitly set to null to disable."""
     router: Router = Router.http
     """The type of router to use for the service"""
-    tls: TLS = None
+    tls: TLS | None = None
     """TLS settings that will be used instead of 'domain'"""
     expose: bool = False
     """Expose the service to any other internal service"""
@@ -172,8 +172,8 @@ class WorkflowJobPayload(WebhookCommonPayload):
 class IngressV2(BaseModel):
     """Traefik ingress rule for V2 projects"""
 
-    service: str
-    """The service name in docker-compose.yml"""
+    service: str = "external"
+    """The service name in docker-compose.yml (or 'external' for host passthroughs)"""
     domain: str | None = None
     """The domain to use for the service"""
     port: int = 80
@@ -186,8 +186,8 @@ class IngressV2(BaseModel):
     """The port to expose on the host"""
     passthrough: bool = False
     """Whether traffic is forwarded as-is without terminating SSL"""
-    tls_sans: List[str] = []
-    """A list of SANs for the domain"""
+    tls: TLS | None = None
+    """TLS settings with main domain and SANs"""
 
 
 class TraefikConfig(BaseModel):
@@ -195,5 +195,7 @@ class TraefikConfig(BaseModel):
 
     enabled: bool = True
     """Whether the project is enabled"""
+    host: str | None = None
+    """External host IP/hostname (for ingress-only projects without containers)"""
     ingress: List[IngressV2] = []
     """List of ingress rules"""

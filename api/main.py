@@ -17,13 +17,16 @@ from github_webhooks.schemas import WebhookHeaders
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.auth import verify_apikey
-from lib.data import list_projects
+from lib.data import list_projects, load_secrets
 from lib.models import PingPayload, WorkflowJobPayload
 
 dotenv.load_dotenv()
 
-
-api_token = os.environ["API_KEY"]
+# Load API key from secrets
+secrets = load_secrets()
+if "API_KEY" not in secrets:
+    raise ValueError("Missing required secret: API_KEY\n" "Add to secrets/itsup.txt or secrets/itsup.enc.txt")
+api_token = secrets["API_KEY"]
 app = create_app(secret_token=api_token)
 
 

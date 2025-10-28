@@ -11,7 +11,7 @@ import click
 import yaml
 
 from commands.common import complete_project
-from lib.data import list_projects
+from lib.data import get_env_with_secrets, list_projects
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +121,6 @@ def svc(project, command):
     logger.debug(f"Running: {' '.join(cmd)}")
 
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, env=get_env_with_secrets(project), check=True)
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)

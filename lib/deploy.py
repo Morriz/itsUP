@@ -25,12 +25,45 @@ from lib.data import get_env_with_secrets
 logger = logging.getLogger(__name__)
 
 
-def service_needs_update(compose_dir: str, service: str) -> bool:
+def service_is_running(compose_dir: str, service: str) -> bool:
+    """Check if a service has running containers
+
+    Args:
+        compose_dir: Directory containing docker-compose.yml
+        service: Service name to check
+
+    Returns:
+        True if service has running containers, False otherwise
+    """
+    try:
+        # Get project name from compose_dir (for container naming)
+        project_name = Path(compose_dir).name if compose_dir != "proxy" and compose_dir != "dns" else compose_dir
+
+        # Find running containers for this service
+        container_filter = f"name={project_name}-{service}"
+        result = subprocess.run(
+            ["docker", "ps", "--filter", container_filter, "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        containers = [c for c in result.stdout.strip().split("\n") if c]
+        return len(containers) > 0
+
+    except subprocess.CalledProcessError:
+        return False
+    except Exception:
+        return False
+
+
+def service_needs_update(compose_dir: str, service: str, env: Optional[Dict[str, str]] = None) -> bool:
     """Check if a service's image or config changed via hash comparison
 
     Args:
         compose_dir: Directory containing docker-compose.yml
         service: Service name to check
+        env: Environment variables to pass to docker compose
 
     Returns:
         True if service needs update, False if unchanged
@@ -40,6 +73,7 @@ def service_needs_update(compose_dir: str, service: str) -> bool:
         result = subprocess.run(
             ["docker", "compose", "config", "--hash", service],
             cwd=compose_dir,
+            env=env,
             capture_output=True,
             text=True,
             check=True,
@@ -110,7 +144,7 @@ def service_needs_update(compose_dir: str, service: str) -> bool:
         return True
 
 
-def rollout_service(compose_dir: str, service: str) -> None:
+def rollout_service(compose_dir: str, service: str, env: Optional[Dict[str, str]] = None) -> None:
     """Perform zero-downtime rollout for a stateless service
 
     Uses docker-rollout plugin to:
@@ -122,6 +156,7 @@ def rollout_service(compose_dir: str, service: str) -> None:
     Args:
         compose_dir: Directory containing docker-compose.yml
         service: Service name to rollout
+        env: Environment variables to pass to docker rollout
 
     Raises:
         subprocess.CalledProcessError: If rollout fails
@@ -129,7 +164,7 @@ def rollout_service(compose_dir: str, service: str) -> None:
     logger.info(f"Rolling out {service} from {compose_dir} (zero downtime)")
 
     try:
-        subprocess.run(["docker", "rollout", service], cwd=compose_dir, check=True)
+        subprocess.run(["docker", "rollout", service], cwd=compose_dir, env=env, check=True)
         logger.info(f"✓ {service} rolled out successfully")
     except subprocess.CalledProcessError as e:
         logger.error(f"✗ {service} rollout failed: {e}")
@@ -188,6 +223,14 @@ def smart_deploy(
     logger.info(f"Pulling images for {compose_dir}...")
     subprocess.run(pull_cmd, env=env, check=False)  # Don't fail on pull errors (local images)
 
+    # Check which stateless services are currently running BEFORE docker compose up
+    services_running_before = {}
+    if stateless_services:
+        for service in stateless_services:
+            if service_filter and service != service_filter:
+                continue
+            services_running_before[service] = service_is_running(compose_dir, service)
+
     # Deploy with docker compose up -d
     up_cmd = ["docker", "compose", "-f", f"{compose_dir}/{compose_file}", "up", "-d"]
     if service_filter:
@@ -196,7 +239,7 @@ def smart_deploy(
     logger.info(f"Starting services in {compose_dir}...")
     subprocess.run(up_cmd, env=env, check=True)
 
-    # Rollout stateless services for zero downtime
+    # Rollout stateless services for zero downtime (only if they were already running)
     if stateless_services:
         logger.info(f"Checking stateless services for rollout: {', '.join(stateless_services)}")
 
@@ -205,14 +248,19 @@ def smart_deploy(
             if service_filter and service != service_filter:
                 continue
 
+            # Skip rollout if service wasn't running before (first-time deployment)
+            if not services_running_before.get(service, False):
+                logger.info(f"Skipping rollout for {service} (first-time deployment)")
+                continue
+
             # Check if service needs update (skip if unchanged)
-            if not service_needs_update(compose_dir, service):
+            if not service_needs_update(compose_dir, service, env):
                 logger.info(f"Skipping rollout for {service} (no changes)")
                 continue
 
             # Perform zero-downtime rollout
             try:
-                rollout_service(compose_dir, service)
+                rollout_service(compose_dir, service, env)
             except subprocess.CalledProcessError:
                 logger.error(f"Failed to rollout {service}, but continuing...")
                 # Don't fail entire deployment if rollout fails
@@ -261,13 +309,42 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
     - Services WITHOUT volumes are stateless (safe for rollout)
     - Services WITH volumes are stateful (normal restart)
 
+    If project has enabled: false in ingress.yml, stops the project instead.
+
     Args:
         project: Project name
         service: Optional service name to deploy
     """
+    from lib.data import load_project
+
     # Regenerate artifacts
     logger.info(f"Regenerating {project} config...")
     write_upstream(project)
+
+    # Load project ingress config to check if enabled
+    _, traefik_config = load_project(project)
+
+    # If project is disabled, stop it instead of deploying
+    if not traefik_config.enabled:
+        logger.info(f"{project} is disabled (enabled: false) - stopping containers...")
+        compose_dir = f"upstream/{project}"
+
+        # Stop all containers for this project
+        try:
+            subprocess.run(
+                ["docker", "compose", "down"],
+                cwd=compose_dir,
+                env=get_env_with_secrets(project),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            logger.info(f"✓ {project} stopped")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to stop {project}: {e.stderr}")
+            raise
+
+        return
 
     # Read generated docker-compose.yml to detect stateless services
     compose_path = Path(f"upstream/{project}/docker-compose.yml")

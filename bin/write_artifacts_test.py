@@ -3,7 +3,6 @@
 import os
 import sys
 import unittest
-from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock, call
 
@@ -37,7 +36,7 @@ class TestWriteArtifacts(unittest.TestCase):
 
         labels = result["services"]["web"]["labels"]
         self.assertIn("traefik.enable=true", labels)
-        self.assertIn("traefik.http.routers.myproject-web.entrypoints=websecure", labels)
+        self.assertIn("traefik.http.routers.myproject-web.entrypoints=web-secure", labels)
         self.assertIn("traefik.http.routers.myproject-web.rule=Host(`example.com`)", labels)
         self.assertIn("traefik.http.routers.myproject-web.tls=true", labels)
         self.assertIn("traefik.http.services.myproject-web.loadbalancer.server.port=80", labels)
@@ -125,9 +124,7 @@ class TestWriteArtifacts(unittest.TestCase):
     @mock.patch("bin.write_artifacts.Path")
     @mock.patch("builtins.open", new_callable=mock.mock_open)
     @mock.patch("bin.write_artifacts.yaml")
-    def test_write_upstream(
-        self, mock_yaml: Mock, mock_open: Mock, mock_path: Mock, mock_load_project: Mock
-    ) -> None:
+    def test_write_upstream(self, mock_yaml: Mock, mock_open: Mock, mock_path: Mock, mock_load_project: Mock) -> None:
         """Test writing upstream docker-compose.yml."""
         # Setup mocks
         compose = {"services": {"web": {"image": "nginx"}}}

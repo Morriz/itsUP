@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://www.schemastore.org/traefik-v3.json
 http:
   routers:
     http:
@@ -11,7 +12,7 @@ http:
         - web-secure
       rule: {{ traefik_rule }}
       tls:
-         certResolver: letsencrypt
+        certResolver: letsencrypt
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
@@ -24,7 +25,6 @@ http:
         - web{% if i.port != 80 %}-secure{% endif %}
       {%- endif %}
       rule: 'Host(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
-      rulesyntax: v2
       service: {{ name }}
       {%- if i.port != 80 and (i.domain or i.tls) %}
       tls:

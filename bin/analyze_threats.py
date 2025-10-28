@@ -14,16 +14,20 @@ from collections import defaultdict
 from ipaddress import IPv4Address, IPv4Network, ip_address
 from ipwhois import IPWhois
 from ipwhois.exceptions import IPDefinedError
-from dotenv import load_dotenv
 
-# Ensure dotenv variables take precedence over existing environment variables
-load_dotenv(override=True)
+# Add parent directory to path to import lib modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from lib.data import load_secrets
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BLACKLIST_FILE = os.path.join(PROJECT_ROOT, "data", "blacklist", "blacklist-outbound-ips.txt")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")
 OUTPUT_CSV = os.path.join(REPORTS_DIR, "potential_threat_actors.csv")
-ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY", "")
+
+# Load API key from secrets (optional for threat analysis)
+secrets = load_secrets()
+ABUSEIPDB_API_KEY = secrets.get("ABUSEIPDB_API_KEY", "")
 
 # Global flag for cancellation
 _cancelled = False

@@ -139,10 +139,15 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     """
     Load project from projects/{name}/
 
+    Supports two types of projects:
+    1. Container projects: have docker-compose.yml + optional ingress.yml
+    2. External host passthroughs: have only ingress.yml (no containers)
+
     Args:
         project_name: Name of the project to load
 
     Returns: (docker_compose_dict, ingress_config)
+        For external hosts, docker_compose_dict will be empty {}
         Secrets are left as ${VAR} placeholders for runtime expansion by Docker Compose
     """
     project_dir = Path("projects") / project_name
@@ -150,17 +155,20 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     if not project_dir.exists():
         raise FileNotFoundError(f"Project not found: {project_name}")
 
-    # Load docker-compose.yml
+    # Load docker-compose.yml (optional for external host passthroughs)
     compose_file = project_dir / "docker-compose.yml"
-    if not compose_file.exists():
-        raise FileNotFoundError(f"Missing docker-compose.yml for {project_name}")
-
-    with open(compose_file, encoding="utf-8") as f:
-        compose = yaml.safe_load(f)
+    if compose_file.exists():
+        with open(compose_file, encoding="utf-8") as f:
+            compose = yaml.safe_load(f)
+    else:
+        # No docker-compose.yml - this is an ingress-only external host project
+        compose = {}
 
     # Load ingress.yml
     ingress_file = project_dir / "ingress.yml"
     if not ingress_file.exists():
+        if not compose:
+            raise FileNotFoundError(f"Project {project_name} has neither docker-compose.yml nor ingress.yml")
         logger.warning("No ingress.yml for %s, using defaults", project_name)
         traefik = TraefikConfig()
     else:
@@ -173,7 +181,7 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
 
 
 def list_projects() -> list[str]:
-    """List all available projects"""
+    """List all available projects (both container and ingress-only)"""
     projects_dir = Path("projects")
     if not projects_dir.exists():
         return []
@@ -181,7 +189,9 @@ def list_projects() -> list[str]:
     return [
         p.name
         for p in projects_dir.iterdir()
-        if p.is_dir() and (p / "docker-compose.yml").exists() and not p.name.startswith(".")
+        if p.is_dir()
+        and ((p / "docker-compose.yml").exists() or (p / "ingress.yml").exists())
+        and not p.name.startswith(".")
     ]
 
 
@@ -194,7 +204,14 @@ def validate_project(project_name: str) -> list[str]:
     except Exception as e:
         return [str(e)]
 
-    # Validate traefik references exist in compose
+    # Skip service validation for external host passthroughs (no compose)
+    if not compose:
+        # External host passthrough - only validate that host is set
+        if not traefik.host:
+            errors.append("External host project must have 'host' field in ingress.yml")
+        return errors
+
+    # Validate traefik references exist in compose (for container projects)
     services = compose.get("services", {})
     for ingress in traefik.ingress:
         if ingress.service not in services:

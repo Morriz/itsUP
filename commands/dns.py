@@ -138,3 +138,25 @@ def logs(service):
     except KeyboardInterrupt:
         logger.info("Stopped tailing logs")
         sys.exit(0)
+
+
+@dns.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def exec(args):
+    """
+    Execute command in DNS container
+
+    Runs docker compose exec in the DNS stack.
+
+    Examples:
+        itsup dns exec dns-honeypot sh        # Shell into DNS container
+        itsup dns exec dns-honeypot ps aux    # Run ps in container
+    """
+    cmd = ["docker", "compose", "-f", f"{DNS_DIR}/docker-compose.yml", "exec", *args]
+
+    try:
+        subprocess.run(cmd, env=get_env_with_secrets(), check=True)
+    except subprocess.CalledProcessError as e:
+        sys.exit(e.returncode)
+    except KeyboardInterrupt:
+        sys.exit(0)

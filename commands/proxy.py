@@ -141,3 +141,26 @@ def logs(service):
     except KeyboardInterrupt:
         logger.info("Stopped tailing logs")
         sys.exit(0)
+
+
+@proxy.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def exec(args):
+    """
+    Execute command in proxy container
+
+    Runs docker compose exec in the proxy stack.
+
+    Examples:
+        itsup proxy exec traefik sh           # Shell into Traefik
+        itsup proxy exec dockerproxy sh       # Shell into dockerproxy
+        itsup proxy exec traefik cat /etc/traefik/traefik.yml  # View config
+    """
+    cmd = ["docker", "compose", "-f", f"{PROXY_DIR}/docker-compose.yml", "exec", *args]
+
+    try:
+        subprocess.run(cmd, env=get_env_with_secrets(), check=True)
+    except subprocess.CalledProcessError as e:
+        sys.exit(e.returncode)
+    except KeyboardInterrupt:
+        sys.exit(0)

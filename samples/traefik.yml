@@ -1,11 +1,14 @@
 # Traefik configuration overrides
 # This file uses native Traefik YAML schema and will be merged on top of generated config
 # Edit values below, then commit to git
-# Secrets referenced as ${VAR} - actual values in secrets/itsup.txt
+# Secrets referenced as {{ env "VAR" }} - Traefik expands at runtime
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: ${LETSENCRYPT_EMAIL}
+      email: "{{ env \"LETSENCRYPT_EMAIL\" }}"
+      storage: /etc/acme/acme.json
+      httpChallenge:
+        entryPoint: web
       # Uncomment for Let's Encrypt staging (testing)
       # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
 log:
@@ -24,7 +27,7 @@ experimental:
 
 plugins:
   crowdsec:
-    apikey: ${CROWDSEC_APIKEY}
+    apikey: "{{ env \"CROWDSEC_APIKEY\" }}"
     collections:
       - crowdsecurity/linux
       - crowdsecurity/traefik
@@ -59,7 +62,7 @@ plugins:
     #     default:
     #       defaultGeneratedCert:
     #         domain:
-    #           main: ${DOMAIN_SUFFIX}
+    #           main: ${DOMAIN_SUFFIX:?}
     #           sans:
-    #             - '*.${DOMAIN_SUFFIX}'
+    #             - '*.${DOMAIN_SUFFIX:?}'
     #         resolver: letsencrypt

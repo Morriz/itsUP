@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://www.schemastore.org/traefik-v3.json
 tcp:
   routers:
 {%- for p in projects %}
@@ -6,10 +7,12 @@ tcp:
       {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name }}:
       entryPoints:
-      {%- if i.hostport %}
+      {%- if i.hostport == 443 %}
+        - tcp-secure
+      {%- elif i.hostport %}
         - tcp-{{ i.hostport }}
       {%- else %}
-        - web-secure
+        - tcp-secure
       {%- endif %}
       {%- if i.domain %}
       rule: 'HostSNI(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
@@ -28,6 +31,18 @@ tcp:
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
+    http:
+      entryPoints:
+        - tcp
+      service: http
+      rule: 'HostSNI(`*`)'
+    https:
+      entryPoints:
+        - tcp-secure
+      service: https
+      rule: 'HostSNI(`*`)'
+      tls:
+        passthrough: true
 
   services:
 {%- for p in projects %}
@@ -36,12 +51,22 @@ tcp:
       {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name }}:
       loadBalancer:
-        {%- if i.proxyprotocol %}
         proxyProtocol:
-          version: {{ ProxyProtocol(i.proxyprotocol).value }}
-        {%- endif %}
+          version: 2
         servers:
           - address: {% if s.image %}{{ p.name }}-{% endif %}{{ s.host }}:{{ i.port }}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
+    http:
+      loadBalancer:
+        proxyProtocol:
+          version: 2
+        servers:
+          - address: traefik-web:8080
+    https:
+      loadBalancer:
+        proxyProtocol:
+          version: 2
+        servers:
+          - address: traefik-web:8443

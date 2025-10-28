@@ -20,17 +20,20 @@ This system uses a **template-based proxy generation** paradigm:
 ## Key Components
 
 ### Traefik Stack
+
 - **traefik**: Reverse proxy with Let's Encrypt, listens on ports 8080 (http) and 8443 (https)
 - **dockerproxy**: Secure Docker socket proxy (minimal permissions)
-- **dns**: DNS honeypot at 172.30.0.253 for logging
+- **dns**: DNS honeypot at 172.20.0.253 for logging
 - **crowdsec**: Security plugin for threat detection
 
 ### Routing Modes
+
 - **HTTP/HTTPS**: Domain-based routing with automatic TLS via Let's Encrypt
 - **TCP**: SNI-based routing for raw TCP (databases, VPN)
 - **UDP**: Port-based routing (VPN)
 
 ### Discovery Methods
+
 1. **Dynamic Labels** (preferred): Services with `ingress.domain` get Traefik labels auto-generated
 2. **Static File Routers**: Services with `ingress.hostport` or `passthrough` get static config files
 
@@ -39,6 +42,7 @@ This system uses a **template-based proxy generation** paradigm:
 **Start here** to understand the proxy system:
 
 1. **bin/write_artifacts.py** - Proxy and upstream artifact generation
+
    - `write_proxy_compose()` - Generate proxy/docker-compose.yml
    - `write_traefik_config()` - Generate proxy/traefik/traefik.yml
    - `write_dynamic_routers()` - Generate dynamic routing configs
@@ -46,40 +50,52 @@ This system uses a **template-based proxy generation** paradigm:
    - `inject_traefik_labels()` - Generate Traefik labels from ingress.yml
 
 2. **tpl/proxy/docker-compose.yml.j2** - Compose template
+
    - Service definitions for traefik, dockerproxy, dns, crowdsec
    - Healthcheck patterns
    - Dependency graph
 
 3. **tpl/proxy/traefik.yml.j2** - Traefik static config template
+
    - Entry points (web, web-secure, tcp/udp hostports)
    - Let's Encrypt configuration
    - Provider settings (Docker, file)
 
 4. **tpl/proxy/routers-{http,tcp,udp}.yml.j2** - Dynamic routing templates
+
    - Router and service definitions for static routes
    - Middleware chains
 
-5. **README.md** - Project documentation
+5. **lib/models.py** - IngressV2 model definition
+
+   - TLS SANs support
+   - Ingress entry structure
+
+6. **README.md** - Project documentation
    - Sections: "Proxy Stack", "Service Deployment", "Routing"
 
 ## Key Concepts
 
 ### Stateless Services (use docker-rollout)
+
 - **traefik**: Main reverse proxy
 - **crowdsec**: Security plugin
 - Can scale to 2x instances safely during rollout
 
 ### Infrastructure Services (restart normally)
+
 - **dockerproxy**: Socket proxy (1ms startup)
 - **dns**: DNS honeypot (fast restart)
 - Cannot use rollout (no meaningful state)
 
 ### Healthchecks
+
 - **dockerproxy**: `./healthcheck` binary (requires `-allowhealthcheck` flag)
 - **traefik**: `traefik healthcheck` command
 - All include `/tmp/drain` check for docker-rollout compatibility
 
 ### Update Flow
+
 ```
 projects/ change → itsup apply → write_artifacts.py → docker compose up -d → rollout stateless services
 ```
@@ -87,12 +103,14 @@ projects/ change → itsup apply → write_artifacts.py → docker compose up -d
 ## Common Tasks
 
 **Regenerate proxy config**:
+
 ```bash
 python3 bin/write_artifacts.py  # Generates all configs
 docker compose -f proxy/docker-compose.yml config --quiet  # Validate
 ```
 
 **Update proxy with rollout**:
+
 ```bash
 itsup apply  # Smart update with change detection for all projects
 itsup apply traefik  # Smart update for proxy only
@@ -101,6 +119,7 @@ itsup svc traefik up  # Direct docker compose passthrough
 ```
 
 **Debug routing**:
+
 - Check `proxy/traefik/dynamic/*.yml` for static routes
 - `docker logs proxy-traefik-X` for dynamic label discovery
 - Traefik dashboard: https://traefik.srv.instrukt.ai (if configured)

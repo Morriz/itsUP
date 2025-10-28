@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://www.schemastore.org/traefik-v3.json
 itsup:
   checkNewVersion: false
   sendAnonymousUsage: false
@@ -12,6 +13,7 @@ ping:
 entryPoints:
   web:
     address: ':8080'
+    reusePort: true
     forwardedHeaders:
       trustedIPs:
 {%- for ip in trusted_ips_cidrs %}
@@ -23,13 +25,32 @@ entryPoints:
         - {{ ip }}
 {%- endfor %}
 
-  websecure:
+  web-secure:
     address: ':8443'
+    reusePort: true
     forwardedHeaders:
       trustedIPs:
 {%- for ip in trusted_ips_cidrs %}
         - {{ ip }}
 {%- endfor %}
+    proxyProtocol:
+      trustedIPs:
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
+
+  tcp:
+    address: ':80'
+    reusePort: true
+    proxyProtocol:
+      trustedIPs:
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
+
+  tcp-secure:
+    address: ':443'
+    reusePort: true
     proxyProtocol:
       trustedIPs:
 {%- for ip in trusted_ips_cidrs %}

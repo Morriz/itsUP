@@ -45,24 +45,41 @@ def inject_traefik_labels(compose: dict, traefik_config, project_name: str) -> d
             services[service_name]["labels"] = labels
 
         # Build Traefik labels
-        router_name = f"{project_name}-{service_name}"
+        # Make router name unique by including port to handle multiple ingress entries for same service
+        router_name = f"{project_name}-{service_name}-{ingress.port}"
 
-        # Enable Traefik
-        labels.append("traefik.enable=true")
+        # Enable Traefik (only once per service, not per ingress)
+        if "traefik.enable=true" not in labels:
+            labels.append("traefik.enable=true")
 
         # Router configuration
         if ingress.router == "http":
             # HTTP router
-            labels.append(f"traefik.http.routers.{router_name}.entrypoints=websecure")
+            labels.append(f"traefik.http.routers.{router_name}.entrypoints=web-secure")
 
             # Domain-based rule
-            if ingress.domain:
-                rule = f"Host(`{ingress.domain}`)"
+            domains = []
+            if ingress.tls and ingress.tls.main:
+                # TLS with main + SANs
+                domains = [ingress.tls.main] + ingress.tls.sans
+            elif ingress.domain:
+                # Legacy domain field
+                domains = [ingress.domain]
+
+            if domains:
+                rule = " || ".join([f"Host(`{d}`)" for d in domains])
                 if ingress.path_prefix:
                     rule += f" && PathPrefix(`{ingress.path_prefix}`)"
                 labels.append(f"traefik.http.routers.{router_name}.rule={rule}")
+                labels.append(f"traefik.http.routers.{router_name}.service={router_name}")
                 labels.append(f"traefik.http.routers.{router_name}.tls=true")
                 labels.append(f"traefik.http.routers.{router_name}.tls.certresolver=letsencrypt")
+
+                # TLS domain configuration with SANs
+                if ingress.tls and ingress.tls.main:
+                    labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].main={ingress.tls.main}")
+                    for idx, san in enumerate(ingress.tls.sans):
+                        labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].sans[{idx}]={san}")
 
             # Service port
             labels.append(f"traefik.http.services.{router_name}.loadbalancer.server.port={ingress.port}")
@@ -213,6 +230,9 @@ def write_traefik_config() -> None:
         logger.warning("No projects/traefik.yml found - using minimal config only")
         final_config = base_config
 
+    # Traefik expands {{ env "VAR" }} at runtime from environment
+    # Variables are left as-is for Traefik to process
+
     # Ensure directory exists
     Path("proxy/traefik").mkdir(parents=True, exist_ok=True)
 
@@ -227,48 +247,121 @@ def write_dynamic_routers() -> None:
     """Generate dynamic Traefik router configs"""
     logger.info("Generating dynamic router configs")
 
-    plugin_registry = get_plugin_registry()
-    domain_suffix = os.environ.get("DOMAIN_SUFFIX", "example.com")
-    traefik_domain = os.environ.get("TRAEFIK_DOMAIN", f"traefik.{domain_suffix}")
-    traefik_admin = os.environ.get("TRAEFIK_ADMIN", "")
-    trusted_ips_cidrs = os.environ.get("TRUSTED_IPS_CIDRS", "127.0.0.1/32").split(",")
+    from lib.data import get_trusted_ips, load_itsup_config, load_secrets, load_traefik_overrides
 
-    # HTTP routers - only passthrough or hostport ingress
-    projects_http = get_projects(
-        filter=lambda _, s, i: i.router == Router.http
-        and (i.passthrough or not s.image or (i.hostport and (i.domain or i.tls)))
-    )
+    # Load itsUP config for traefik domain
+    itsup_config = load_itsup_config()
+    traefik_config = itsup_config.get("traefik", {})
+    if not traefik_config.get("domain"):
+        raise ValueError(
+            "Missing required config: projects/itsup.yml must have 'traefik.domain' field\n"
+            "Example:\n"
+            "  traefik:\n"
+            "    domain: traefik.example.com"
+        )
+    traefik_domain = traefik_config["domain"]
 
+    # Load secrets for template variables
+    secrets = load_secrets()  # itsUP infrastructure secrets
+
+    # Validate required secrets
+    if "TRAEFIK_ADMIN" not in secrets:
+        raise ValueError(
+            "Missing required secret: TRAEFIK_ADMIN\n"
+            "Add to secrets/itsup.txt or secrets/itsup.enc.txt\n"
+            "Generate with: htpasswd -nb admin your-password"
+        )
+
+    # Load traefik overrides for plugin_registry
+    traefik_overrides = load_traefik_overrides()
+    plugin_registry = traefik_overrides.get("plugins", {})
+
+    # Build project list in V1 format for templates
+    all_project_names = list_projects()
+    all_projects = []
+
+    for project_name in all_project_names:
+        compose, traefik = load_project(project_name)
+
+        # Skip disabled projects
+        if not traefik.enabled:
+            continue
+
+        # Include projects with ingress config (both external hosts and containers)
+        # External hosts: no compose, but have traefik.host
+        # Containers: have compose, may have ingress for passthrough/hostport
+        if traefik.host:  # External host
+            all_projects.append(
+                {
+                    "name": project_name,
+                    "services": [
+                        {"host": traefik.host, "image": None, "ingress": traefik.ingress}  # External host has no image
+                    ],
+                }
+            )
+        # TODO: Add container projects with passthrough/hostport ingress here if needed
+
+    # Filter by router type for templates
+    projects_http = []
+    projects_tcp = []
+    projects_udp = []
+
+    for p in all_projects:
+        http_services = []
+        tcp_services = []
+        udp_services = []
+
+        for s in p["services"]:
+            http_ingress = [i for i in s["ingress"] if i.router == "http"]
+            tcp_ingress = [i for i in s["ingress"] if i.router == "tcp"]
+            udp_ingress = [i for i in s["ingress"] if i.router == "udp"]
+
+            if http_ingress:
+                http_services.append({"host": s["host"], "image": s["image"], "ingress": http_ingress})
+            if tcp_ingress:
+                tcp_services.append({"host": s["host"], "image": s["image"], "ingress": tcp_ingress})
+            if udp_ingress:
+                udp_services.append({"host": s["host"], "image": s["image"], "ingress": udp_ingress})
+
+        if http_services:
+            projects_http.append({"name": p["name"], "services": http_services})
+        if tcp_services:
+            projects_tcp.append({"name": p["name"], "services": tcp_services})
+        if udp_services:
+            projects_udp.append({"name": p["name"], "services": udp_services})
+
+    # Render HTTP routers using full template
     with open("tpl/proxy/routers-http.yml.j2", encoding="utf-8") as f:
-        template = Template(f.read())
+        template_content = f.read()
 
-    routers_http = template.render(
-        domain_suffix=domain_suffix,
+    tpl_routers_http = Template(template_content)
+
+    routers_http = tpl_routers_http.render(
         plugin_registry=plugin_registry,
         projects=projects_http,
-        traefik_admin=traefik_admin,
+        traefik_admin=secrets["TRAEFIK_ADMIN"],
         traefik_rule=f"Host(`{traefik_domain}`)",
-        trusted_ips_cidrs=trusted_ips_cidrs,
+        trusted_ips_cidrs=get_trusted_ips(),
     )
 
-    # TCP routers - passthrough or hostport
-    projects_tcp = get_projects(
-        filter=lambda _, s, i: i.router == Router.tcp and (i.passthrough or not s.image or i.hostport)
-    )
-
+    # Render TCP routers using full template
     with open("tpl/proxy/routers-tcp.yml.j2", encoding="utf-8") as f:
-        template = Template(f.read())
-        template.globals["ProxyProtocol"] = ProxyProtocol
+        template_content = f.read()
 
-    routers_tcp = template.render(projects=projects_tcp)
+    tpl_routers_tcp = Template(template_content)
+    tpl_routers_tcp.globals["ProxyProtocol"] = ProxyProtocol  # Make enum available to template
+    routers_tcp = tpl_routers_tcp.render(
+        projects=projects_tcp,
+    )
 
-    # UDP routers
-    projects_udp = get_projects(filter=lambda _, _2, i: i.router == Router.udp)
-
+    # Render UDP routers
     with open("tpl/proxy/routers-udp.yml.j2", encoding="utf-8") as f:
-        template = Template(f.read())
+        template_content = f.read()
 
-    routers_udp = template.render(projects=projects_udp)
+    tpl_routers_udp = Template(template_content)
+    routers_udp = tpl_routers_udp.render(
+        projects=projects_udp,
+    )
 
     # Ensure directory exists
     Path("proxy/traefik/dynamic").mkdir(parents=True, exist_ok=True)
@@ -283,7 +376,7 @@ def write_dynamic_routers() -> None:
     with open("proxy/traefik/dynamic/routers-udp.yml", "w", encoding="utf-8") as f:
         f.write(routers_udp)
 
-    logger.info("Generated dynamic router configs")
+    logger.info(f"Generated dynamic routers for {len(all_projects)} external host projects")
 
 
 def write_proxy_compose() -> None:
@@ -342,8 +435,7 @@ def write_proxy_compose() -> None:
 def write_proxy_artifacts() -> None:
     """Generate all proxy-related artifacts"""
     write_traefik_config()
-    # TODO: Dynamic routers removed - all routing via docker labels now
-    # write_dynamic_routers()
+    write_dynamic_routers()  # Dynamic routers (infrastructure + external hosts)
     write_proxy_compose()
 
 
