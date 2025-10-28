@@ -100,11 +100,14 @@ class TestCLI(unittest.TestCase):
         self.assertIn("DNS stack management", result.output)
 
     def test_dns_up_subcommand(self) -> None:
-        """Test that dns up subcommand is registered."""
-        result = self.runner.invoke(itsup_module.cli, ["dns", "up", "--help"])
+        """Test that dns up uses smart deployment (not a separate subcommand)."""
+        # DNS uses passthrough pattern - 'up' is intercepted, not a subcommand
+        # Just verify the dns command accepts arguments
+        result = self.runner.invoke(itsup_module.cli, ["dns", "--help"])
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Start DNS stack", result.output)
+        # Should show examples of 'up' usage in help
+        self.assertIn("itsup dns up", result.output)
 
     def test_proxy_command_registered(self) -> None:
         """Test that proxy command is registered."""
@@ -114,11 +117,14 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Proxy stack management", result.output)
 
     def test_proxy_up_subcommand(self) -> None:
-        """Test that proxy up subcommand is registered."""
-        result = self.runner.invoke(itsup_module.cli, ["proxy", "up", "--help"])
+        """Test that proxy up uses smart deployment (not a separate subcommand)."""
+        # Proxy uses passthrough pattern - 'up' is intercepted, not a subcommand
+        # Just verify the proxy command accepts arguments
+        result = self.runner.invoke(itsup_module.cli, ["proxy", "--help"])
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Start proxy stack", result.output)
+        # Should show examples of 'up' usage in help
+        self.assertIn("itsup proxy up", result.output)
 
     def test_monitor_command_registered(self) -> None:
         """Test that monitor command is registered."""

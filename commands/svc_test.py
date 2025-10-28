@@ -11,7 +11,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from click.testing import CliRunner
 
-from commands.svc import complete_project, complete_svc_command, svc
+from commands.common import complete_docker_compose_command, complete_project
+from commands.svc import svc
+
+# Alias for backwards compatibility with tests
+complete_svc_command = lambda ctx, param, incomplete: complete_docker_compose_command(
+    "upstream/{project}/docker-compose.yml",
+    args_param_name="command",
+    project_param_name="project"
+)(ctx, param, incomplete)
 
 
 class TestSvc(unittest.TestCase):
@@ -131,7 +139,7 @@ class TestAutocompletion(unittest.TestCase):
         self.assertIn("logs", result)
         self.assertIn("ps", result)
 
-    @patch("commands.svc.Path")
+    @patch("commands.common.Path")
     def test_complete_svc_command_service_names(self, mock_path: Mock) -> None:
         """Test service name autocompletion."""
         ctx = Mock()
@@ -159,7 +167,7 @@ services:
         self.assertIn("worker", result)
         self.assertNotIn("api", result)
 
-    @patch("commands.svc.Path")
+    @patch("commands.common.Path")
     def test_complete_svc_command_no_compose_file(self, mock_path: Mock) -> None:
         """Test service name autocompletion when compose file doesn't exist."""
         ctx = Mock()
@@ -173,9 +181,9 @@ services:
 
         self.assertEqual(result, [])
 
-    @patch("commands.svc.Path")
-    @patch("commands.svc.logger")
-    def test_complete_svc_command_yaml_parse_error(self, mock_logger: Mock, mock_path: Mock) -> None:
+    @patch("commands.common.logger")
+    @patch("commands.common.Path")
+    def test_complete_svc_command_yaml_parse_error(self, mock_path: Mock, mock_logger: Mock) -> None:
         """Test service name autocompletion with YAML parse error."""
         ctx = Mock()
         ctx.params = {"command": ["logs"], "project": "myproject"}

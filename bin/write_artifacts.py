@@ -21,6 +21,35 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
+    """Write file only if content changed. Returns True if file was written.
+
+    Args:
+        file_path: Path to file
+        content: New content to write
+        description: Optional description for logging
+
+    Returns:
+        True if file was written (changed or new), False if skipped (unchanged)
+    """
+    desc = description or str(file_path)
+
+    if file_path.exists():
+        with open(file_path, "r", encoding="utf-8") as f:
+            old_content = f.read()
+
+        if old_content == content:
+            logger.debug(f"Skipping {desc} (unchanged)")
+            return False
+
+    # Write file (content changed or doesn't exist)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    logger.info(f"Generated {desc}")
+    return True
+
+
 def inject_traefik_labels(compose: dict, traefik_config, project_name: str) -> dict:
     """Inject Traefik labels into docker-compose services based on traefik.yml"""
     if not traefik_config.enabled:
@@ -151,12 +180,10 @@ def write_upstream(project_name: str) -> None:
     upstream_dir = Path("upstream") / project_name
     upstream_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write docker-compose.yml
+    # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
     compose_file = upstream_dir / "docker-compose.yml"
-    with open(compose_file, "w", encoding="utf-8") as f:
-        yaml.dump(compose, f, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False)
-
-    logger.info(f"Generated {compose_file}")
+    content = yaml.dump(compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    write_file_if_changed(compose_file, content)
 
 
 def write_upstreams() -> bool:
@@ -236,11 +263,10 @@ def write_traefik_config() -> None:
     # Ensure directory exists
     Path("proxy/traefik").mkdir(parents=True, exist_ok=True)
 
-    # Write final config
-    with open("proxy/traefik/traefik.yml", "w", encoding="utf-8") as f:
-        yaml.dump(final_config, f, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False)
-
-    logger.info("Generated proxy/traefik/traefik.yml")
+    # Write final config (only if changed)
+    traefik_config_file = Path("proxy/traefik/traefik.yml")
+    content = yaml.dump(final_config, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    write_file_if_changed(traefik_config_file, content, "proxy/traefik/traefik.yml")
 
 
 def write_dynamic_routers() -> None:
@@ -366,17 +392,17 @@ def write_dynamic_routers() -> None:
     # Ensure directory exists
     Path("proxy/traefik/dynamic").mkdir(parents=True, exist_ok=True)
 
-    # Write router files
-    with open("proxy/traefik/dynamic/routers-http.yml", "w", encoding="utf-8") as f:
-        f.write(routers_http)
+    # Write router files (only if changed)
+    http_file = Path("proxy/traefik/dynamic/routers-http.yml")
+    tcp_file = Path("proxy/traefik/dynamic/routers-tcp.yml")
+    udp_file = Path("proxy/traefik/dynamic/routers-udp.yml")
 
-    with open("proxy/traefik/dynamic/routers-tcp.yml", "w", encoding="utf-8") as f:
-        f.write(routers_tcp)
+    http_changed = write_file_if_changed(http_file, routers_http, "routers-http.yml")
+    tcp_changed = write_file_if_changed(tcp_file, routers_tcp, "routers-tcp.yml")
+    udp_changed = write_file_if_changed(udp_file, routers_udp, "routers-udp.yml")
 
-    with open("proxy/traefik/dynamic/routers-udp.yml", "w", encoding="utf-8") as f:
-        f.write(routers_udp)
-
-    logger.info(f"Generated dynamic routers for {len(all_projects)} external host projects")
+    if http_changed or tcp_changed or udp_changed:
+        logger.info(f"Generated dynamic routers for {len(all_projects)} external host projects")
 
 
 def write_proxy_compose() -> None:
@@ -426,10 +452,9 @@ def write_proxy_compose() -> None:
     template = Template(template_content)
     compose_content = template.render(**context)
 
-    with open("proxy/docker-compose.yml", "w", encoding="utf-8") as f:
-        f.write(compose_content)
-
-    logger.info("Generated proxy/docker-compose.yml")
+    # Only write if changed
+    proxy_compose_file = Path("proxy/docker-compose.yml")
+    write_file_if_changed(proxy_compose_file, compose_content, "proxy/docker-compose.yml")
 
 
 def write_proxy_artifacts() -> None:

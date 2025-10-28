@@ -49,13 +49,26 @@ from commands.edit_secret import edit_secret
 from commands.sops_key import sops_key
 
 
-@click.group()
+@click.group(context_settings=dict(allow_interspersed_args=False))
 @click.version_option(version="0.1.0", prog_name="itsup")
-@click.option("--verbose", "-v", is_flag=True, help="Verbose logging")
+@click.option("--verbose", "-v", count=True, help="Verbosity: -v (INFO), -vv (DEBUG), -vvv (TRACE)", is_eager=True)
 def cli(verbose):
     """itsUP - Infrastructure management CLI"""
-    # Pass None to honor LOG_LEVEL env var, or "DEBUG" if --verbose flag set
-    setup_logging(level="DEBUG" if verbose else None)
+    # Map verbosity count to log levels (CLI ignores LOG_LEVEL env var)
+    # 0 = ERROR (default - only show errors)
+    # 1 = INFO (-v)
+    # 2 = DEBUG (-vv)
+    # 3+ = TRACE (-vvv)
+    if verbose == 0:
+        level = "ERROR"
+    elif verbose == 1:
+        level = "INFO"
+    elif verbose == 2:
+        level = "DEBUG"
+    else:  # 3+
+        level = "TRACE"
+
+    setup_logging(level=level)
 
 
 # Register commands

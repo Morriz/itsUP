@@ -41,8 +41,8 @@ class TestApply(unittest.TestCase):
         result = self.runner.invoke(apply, ["nonexistent"])
 
         self.assertEqual(result.exit_code, 1)
-        self.assertIn("Project 'nonexistent' not found", result.output)
-        self.assertIn("Available: other, another", result.output)
+        self.assertIn("'nonexistent' not found", result.output)
+        self.assertIn("Available: dns, proxy, other, another", result.output)
 
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
@@ -58,12 +58,16 @@ class TestApply(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
         mock_deploy.assert_called_once_with("myproject")
 
+    @patch("commands.apply.deploy_proxy_stack")
+    @patch("commands.apply.deploy_dns_stack")
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_success(
         self,
         mock_deploy: Mock,
         mock_list_projects: Mock,
+        mock_dns: Mock,
+        mock_proxy: Mock,
     ) -> None:
         """Test applying all projects successfully."""
         mock_list_projects.return_value = ["project1", "project2"]
@@ -71,7 +75,10 @@ class TestApply(unittest.TestCase):
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 0)
+        # Should deploy dns, proxy, + 2 projects
         self.assertEqual(mock_deploy.call_count, 2)
+        mock_dns.assert_called_once()
+        mock_proxy.assert_called_once()
 
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
@@ -86,12 +93,16 @@ class TestApply(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 1)
 
+    @patch("commands.apply.deploy_proxy_stack")
+    @patch("commands.apply.deploy_dns_stack")
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_with_partial_failures(
         self,
         mock_deploy: Mock,
         mock_list_projects: Mock,
+        mock_dns: Mock,
+        mock_proxy: Mock,
     ) -> None:
         """Test applying all projects with some failures."""
         mock_list_projects.return_value = ["project1", "project2", "project3"]
@@ -106,15 +117,22 @@ class TestApply(unittest.TestCase):
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 1)
-        self.assertIn("Failed projects: project2", result.output)
+        self.assertIn("Failed: project2", result.output)
+        # Should deploy all 3 projects (dns and proxy succeed)
         self.assertEqual(mock_deploy.call_count, 3)
+        mock_dns.assert_called_once()
+        mock_proxy.assert_called_once()
 
+    @patch("commands.apply.deploy_proxy_stack")
+    @patch("commands.apply.deploy_dns_stack")
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_with_multiple_failures(
         self,
         mock_deploy: Mock,
         mock_list_projects: Mock,
+        mock_dns: Mock,
+        mock_proxy: Mock,
     ) -> None:
         """Test applying all projects with multiple failures."""
         mock_list_projects.return_value = ["project1", "project2", "project3"]
@@ -129,13 +147,14 @@ class TestApply(unittest.TestCase):
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 1)
-        # Parallel execution means order is not guaranteed
-        self.assertTrue(
-            "Failed projects: project2, project3" in result.output
-            or "Failed projects: project3, project2" in result.output,
-            f"Expected failed projects message, got: {result.output}"
-        )
+        # Parallel execution means order is not guaranteed - just verify both failed
+        self.assertIn("project2", result.output)
+        self.assertIn("project3", result.output)
+        self.assertIn("Failed:", result.output)
+        # Should deploy all 3 projects (dns and proxy succeed)
         self.assertEqual(mock_deploy.call_count, 3)
+        mock_dns.assert_called_once()
+        mock_proxy.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from lib.auth import verify_apikey
 from lib.data import list_projects, load_secrets
+from lib.deploy import deploy_dns_stack, deploy_proxy_stack
 from lib.models import PingPayload, WorkflowJobPayload
 
 dotenv.load_dotenv()
@@ -52,8 +53,15 @@ def _handle_itsup_update() -> None:
             subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=".", check=True)
             info("Repository updated successfully")
 
-        # Apply all changes (regenerates proxy + upstreams + deploys)
-        info("Applying all changes...")
+        # Deploy infrastructure stacks with smart rollout
+        info("Deploying DNS stack...")
+        deploy_dns_stack()
+
+        info("Deploying proxy stack (regenerates artifacts + zero-downtime rollout)...")
+        deploy_proxy_stack()
+
+        # Apply all upstream project changes
+        info("Deploying all upstream projects...")
         subprocess.run(["bin/itsup", "apply"], check=True)
 
         # Restart API to pick up new code

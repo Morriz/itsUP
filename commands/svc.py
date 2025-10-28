@@ -8,78 +8,19 @@ import sys
 from pathlib import Path
 
 import click
-import yaml
 
-from commands.common import complete_project
+from commands.common import complete_docker_compose_command, complete_project
 from lib.data import get_env_with_secrets, list_projects
 
 logger = logging.getLogger(__name__)
 
 
-def complete_svc_command(ctx, param, incomplete):
-    """
-    Smart completion for svc command arguments.
-
-    Provides context-aware autocompletion:
-    - First argument: docker compose commands (up, down, logs, etc.)
-    - Subsequent arguments: service names from docker-compose.yml
-
-    Args:
-        ctx: Click context
-        param: Click parameter
-        incomplete: Partially typed string to complete
-
-    Returns:
-        List of commands or service names matching the incomplete string
-    """
-    # Get already-typed arguments
-    args = ctx.params.get("command", [])
-    project = ctx.params.get("project")
-
-    # First argument after project: docker compose commands
-    if len(args) == 0:
-        commands = [
-            "up",
-            "down",
-            "ps",
-            "logs",
-            "restart",
-            "exec",
-            "stop",
-            "start",
-            "config",
-            "pull",
-            "build",
-            "kill",
-            "rm",
-            "pause",
-            "unpause",
-            "top",
-        ]
-        return [c for c in commands if c.startswith(incomplete)]
-
-    # Second+ argument: service names from docker-compose.yml
-    # (useful for: logs <service>, restart <service>, exec <service>, etc.)
-    if project:
-        compose_file = Path(f"upstream/{project}/docker-compose.yml")
-
-        if compose_file.exists():
-            try:
-                with open(compose_file) as f:
-                    compose = yaml.safe_load(f)
-                    services = list(compose.get("services", {}).keys())
-                    return [s for s in services if s.startswith(incomplete)]
-            except yaml.YAMLError as e:
-                logger.debug(f"Failed to parse compose file for autocomplete: {e}")
-            except Exception as e:
-                logger.debug(f"Unexpected error reading compose file for autocomplete: {e}")
-
-    return []
-
-
 @click.command(context_settings=dict(ignore_unknown_options=True, allow_interspersed_args=False))
 @click.argument("project", shell_complete=complete_project)
-@click.argument("command", nargs=-1, required=True, type=click.UNPROCESSED, shell_complete=complete_svc_command)
+@click.argument("command", nargs=-1, required=True, type=click.UNPROCESSED,
+                shell_complete=complete_docker_compose_command("upstream/{project}/docker-compose.yml",
+                                                                args_param_name="command",
+                                                                project_param_name="project"))
 def svc(project, command):
     """
     🔧 Service operations PROJECT COMMAND... (docker compose passthrough)
