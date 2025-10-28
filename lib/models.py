@@ -71,6 +71,8 @@ class TLS(BaseModel):
 class Ingress(BaseModel):
     """Ingress model"""
 
+    service: str | None = None
+    """The service name in docker-compose.yml (only used for container projects)"""
     domain: str | None = None
     """The domain to use for the service. If omitted, the service will not be publicly accessible.
     When set TLS termination is done for this domain only."""
@@ -101,6 +103,7 @@ class Ingress(BaseModel):
     def check_passthrough_tcp(cls, data: Any) -> Any:
         if data.passthrough and data.port == 80 and not data.path_prefix == "/.well-known/acme-challenge/":
             raise ValueError("Passthrough is only allowed for ACME challenge on port 80.")
+        return data
 
 
 class Service(BaseModel):
@@ -169,27 +172,6 @@ class WorkflowJobPayload(WebhookCommonPayload):
 # V2 Models for projects/ structure
 
 
-class IngressV2(BaseModel):
-    """Traefik ingress rule for V2 projects"""
-
-    service: str = "external"
-    """The service name in docker-compose.yml (or 'external' for host passthroughs)"""
-    domain: str | None = None
-    """The domain to use for the service"""
-    port: int = 80
-    """The port to use for the service"""
-    router: str = "http"
-    """The type of router (http, tcp, udp)"""
-    path_prefix: str | None = None
-    """Should the service be exposed under a specific path?"""
-    hostport: int | None = None
-    """The port to expose on the host"""
-    passthrough: bool = False
-    """Whether traffic is forwarded as-is without terminating SSL"""
-    tls: TLS | None = None
-    """TLS settings with main domain and SANs"""
-
-
 class TraefikConfig(BaseModel):
     """Traefik routing configuration for V2 projects"""
 
@@ -197,5 +179,5 @@ class TraefikConfig(BaseModel):
     """Whether the project is enabled"""
     host: str | None = None
     """External host IP/hostname (for ingress-only projects without containers)"""
-    ingress: List[IngressV2] = []
+    ingress: List[Ingress] = []
     """List of ingress rules"""

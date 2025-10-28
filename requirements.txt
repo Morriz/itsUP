@@ -8,4 +8,5 @@ netifaces
 python-dotenv
 pyyaml
 requests
+ruamel.yaml
 uvicorn[standard]

@@ -214,6 +214,8 @@ def validate_project(project_name: str) -> list[str]:
     # Validate traefik references exist in compose (for container projects)
     services = compose.get("services", {})
     for ingress in traefik.ingress:
+        if ingress is None:
+            continue
         if ingress.service not in services:
             errors.append(f"traefik.yml references unknown service: {ingress.service}")
 
@@ -285,8 +287,13 @@ def update_itsup_yml_router_ip(ip: str) -> None:
 
 
 def get_trusted_ips() -> list[str]:
-    """Build trusted IPs list for Traefik - ONLY router IP"""
-    return [f"{get_router_ip()}/32"]
+    """Build trusted IPs list for Traefik - localhost + Docker networks + router subnet (V1 compatible)"""
+    router_ip = get_router_ip()
+    # Extract network (e.g., 192.168.1.1 -> 192.168.1.0/24)
+    parts = router_ip.split(".")
+    subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
+    # V1 had: 127.0.0.0/32, 172.0.0.0/8 (Docker), 10.0.0.0/8 (private), router subnet
+    return ["127.0.0.0/32", "172.0.0.0/8", "10.0.0.0/8", subnet]
 
 
 def load_itsup_config() -> dict[str, Any]:

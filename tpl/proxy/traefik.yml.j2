@@ -39,24 +39,6 @@ entryPoints:
         - {{ ip }}
 {%- endfor %}
 
-  tcp:
-    address: ':80'
-    reusePort: true
-    proxyProtocol:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-
-  tcp-secure:
-    address: ':443'
-    reusePort: true
-    proxyProtocol:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-
 providers:
   docker:
     exposedByDefault: false
