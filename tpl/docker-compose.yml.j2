@@ -38,7 +38,7 @@ services:
     network_mode: host
     restart: always
     dns:
-      - 172.20.0.253  # DNS honeypot from DNS stack
+      - {{ dns_honeypot }}
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
@@ -75,7 +75,7 @@ services:
       - default
       - proxynet
     dns:
-      - 172.20.0.253  # DNS honeypot from DNS stack
+      - {{ dns_honeypot }}
     ports:
       - '127.0.0.1:7422:7422'
       - '127.0.0.1:18080:8080'

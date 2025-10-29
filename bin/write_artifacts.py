@@ -20,6 +20,9 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# DNS honeypot for logging (used by all containers)
+DNS_HONEYPOT = "172.20.0.253"
+
 
 def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
     """Write file only if content changed. Returns True if file was written.
@@ -158,11 +161,10 @@ def write_upstream(project_name: str) -> None:
     # Add proxynet if not already present
     if "proxynet" not in compose["networks"]:
         compose["networks"]["proxynet"] = {
-            "name": "proxynet",
             "external": True
         }
 
-    # Ensure all services with Traefik labels are on proxynet
+    # Ensure all services with Traefik labels are on proxynet, and all services use DNS honeypot
     services = compose.get("services", {})
     for service_name, service_config in services.items():
         labels = service_config.get("labels", [])
@@ -181,13 +183,17 @@ def write_upstream(project_name: str) -> None:
             if "proxynet" not in service_config["networks"]:
                 service_config["networks"].append("proxynet")
 
+        # Inject DNS honeypot into all services (for logging)
+        if "dns" not in service_config:
+            service_config["dns"] = [DNS_HONEYPOT]
+
     # Ensure upstream directory exists
     upstream_dir = Path("upstream") / project_name
     upstream_dir.mkdir(parents=True, exist_ok=True)
 
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
     compose_file = upstream_dir / "docker-compose.yml"
-    content = yaml.dump(compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    content = yaml.dump(compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False, width=float("inf"))
     write_file_if_changed(compose_file, content)
 
 
@@ -261,7 +267,7 @@ def write_traefik_config() -> None:
                 })
 
     # Load minimal template
-    with open("tpl/proxy/traefik.yml.j2", encoding="utf-8") as f:
+    with open("tpl/traefik.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     template = Template(template_content)
@@ -386,7 +392,7 @@ def write_dynamic_routers() -> None:
             projects_udp.append({"name": p["name"], "services": udp_services})
 
     # Render HTTP routers using full template
-    with open("tpl/proxy/routers-http.yml.j2", encoding="utf-8") as f:
+    with open("tpl/routers-http.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     tpl_routers_http = Template(template_content)
@@ -400,7 +406,7 @@ def write_dynamic_routers() -> None:
     )
 
     # Render TCP routers using full template
-    with open("tpl/proxy/routers-tcp.yml.j2", encoding="utf-8") as f:
+    with open("tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     tpl_routers_tcp = Template(template_content)
@@ -410,7 +416,7 @@ def write_dynamic_routers() -> None:
     )
 
     # Render UDP routers
-    with open("tpl/proxy/routers-udp.yml.j2", encoding="utf-8") as f:
+    with open("tpl/routers-udp.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     tpl_routers_udp = Template(template_content)
@@ -457,6 +463,7 @@ def write_proxy_compose() -> None:
 
     # Build template context
     context = {
+        "dns_honeypot": DNS_HONEYPOT,
         "versions": {
             "traefik": traefik_version,
             "crowdsec": crowdsec_version,
@@ -475,7 +482,7 @@ def write_proxy_compose() -> None:
         }
     }
 
-    with open("tpl/proxy/docker-compose.yml.j2", encoding="utf-8") as f:
+    with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     template = Template(template_content)
