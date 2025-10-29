@@ -237,15 +237,39 @@ def write_traefik_config() -> None:
     # Get trusted IPs for template
     trusted_ips_cidrs = get_trusted_ips()
 
+    # Load all projects to collect TCP/UDP entrypoints
+    projects_data = []
+    for project_name in list_projects():
+        _, traefik_config = load_project(project_name)
+        if traefik_config.enabled and traefik_config.ingress:
+            # Only include projects with TCP/UDP ingress
+            tcp_udp_ingress = []
+            for i in traefik_config.ingress:
+                if i.router in ["tcp", "udp"]:
+                    # Convert to dict with string values for template
+                    tcp_udp_ingress.append({
+                        "service": i.service,
+                        "router": str(i.router.value) if hasattr(i.router, 'value') else str(i.router),
+                        "protocol": str(i.protocol.value) if hasattr(i.protocol, 'value') else str(i.protocol),
+                        "port": i.port,
+                        "hostport": i.hostport
+                    })
+            if tcp_udp_ingress:
+                projects_data.append({
+                    "name": project_name,
+                    "ingress": tcp_udp_ingress
+                })
+
     # Load minimal template
     with open("tpl/proxy/traefik.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     template = Template(template_content)
 
-    # Render minimal base config (just structure + trustedIPs)
+    # Render minimal base config (structure + trustedIPs + dynamic entrypoints)
     config_content = template.render(
         trusted_ips_cidrs=trusted_ips_cidrs,
+        projects=projects_data,
     )
 
     # Parse generated base config

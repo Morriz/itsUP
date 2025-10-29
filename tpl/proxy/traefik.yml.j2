@@ -39,6 +39,24 @@ entryPoints:
         - {{ ip }}
 {%- endfor %}
 
+{%- for project in projects %}
+  {%- for ingress in project.ingress %}
+  {{ ingress.router }}-{{ ingress.hostport or ingress.port }}:
+    address: ':{{ ingress.hostport or ingress.port }}/{{ ingress.protocol }}'
+    reusePort: true
+    forwardedHeaders:
+      trustedIPs:
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
+    proxyProtocol:
+      trustedIPs:
+{%- for ip in trusted_ips_cidrs %}
+        - {{ ip }}
+{%- endfor %}
+  {%- endfor %}
+{%- endfor %}
+
 providers:
   docker:
     exposedByDefault: false
