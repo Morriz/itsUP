@@ -231,7 +231,9 @@ itsup proxy restart traefik
 - Proxy creates Traefik (required by projects for routing)
 - API and Monitor can start anytime after proxy
 
-**Easy way**: `itsup run` (does it all automatically)
+**Easy way**: `itsup run` (does it all automatically in report-only mode for monitor)
+
+**Note**: `itsup run` starts the monitor in report-only mode (detection without blocking). For full protection with active blocking, use `itsup monitor start` after infrastructure is running.
 
 ### Post-Deployment Verification
 

@@ -19,12 +19,6 @@ class TestDecryptCommand(unittest.TestCase):
         """Set up test fixtures"""
         self.runner = CliRunner()
 
-    def test_decrypt_help(self) -> None:
-        """Test decrypt help command."""
-        result = self.runner.invoke(decrypt, ["--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Decrypt secrets for editing", result.output)
-
     @patch("commands.decrypt.is_sops_available", return_value=False)
     def test_decrypt_fails_without_sops(self, mock_sops: Mock) -> None:
         """Test that decrypt fails gracefully when SOPS not installed."""

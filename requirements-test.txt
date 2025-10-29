@@ -4,6 +4,9 @@ mypy
 pre-commit
 pylint
 pyproject-fmt
+pytest
+pytest-cov
+pytest-timeout
 requests
 types-PyYAML
 qdrant-client

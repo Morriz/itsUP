@@ -1,0 +1,35 @@
+# Exclude generated artifacts
+upstream/
+
+# Exclude Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Exclude git
+.git/
+.gitignore
+
+# Exclude sensitive data
+projects/
+secrets/
+
+# Exclude build artifacts
+*.egg-info/
+dist/
+build/
+
+# Exclude test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Exclude IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

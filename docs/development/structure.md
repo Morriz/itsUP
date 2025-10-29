@@ -43,7 +43,7 @@ Overview of the itsup codebase organization and key directories.
 │   ├── access.log         # Traefik access log
 │   ├── api.log            # API log
 │   └── monitor.log        # Monitor log
-├── projects/               # Source configurations (git submodule)
+├── projects/               # Source configurations (independent git repo)
 │   ├── itsup.yml          # Infrastructure config (secrets as ${VAR})
 │   ├── traefik.yml        # Traefik overrides
 │   └── {project}/
@@ -62,7 +62,7 @@ Overview of the itsup codebase organization and key directories.
 │   ├── example-project/   # Sample project
 │   └── secrets/
 │       └── itsup.txt      # Sample secrets file
-├── secrets/                # Encrypted secrets (git submodule)
+├── secrets/                # Encrypted secrets (independent git repo)
 │   ├── itsup.txt          # Shared secrets (plaintext, gitignored)
 │   ├── itsup.enc.txt      # Shared secrets (encrypted, in git)
 │   ├── {project}.txt      # Project secrets (plaintext, gitignored)
@@ -90,6 +90,7 @@ Overview of the itsup codebase organization and key directories.
 **Purpose**: Web-based management interface (FastAPI).
 
 **Structure** (example, actual may vary):
+
 ```
 api/
 ├── main.py               # FastAPI app entry point
@@ -111,10 +112,11 @@ api/
 **Purpose**: Executable scripts and utilities.
 
 **Key Files**:
+
 - `itsup`: Main CLI entry point (Python script)
 - `format.sh`: Formatting script (isort + black) - run before commit
 - `lint.sh`: Linting script (pylint + mypy)
-- `test.sh`: Run all unit tests (*_test.py)
+- `test.sh`: Run all unit tests (\*\_test.py)
 - `backup.py`: S3 backup script (called by cron)
 - `write_artifacts.py`: Regenerate artifacts WITHOUT deploying
 
@@ -127,6 +129,7 @@ api/
 **Pattern**: One file per command or command group.
 
 **Example**:
+
 ```python
 # commands/apply.py
 import click
@@ -152,6 +155,7 @@ def apply(project):
 **Key Modules**:
 
 **`data.py`**: Configuration loading and templates
+
 - `load_project(project)`: Load docker-compose.yml + ingress.yml
 - `get_env_with_secrets(project)`: Load secrets for deployment
 - `get_trusted_ips()`: Build Traefik trustedIPs list
@@ -159,11 +163,13 @@ def apply(project):
 - Template rendering (Jinja2)
 
 **`deploy.py`**: Deployment logic
+
 - `deploy_upstream_project(project, service)`: Deploy single project
 - `deploy_all()`: Deploy all projects in parallel
 - Smart rollout with change detection (config hash)
 
 **`upstream.py`**: Label injection and artifact generation
+
 - `inject_traefik_labels(compose, ingress, project)`: Generate Traefik labels
 - `write_upstream(project)`: Generate upstream/docker-compose.yml
 
@@ -173,9 +179,10 @@ def apply(project):
 
 **Purpose**: Source of truth for all project configurations.
 
-**Git**: Usually a git submodule (separate repo for configuration).
+**Git**: An independent separate repo for configuration.
 
 **Structure**:
+
 ```
 projects/
 ├── itsup.yml              # Infrastructure config (router IP, versions, backup)
@@ -186,6 +193,7 @@ projects/
 ```
 
 **Important**:
+
 - Secrets are `${VAR}` placeholders (expanded from secrets/ at runtime)
 - This directory is edited directly (NOT upstream/)
 - `itsup apply` reads from here to generate artifacts
@@ -194,9 +202,10 @@ projects/
 
 **Purpose**: Secure storage of sensitive environment variables.
 
-**Git**: Usually a git submodule (separate repo for secrets).
+**Git**: An independent separate repo for secrets.
 
 **Structure**:
+
 ```
 secrets/
 ├── itsup.txt              # Shared secrets (plaintext, gitignored)
@@ -206,12 +215,14 @@ secrets/
 ```
 
 **Workflow**:
+
 1. Edit `.txt` file (plaintext)
 2. Encrypt: `itsup encrypt {project}`
 3. Commit `.enc.txt` file (safe to version control)
 4. Decrypt on target: `itsup decrypt {project}`
 
 **Loading Order**:
+
 1. `secrets/itsup.txt` (shared)
 2. `secrets/{project}.txt` (project-specific)
 
@@ -224,6 +235,7 @@ Later overrides earlier.
 **Git**: Gitignored (regenerated from projects/).
 
 **Structure**:
+
 ```
 upstream/
 └── {project}/
@@ -233,6 +245,7 @@ upstream/
 **Generation**: `bin/write_artifacts.py` or `itsup apply`.
 
 **Important**:
+
 - DO NOT edit these files manually (changes will be overwritten)
 - NOT the source of truth (projects/ is)
 - Used only for deployment
@@ -242,6 +255,7 @@ upstream/
 **Purpose**: Traefik reverse proxy configuration and state.
 
 **Structure**:
+
 ```
 proxy/
 ├── docker-compose.yml      # Proxy stack services (Traefik, dockerproxy)
@@ -252,6 +266,7 @@ proxy/
 ```
 
 **Generation**:
+
 1. Base config from template (`tpl/proxy/traefik.yml.j2`)
 2. Merged with user overrides (`projects/traefik.yml`)
 3. Result written to `proxy/traefik/traefik.yml`
@@ -261,10 +276,12 @@ proxy/
 **Purpose**: Jinja2 templates for generating base configurations.
 
 **Key Templates**:
+
 - `tpl/proxy/traefik.yml.j2`: Minimal Traefik base config
 - `tpl/proxy/docker-compose.yml.j2`: Proxy stack compose file
 
 **Usage**:
+
 ```python
 from jinja2 import Environment, FileSystemLoader
 env = Environment(loader=FileSystemLoader('tpl'))
@@ -277,6 +294,7 @@ output = template.render(router_ip='192.168.1.1', trusted_ips=[...])
 **Purpose**: Persistent log storage with rotation.
 
 **Files**:
+
 - `access.log`: Traefik access log (HTTP requests)
 - `api.log`: API server log
 - `monitor.log`: Container security monitor log
@@ -327,20 +345,24 @@ ${VAR} Expansion           (7) Placeholders expanded in containers
 ### Separation of Concerns
 
 **Configuration** (`projects/`):
+
 - What to deploy (services, images, networks)
 - How to route (domains, ports, protocols)
 
 **Generation** (`lib/upstream.py`):
+
 - Transform configuration into deployable artifacts
 - Inject Traefik labels
 - Merge templates with overrides
 
 **Deployment** (`lib/deploy.py`):
+
 - Execute docker compose operations
 - Manage secrets loading
 - Handle change detection
 
 **CLI** (`commands/`):
+
 - User interface for operations
 - Argument parsing and validation
 - Orchestration of library functions
@@ -348,11 +370,13 @@ ${VAR} Expansion           (7) Placeholders expanded in containers
 ### DRY (Don't Repeat Yourself)
 
 **Avoid**:
+
 - Duplicating docker-compose.yml for each project
 - Manually writing Traefik labels (auto-generated from ingress.yml)
 - Hard-coding values (use itsup.yml for configuration)
 
 **Use**:
+
 - Templates for base configurations
 - Functions for repeated logic
 - Configuration files for variable data
@@ -360,15 +384,18 @@ ${VAR} Expansion           (7) Placeholders expanded in containers
 ### Single Source of Truth
 
 **Configuration**: `projects/` directory
+
 - All service definitions
 - All routing rules
 - All infrastructure settings
 
 **Secrets**: `secrets/` directory (encrypted)
+
 - All environment variables
 - All sensitive data
 
 **Never**:
+
 - Edit `upstream/` directly (generated)
 - Store secrets in code or config (use secrets/)
 - Hard-code infrastructure details (use itsup.yml)
@@ -384,6 +411,7 @@ ${VAR} Expansion           (7) Placeholders expanded in containers
 **Framework**: Python `unittest`
 
 **Example**:
+
 ```python
 # lib/data_test.py
 import unittest
@@ -405,6 +433,7 @@ class TestLoadProject(unittest.TestCase):
 **Purpose**: Test full deployment workflows.
 
 **Example**:
+
 ```bash
 # Test full deployment
 itsup apply test-project
@@ -482,6 +511,7 @@ itsup svc test-project down
 ## Future Structure Changes
 
 **Potential Improvements**:
+
 - `/tests/` directory (separate from lib/)
 - `/plugins/` for extensibility
 - `/schemas/` for YAML schema definitions

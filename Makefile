@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean
+.PHONY: help install test test-unit test-functional test-all lint format clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -11,8 +11,16 @@ help: ## Show this help message
 install: ## Install all dependencies (Docker, SOPS, Python packages)
 	@./bin/install.sh
 
-test: ## Run all tests
+test-unit: ## Run unit tests (fast)
 	./bin/test.sh
+
+test-functional: ## Run functional tests (with real tools in Docker)
+	docker build -t itsup-test -f tests/Dockerfile .
+	docker run --rm itsup-test
+
+test-all: test-unit test-functional ## Run both unit and functional tests
+
+test: test-unit ## Run unit tests (default, alias for test-unit)
 
 format: ## Format code
 	./bin/format.sh

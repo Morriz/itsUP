@@ -79,7 +79,7 @@ http:
 {%- endfor %}
           enabled: true
           forwardedHeadersTrustedIPs:
-            - 172.0.0.0/8
+            - 172.16.0.0/12
             - 192.168.0.0/16
           clientTrustedIPs: {{ trusted_ips_cidrs }}
           crowdsecMode: live

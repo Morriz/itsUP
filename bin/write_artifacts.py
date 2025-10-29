@@ -45,6 +45,9 @@ def write_file_if_changed(file_path: Path, content: str, description: str = None
             logger.debug(f"Skipping {desc} (unchanged)")
             return False
 
+    # Ensure parent directory exists
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
     # Write file (content changed or doesn't exist)
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -187,12 +190,8 @@ def write_upstream(project_name: str) -> None:
         if "dns" not in service_config:
             service_config["dns"] = [DNS_HONEYPOT]
 
-    # Ensure upstream directory exists
-    upstream_dir = Path("upstream") / project_name
-    upstream_dir.mkdir(parents=True, exist_ok=True)
-
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
-    compose_file = upstream_dir / "docker-compose.yml"
+    compose_file = Path("upstream") / project_name / "docker-compose.yml"
     content = yaml.dump(compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False, width=float("inf"))
     write_file_if_changed(compose_file, content)
 
@@ -294,9 +293,6 @@ def write_traefik_config() -> None:
 
     # Traefik expands {{ env "VAR" }} at runtime from environment
     # Variables are left as-is for Traefik to process
-
-    # Ensure directory exists
-    Path("proxy/traefik").mkdir(parents=True, exist_ok=True)
 
     # Write final config (only if changed)
     traefik_config_file = Path("proxy/traefik/traefik.yml")
@@ -424,9 +420,6 @@ def write_dynamic_routers() -> None:
         projects=projects_udp,
     )
 
-    # Ensure directory exists
-    Path("proxy/traefik/dynamic").mkdir(parents=True, exist_ok=True)
-
     # Write router files (only if changed)
     http_file = Path("proxy/traefik/dynamic/routers-http.yml")
     tcp_file = Path("proxy/traefik/dynamic/routers-tcp.yml")
@@ -488,7 +481,7 @@ def write_proxy_compose() -> None:
     template = Template(template_content)
     compose_content = template.render(**context)
 
-    # Only write if changed
+    # Write compose file (only if changed)
     proxy_compose_file = Path("proxy/docker-compose.yml")
     write_file_if_changed(proxy_compose_file, compose_content, "proxy/docker-compose.yml")
 

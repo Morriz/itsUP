@@ -88,22 +88,48 @@ if [ "$PLATFORM" = "Mac" ]; then
 elif [ "$PLATFORM" = "Linux" ]; then
     echo -e "${BLUE}📦 Installing Linux dependencies...${NC}"
 
-    # Docker
-    if ! command_exists docker; then
+    # Docker (skip check if running in container - e.g., during tests)
+    if [ -f /.dockerenv ] || [ -n "$CONTAINER" ]; then
+        echo -e "${YELLOW}⚠${NC} Running in container - skipping Docker check"
+    elif ! command_exists docker; then
         echo -e "${RED}✗${NC} Docker not found"
         echo "  Install from: https://docs.docker.com/engine/install/"
         exit 1
+    else
+        echo -e "${GREEN}✓${NC} Docker installed"
     fi
-    echo -e "${GREEN}✓${NC} Docker installed"
 
     # SOPS
     if ! command_exists sops; then
         echo -e "${YELLOW}  ⬇️  Installing SOPS...${NC}"
-        SOPS_VERSION=$(curl -s https://api.github.com/repos/mozilla/sops/releases/latest | grep tag_name | cut -d '"' -f 4 | cut -c 2-)
-        wget -qO /tmp/sops.deb "https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops_${SOPS_VERSION}_amd64.deb"
-        sudo dpkg -i /tmp/sops.deb
-        rm /tmp/sops.deb
-        echo -e "${GREEN}✓${NC} SOPS installed"
+        SOPS_VERSION=$(curl -s https://api.github.com/repos/getsops/sops/releases/latest | grep tag_name | cut -d '"' -f 4 | cut -c 2-)
+
+        # Determine architecture for sops binary
+        case "${ARCH}" in
+            x86_64)     SOPS_ARCH="amd64";;
+            aarch64)    SOPS_ARCH="arm64";;
+            arm64)      SOPS_ARCH="arm64";;
+            *)          SOPS_ARCH="amd64";;
+        esac
+
+        # Conditional sudo (not needed in container)
+        SUDO=""
+        if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
+            SUDO="sudo"
+        fi
+
+        # Download binary directly (more reliable than .deb for arm64)
+        SOPS_URL="https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${SOPS_ARCH}"
+        echo "  Downloading from: $SOPS_URL"
+        if wget -O /tmp/sops "$SOPS_URL"; then
+            $SUDO mv /tmp/sops /usr/local/bin/sops
+            $SUDO chmod +x /usr/local/bin/sops
+            echo -e "${GREEN}✓${NC} SOPS installed"
+        else
+            echo -e "${RED}✗${NC} Failed to download SOPS"
+            echo "  URL: $SOPS_URL"
+            exit 1
+        fi
     else
         echo -e "${GREEN}✓${NC} SOPS already installed"
     fi
@@ -111,8 +137,15 @@ elif [ "$PLATFORM" = "Linux" ]; then
     # age
     if ! command_exists age; then
         echo -e "${YELLOW}  ⬇️  Installing age...${NC}"
-        sudo apt-get update
-        sudo apt-get install -y age
+
+        # Conditional sudo (not needed in container)
+        SUDO=""
+        if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
+            SUDO="sudo"
+        fi
+
+        $SUDO apt-get update
+        $SUDO apt-get install -y age
         echo -e "${GREEN}✓${NC} age installed"
     else
         echo -e "${GREEN}✓${NC} age already installed"
@@ -121,9 +154,16 @@ elif [ "$PLATFORM" = "Linux" ]; then
     # sops-diff (for meaningful diffs)
     if ! command_exists sops-diff; then
         echo -e "${YELLOW}  ⬇️  Installing sops-diff...${NC}"
+
+        # Conditional sudo (not needed in container)
+        SUDO=""
+        if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
+            SUDO="sudo"
+        fi
+
         SOPS_DIFF_VERSION=$(curl -s https://api.github.com/repos/saltydogtechnology/sops-diff/releases/latest | grep tag_name | cut -d '"' -f 4)
         curl -L "https://github.com/saltydogtechnology/sops-diff/releases/download/${SOPS_DIFF_VERSION}/sops-diff-${SOPS_DIFF_VERSION}-linux-${ARCH_SOPS_DIFF}.tar.gz" | tar xz
-        sudo mv sops-diff-linux-${ARCH_SOPS_DIFF} /usr/local/bin/sops-diff
+        $SUDO mv sops-diff-linux-${ARCH_SOPS_DIFF} /usr/local/bin/sops-diff
         echo -e "${GREEN}✓${NC} sops-diff installed"
     else
         echo -e "${GREEN}✓${NC} sops-diff already installed"
@@ -153,7 +193,8 @@ fi
 # Install Python dependencies
 echo "Installing Python dependencies..."
 .venv/bin/pip install -q -r requirements-prod.txt
-echo -e "${GREEN}✓${NC} Installed Python dependencies"
+.venv/bin/pip install -q -r requirements-test.txt
+echo -e "${GREEN}✓${NC} Installed Python dependencies (prod + test)"
 
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"

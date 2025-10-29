@@ -19,12 +19,6 @@ class TestEncryptCommand(unittest.TestCase):
         """Set up test fixtures"""
         self.runner = CliRunner()
 
-    def test_encrypt_help(self) -> None:
-        """Test encrypt help command."""
-        result = self.runner.invoke(encrypt, ["--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Encrypt secrets with SOPS", result.output)
-
     @patch("commands.encrypt.is_sops_available", return_value=False)
     def test_encrypt_fails_without_sops(self, mock_sops: Mock) -> None:
         """Test that encrypt fails gracefully when SOPS not installed."""

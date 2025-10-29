@@ -35,9 +35,11 @@ itsup run
 1. Start DNS stack (creates proxynet network)
 2. Start Proxy stack (Traefik + dockerproxy)
 3. Start API (host process)
-4. Start Monitor (host process)
+4. Start Monitor in report-only mode (host process)
 
 **Order**: Respects dependency order (dns → proxy → api → monitor).
+
+**Monitor Mode**: Starts monitor in report-only mode (detection without blocking). For full protection with active blocking, use `itsup monitor start` after infrastructure is running.
 
 **Example**:
 ```bash
@@ -46,7 +48,7 @@ itsup run
 # ✓ DNS stack started
 # ✓ Proxy stack started
 # ✓ API started
-# ✓ Monitor started
+# ✓ Monitor started in report-only mode
 ```
 
 ### `itsup down`

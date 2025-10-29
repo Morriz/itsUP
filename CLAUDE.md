@@ -134,7 +134,7 @@ itsup apply <project>       # Apply single project configuration
 **Orchestrated Operations:**
 
 ```bash
-itsup run                              # Run complete stack (orchestrated: dns→proxy→api→monitor)
+itsup run                              # Run complete stack (orchestrated: dns→proxy→api→monitor in report-only mode)
 itsup down                             # Stop EVERYTHING (all projects + infrastructure, in parallel)
 itsup down --clean                     # Stop everything + cleanup (removes stopped itsUP containers in parallel)
 ```
@@ -167,12 +167,14 @@ itsup proxy logs traefik             # Tail Traefik logs only
 
 **Orchestrated vs Stack Operations:**
 
-- `itsup run` = Full orchestrated startup (dns→proxy→api→monitor) in correct dependency order
+- `itsup run` = Full orchestrated startup (dns→proxy→api→monitor in report-only mode) in correct dependency order
 - `itsup down` = Full orchestrated shutdown (monitor→api→ALL PROJECTS→proxy→dns) - projects stopped in parallel
 - `itsup down --clean` = Shutdown + cleanup - removes stopped containers from itsUP-managed stacks (in parallel)
 - `itsup dns up` = Stack-specific operation (just DNS)
 - `itsup proxy up` = Stack-specific operation (just proxy)
 - Different semantics: `run`/`down` do everything, stack commands are surgical
+
+**Note**: `itsup run` starts the monitor in report-only mode (detection without blocking). For full protection with active blocking, use `itsup monitor start` after infrastructure is running.
 
 ### Project Service Management
 

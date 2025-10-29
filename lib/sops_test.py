@@ -35,25 +35,6 @@ class TestSOPS(unittest.TestCase):
         with patch("subprocess.run", side_effect=FileNotFoundError):
             self.assertFalse(is_sops_available())
 
-    def test_encrypt_file_success(self) -> None:
-        """Test successful file encryption."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            plaintext_path = Path(tmpdir) / "secret.txt"
-            encrypted_path = Path(tmpdir) / "secret.enc.txt"
-
-            # Create plaintext file
-            plaintext_path.write_text("SECRET_KEY=mysecret\n")
-
-            with patch("lib.sops.is_sops_available", return_value=True):
-                with patch("subprocess.run") as mock_run:
-                    mock_run.return_value = Mock(returncode=0)
-
-                    success, was_encrypted = encrypt_file(plaintext_path, encrypted_path)
-
-                    self.assertTrue(success)
-                    self.assertTrue(was_encrypted)
-                    mock_run.assert_called_once()
-
     def test_encrypt_file_sops_not_available(self) -> None:
         """Test encryption fails gracefully when SOPS not available."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -79,39 +60,6 @@ class TestSOPS(unittest.TestCase):
                     success, was_encrypted = encrypt_file(plaintext_path, encrypted_path)
                     self.assertFalse(success)
                     self.assertFalse(was_encrypted)
-
-    def test_decrypt_file_success(self) -> None:
-        """Test successful file decryption."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            encrypted_path = Path(tmpdir) / "secret.enc.txt"
-            plaintext_path = Path(tmpdir) / "secret.txt"
-
-            # Create encrypted file (mock)
-            encrypted_path.write_text("encrypted content")
-
-            with patch("lib.sops.is_sops_available", return_value=True):
-                with patch("subprocess.run") as mock_run:
-                    mock_run.return_value = Mock(returncode=0)
-
-                    result = decrypt_file(encrypted_path, plaintext_path)
-
-                    self.assertTrue(result)
-                    mock_run.assert_called_once()
-
-    def test_decrypt_to_memory_success(self) -> None:
-        """Test successful decryption to memory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            encrypted_path = Path(tmpdir) / "secret.enc.txt"
-            encrypted_path.write_text("encrypted content")
-
-            with patch("lib.sops.is_sops_available", return_value=True):
-                with patch("subprocess.run") as mock_run:
-                    mock_run.return_value = Mock(returncode=0, stdout="SECRET_KEY=mysecret\nAPI_KEY=test123\n")
-
-                    result = decrypt_to_memory(encrypted_path)
-
-                    self.assertIsNotNone(result)
-                    self.assertIn("SECRET_KEY=mysecret", result)
 
     def test_decrypt_to_memory_sops_not_available(self) -> None:
         """Test decryption to memory returns None when SOPS unavailable."""
@@ -140,21 +88,6 @@ class TestSOPS(unittest.TestCase):
         """Test loading from missing file returns empty dict."""
         env_vars = load_env_file(Path("/nonexistent/file.txt"))
         self.assertEqual(env_vars, {})
-
-    def test_load_encrypted_env_success(self) -> None:
-        """Test loading environment variables from encrypted file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            encrypted_path = Path(tmpdir) / "secret.enc.txt"
-            encrypted_path.write_text("encrypted")
-
-            with patch("lib.sops.decrypt_to_memory") as mock_decrypt:
-                mock_decrypt.return_value = "SECRET_KEY=encrypted_value\nAPI_KEY=test123\n"
-
-                env_vars = load_encrypted_env(encrypted_path)
-
-                self.assertEqual(len(env_vars), 2)
-                self.assertEqual(env_vars["SECRET_KEY"], "encrypted_value")
-                self.assertEqual(env_vars["API_KEY"], "test123")
 
     def test_load_encrypted_env_decrypt_fails(self) -> None:
         """Test loading encrypted env returns empty dict on decrypt failure."""

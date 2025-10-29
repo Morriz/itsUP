@@ -1,10 +1,12 @@
 __pycache__
 *.bak*
+.coverage
 .env
 .history
-.mypy_cache
+.*_cache
 .venv
 /data/
+/htmlcov/
 /proxy/
 /reports/
 /upstream/

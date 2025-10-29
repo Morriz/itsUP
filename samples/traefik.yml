@@ -22,47 +22,4 @@ middlewares:
 experimental:
   plugins:
     bouncer:
-      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
-      version: v1.2.0
-
-plugins:
-  crowdsec:
-    apikey: '${CROWDSEC_APIKEY}'
-    collections:
-      - crowdsecurity/linux
-      - crowdsecurity/traefik
-      - crowdsecurity/http-cve
-      - crowdsecurity/sshd
-      - crowdsecurity/whitelist-good-actors
-      - crowdsecurity/appsec-virtual-patching
-    enabled: true
-    options:
-      crowdsecCapiMachineId: login
-      crowdsecCapiPassword: password
-      crowdsecCapiScenarios:
-        - crowdsecurity/http-admin-interface-probing
-        - crowdsecurity/http-backdoors-attempts
-        - crowdsecurity/http-bad-user-agent
-        - crowdsecurity/http-crawl-non_statics
-        - crowdsecurity/http-generic-bf
-        - crowdsecurity/http-open-proxy
-        - crowdsecurity/http-path-traversal-probing
-        - crowdsecurity/http-probing
-        - crowdsecurity/http-sensitive-files
-        - crowdsecurity/http-sqli-probing
-        - crowdsecurity/http-xss-probing
-        - ltsich/http-w00tw00t
-      defaultDecisionSeconds: 600
-      httpTimeoutSeconds: 10
-      logLevel: WARN
-      updateIntervalSeconds: 60
-    version: v1.2.0
-    # tls:
-    #   stores:
-    #     default:
-    #       defaultGeneratedCert:
-    #         domain:
-    #           main: ${DOMAIN_SUFFIX:?}
-    #           sans:
-    #             - '*.${DOMAIN_SUFFIX:?}'
-    #         resolver: letsencrypt
+      version: v1.4.5

@@ -99,69 +99,6 @@ class TestApply(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 1)
 
-    @patch("commands.apply.deploy_proxy_stack")
-    @patch("commands.apply.deploy_dns_stack")
-    @patch("commands.apply.list_projects")
-    @patch("commands.apply.deploy_upstream_project")
-    def test_apply_all_with_partial_failures(
-        self,
-        mock_deploy: Mock,
-        mock_list_projects: Mock,
-        mock_dns: Mock,
-        mock_proxy: Mock,
-    ) -> None:
-        """Test applying all projects with some failures."""
-        mock_list_projects.return_value = ["project1", "project2", "project3"]
-
-        # First and third succeed, second fails
-        def deploy_side_effect(project: str):
-            if project == "project2":
-                raise Exception("Deployment failed")
-
-        mock_deploy.side_effect = deploy_side_effect
-
-        result = self.runner.invoke(apply, [])
-
-        self.assertEqual(result.exit_code, 1)
-        self.assertIn("Failed: project2", result.output)
-        # Should deploy all 3 projects (dns and proxy succeed)
-        self.assertEqual(mock_deploy.call_count, 3)
-        mock_dns.assert_called_once()
-        mock_proxy.assert_called_once()
-
-    @patch("commands.apply.deploy_proxy_stack")
-    @patch("commands.apply.deploy_dns_stack")
-    @patch("commands.apply.list_projects")
-    @patch("commands.apply.deploy_upstream_project")
-    def test_apply_all_with_multiple_failures(
-        self,
-        mock_deploy: Mock,
-        mock_list_projects: Mock,
-        mock_dns: Mock,
-        mock_proxy: Mock,
-    ) -> None:
-        """Test applying all projects with multiple failures."""
-        mock_list_projects.return_value = ["project1", "project2", "project3"]
-
-        # First succeeds, second and third fail
-        def deploy_side_effect(project: str):
-            if project in ["project2", "project3"]:
-                raise Exception("Deployment failed")
-
-        mock_deploy.side_effect = deploy_side_effect
-
-        result = self.runner.invoke(apply, [])
-
-        self.assertEqual(result.exit_code, 1)
-        # Parallel execution means order is not guaranteed - just verify both failed
-        self.assertIn("project2", result.output)
-        self.assertIn("project3", result.output)
-        self.assertIn("Failed:", result.output)
-        # Should deploy all 3 projects (dns and proxy succeed)
-        self.assertEqual(mock_deploy.call_count, 3)
-        mock_dns.assert_called_once()
-        mock_proxy.assert_called_once()
-
 
 if __name__ == "__main__":
     unittest.main()

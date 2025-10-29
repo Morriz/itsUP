@@ -95,10 +95,10 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
             # Show diff vs git HEAD
             rel_path = enc_file.relative_to(root)
 
-            # Check if file exists in git HEAD
+            # Check if file exists in git HEAD of secrets repo
             check_in_git = subprocess.run(
-                ["git", "cat-file", "-e", f"HEAD:{rel_path}"],
-                cwd=root,
+                ["git", "cat-file", "-e", f"HEAD:{enc_file.name}"],
+                cwd=secrets_dir,
                 capture_output=True,
                 check=False
             )
@@ -126,13 +126,13 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
                 has_changes = True
                 continue
 
-            cmd = ["sops-diff", "--git", f"HEAD:{rel_path}", str(enc_file)]
+            cmd = ["sops-diff", "--git", f"HEAD:{enc_file.name}", str(enc_file)]
 
             if summary:
                 cmd.insert(1, "--summary")
 
             click.echo(f"{Colors.BLUE}=== {rel_path} ==={Colors.NC}")
-            result = subprocess.run(cmd, check=False)
+            result = subprocess.run(cmd, cwd=secrets_dir, check=False)
 
             if result.returncode != 0:
                 has_changes = True

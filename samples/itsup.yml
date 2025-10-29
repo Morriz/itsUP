@@ -16,6 +16,40 @@ backup:
 # Set this to your router's IP, or let itsUP detect it and write it here
 routerIP: # Auto-detected on first run
 
+# Plugin parameters that will be used by Traefik plugins
+plugins:
+  crowdsec:
+    apikey: '${CROWDSEC_APIKEY}'
+    collections:
+      - crowdsecurity/linux
+      - crowdsecurity/traefik
+      - crowdsecurity/http-cve
+      - crowdsecurity/sshd
+      - crowdsecurity/whitelist-good-actors
+      - crowdsecurity/appsec-virtual-patching
+    enabled: true
+    options:
+      crowdsecCapiMachineId: ${CROWDSEC_CAPI_MACHINE_ID}
+      crowdsecCapiPassword: ${CROWDSEC_CAPI_PASSWORD}
+      crowdsecCapiScenarios:
+        - crowdsecurity/http-admin-interface-probing
+        - crowdsecurity/http-backdoors-attempts
+        - crowdsecurity/http-bad-user-agent
+        - crowdsecurity/http-crawl-non_statics
+        - crowdsecurity/http-generic-bf
+        - crowdsecurity/http-open-proxy
+        - crowdsecurity/http-path-traversal-probing
+        - crowdsecurity/http-probing
+        - crowdsecurity/http-sensitive-files
+        - crowdsecurity/http-sqli-probing
+        - crowdsecurity/http-xss-probing
+        - ltsich/http-w00tw00t
+      defaultDecisionSeconds: 60
+      httpTimeoutSeconds: 10
+      logLevel: INFO
+      updateIntervalSeconds: 60
+    version: v1.4.5
+
 # Component versions
 versions:
   traefik: v3.5.4

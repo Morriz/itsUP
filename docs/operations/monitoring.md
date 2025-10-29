@@ -72,6 +72,8 @@ itsup monitor start --use-opensnitch # Enable OpenSnitch integration
 itsup monitor stop                   # Stop monitor
 ```
 
+**Note**: When using `itsup run` to start the complete infrastructure stack, the monitor is automatically started in report-only mode for safe operation. To enable active blocking, stop the monitor and restart it with `itsup monitor start`.
+
 ### Process Management
 
 **Manual**:

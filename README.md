@@ -199,7 +199,7 @@ The `itsup` CLI is the main interface for managing your infrastructure. It provi
 itsup init                           # Initialize installation (clone repos, copy samples, setup git integration)
 
 # Orchestrated Operations
-itsup run                            # Run complete stack (orchestrated: dns→proxy→api→monitor)
+itsup run                            # Run complete stack (orchestrated: dns→proxy→api→monitor in report-only mode)
 
 # Stack-Specific Operations
 # Every stack follows the same pattern: up, down, restart, logs [service]
@@ -253,10 +253,12 @@ itsup --verbose                      # Enable DEBUG logging for any command
 
 **Orchestrated vs Stack Operations:**
 
-- `itsup run` = Full orchestrated startup (dns→proxy→api→monitor) in correct dependency order
+- `itsup run` = Full orchestrated startup (dns→proxy→api→monitor in report-only mode) in correct dependency order
 - `itsup dns up` = Stack-specific operation (just DNS)
 - `itsup proxy up` = Stack-specific operation (just proxy)
 - Different semantics: `run` does everything, stack commands are surgical
+
+**Note**: `itsup run` starts the monitor in report-only mode (detection without blocking). For full protection with blocking, use `itsup monitor start`.
 
 ### Utility scripts
 
@@ -299,10 +301,10 @@ Real-time container security monitoring that detects compromised containers by i
 **Quick Start:**
 
 ```bash
-# Start monitor with full protection (blocking enabled by default)
+# Start monitor with full protection (blocking enabled)
 itsup monitor start --use-opensnitch
 
-# Detection only (no blocking)
+# Detection only (no blocking) - also started automatically by "itsup run"
 itsup monitor start --report-only --use-opensnitch
 
 # Stop monitor
@@ -314,6 +316,8 @@ itsup monitor logs
 # Generate threat intelligence report
 itsup monitor report
 ```
+
+**Note**: `itsup run` automatically starts the monitor in report-only mode for safe operation during infrastructure startup. To enable active blocking, explicitly run `itsup monitor start`.
 
 **📖 For complete documentation, see [monitor/README.md](monitor/README.md)**
 

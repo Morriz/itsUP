@@ -23,13 +23,16 @@ def run():
     1. DNS stack (creates proxynet network)
     2. Proxy stack (Traefik + dockerproxy)
     3. API server (Python process)
-    4. Container security monitor
+    4. Container security monitor (report-only mode)
 
     This is different from individual stack commands (dns up, proxy up)
     as it orchestrates the complete startup sequence including monitoring.
 
+    The monitor runs in report-only mode (detection without blocking).
+    For full protection, use: itsup monitor start
+
     Examples:
-        itsup run    # Start everything including monitor
+        itsup run    # Start everything including monitor (report-only)
     """
     logger.info("🚀 Running itsUP complete stack...")
 
@@ -72,11 +75,11 @@ def run():
         logger.error("  ✗ Failed to start API server")
         sys.exit(e.returncode)
 
-    # Step 4: Start container security monitor
-    logger.info("  🛡️  Starting container security monitor...")
+    # Step 4: Start container security monitor (report-only mode)
+    logger.info("  🛡️  Starting container security monitor (report-only mode)...")
     try:
-        subprocess.run(["./bin/start-monitor.sh"], check=True)
-        logger.info("  ✓ Monitor started")
+        subprocess.run(["./bin/start-monitor.sh", "--report-only"], check=True)
+        logger.info("  ✓ Monitor started in report-only mode")
     except subprocess.CalledProcessError as e:
         logger.error("  ✗ Failed to start monitor")
         sys.exit(e.returncode)
