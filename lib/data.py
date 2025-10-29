@@ -287,13 +287,13 @@ def update_itsup_yml_router_ip(ip: str) -> None:
 
 
 def get_trusted_ips() -> list[str]:
-    """Build trusted IPs list for Traefik - localhost + Docker networks + router subnet (V1 compatible)"""
+    """Build trusted IPs list for Traefik - Docker networks + router subnet"""
     router_ip = get_router_ip()
     # Extract network (e.g., 192.168.1.1 -> 192.168.1.0/24)
     parts = router_ip.split(".")
     subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
-    # V1 had: 127.0.0.0/32, 172.0.0.0/8 (Docker), 10.0.0.0/8 (private), router subnet
-    return ["127.0.0.0/32", "172.0.0.0/8", "10.0.0.0/8", subnet]
+    # 172.0.0.0/8 (Docker), router subnet
+    return ["172.0.0.0/8", subnet]
 
 
 def load_itsup_config() -> dict[str, Any]:

@@ -34,7 +34,7 @@ Still interested? Then read on...
   - [Container Security Monitor](#container-security-monitor)
 - [Howto](#howto)
   - [Install \& run](#install--run)
-    - [1. Initialize git submodules](#1-initialize-git-submodules)
+    - [1. Clone and setup repositories](#1-clone-and-setup-repositories)
     - [2. Run installation](#2-run-installation)
     - [3. Configure your installation](#3-configure-your-installation)
     - [4. Encrypt and commit secrets](#4-encrypt-and-commit-secrets)
@@ -164,7 +164,7 @@ The `itsup` CLI is the main interface for managing your infrastructure. It provi
 
 ```bash
 # Initialization
-itsup init                           # Initialize installation (validate submodules, copy samples, create .venv, install deps)
+itsup init                           # Initialize installation (clone repos, copy samples, setup git integration)
 
 # Orchestrated Operations
 itsup run                            # Run complete stack (orchestrated: dns→proxy→api→monitor)
@@ -297,9 +297,9 @@ This includes:
 
 ### Install & run
 
-#### 1. Initialize git submodules
+#### 1. Clone and setup repositories
 
-itsUP uses git submodules for configuration and secrets management. You must create two repositories and add them as submodules:
+itsUP uses separate git repositories for configuration and secrets management:
 
 **Create the repositories:**
 
@@ -312,33 +312,25 @@ itsUP uses git submodules for configuration and secrets management. You must cre
 # Name it something like: itsup-secrets
 ```
 
-**Add them as submodules:**
+**Clone itsUP:**
 
 ```bash
-# Clone itsUP
 git clone https://github.com/Morriz/itsUP.git
 cd itsUP
-
-# Add your projects repository as a submodule
-git submodule add <your-projects-repo-url> projects
-
-# Add your secrets repository as a submodule
-git submodule add <your-secrets-repo-url> secrets
-
-# Initialize and update the submodules
-git submodule update --init --recursive
 ```
 
-**Why submodules?**
+**Why separate repositories?**
 
 - `projects/`: Contains your service configurations (YAML files). This keeps your infrastructure-as-code separate from the itsUP codebase, allowing you to manage and version your configurations independently.
 - `secrets/`: Contains encrypted secrets (using SOPS). Keeping secrets in a separate repository improves security and access control.
 
+Both repositories are **gitignored** in the main itsUP repo and managed as independent git repositories.
+
 #### 2. Run installation
 
-The installation script will:
+The `itsup init` command will:
 
-- Validate that submodules are initialized
+- Prompt for git URLs and clone `projects/` and `secrets/` repositories
 - Copy sample configuration files (won't overwrite existing files)
 - Set up Python virtual environment
 - Install dependencies

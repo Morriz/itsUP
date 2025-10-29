@@ -317,12 +317,17 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
     """
     from lib.data import load_project
 
+    # Load project config to check if it's host-only
+    compose, traefik_config = load_project(project)
+
+    # Skip deployment for host-only projects (no docker-compose.yml in projects/)
+    if not compose or not compose.get("services"):
+        logger.info(f"✓ {project} is host-only (no services), skipping deployment")
+        return
+
     # Regenerate artifacts
     logger.info(f"Regenerating {project} config...")
     write_upstream(project)
-
-    # Load project ingress config to check if enabled
-    _, traefik_config = load_project(project)
 
     # If project is disabled, stop it instead of deploying
     if not traefik_config.enabled:
@@ -345,15 +350,6 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
             raise
 
         return
-
-    # Read generated docker-compose.yml to detect stateless services
-    compose_path = Path(f"upstream/{project}/docker-compose.yml")
-    try:
-        with open(compose_path, encoding="utf-8") as f:
-            compose = yaml.safe_load(f)
-    except Exception as e:
-        logger.error(f"Failed to load {compose_path}: {e}")
-        raise
 
     # Detect stateless services: those WITHOUT volumes
     # Exception: traefik has volumes (logs/acme/config) but we treat it as stateless

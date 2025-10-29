@@ -188,12 +188,12 @@ No migration needed - V2 is additive:
 
 ```
 itsUP/
-├── projects/           # Git submodule (PUBLIC)
+├── projects/           # Independent git repo (gitignored)
 │   ├── traefik.yml    # Infrastructure overrides
 │   └── {project}/
 │       ├── docker-compose.yml
 │       └── ingress.yml
-├── secrets/           # Git submodule (PRIVATE)
+├── secrets/           # Independent git repo (gitignored)
 │   ├── .sops.yaml    # SOPS configuration
 │   ├── itsup.enc.txt # Encrypted secrets
 │   └── {project}.enc.txt

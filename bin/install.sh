@@ -18,7 +18,16 @@ case "${OS}" in
     *)          PLATFORM="UNKNOWN:${OS}"
 esac
 
-echo -e "${GREEN}✓${NC} Detected: ${PLATFORM}"
+# Detect architecture
+ARCH="$(uname -m)"
+case "${ARCH}" in
+    x86_64)     ARCH_SOPS_DIFF="amd64";;
+    aarch64)    ARCH_SOPS_DIFF="arm64";;
+    arm64)      ARCH_SOPS_DIFF="arm64";;
+    *)          ARCH_SOPS_DIFF="${ARCH}";;
+esac
+
+echo -e "${GREEN}✓${NC} Detected: ${PLATFORM} (${ARCH})"
 echo ""
 
 # Function to check if command exists
@@ -65,6 +74,17 @@ if [ "$PLATFORM" = "Mac" ]; then
         echo -e "${GREEN}✓${NC} age already installed"
     fi
 
+    # sops-diff (for meaningful diffs)
+    if ! command_exists sops-diff; then
+        echo -e "${YELLOW}  ⬇️  Installing sops-diff...${NC}"
+        SOPS_DIFF_VERSION=$(curl -s https://api.github.com/repos/saltydogtechnology/sops-diff/releases/latest | grep tag_name | cut -d '"' -f 4)
+        curl -L "https://github.com/saltydogtechnology/sops-diff/releases/download/${SOPS_DIFF_VERSION}/sops-diff-${SOPS_DIFF_VERSION}-darwin-${ARCH_SOPS_DIFF}.tar.gz" | tar xz
+        sudo mv sops-diff-darwin-${ARCH_SOPS_DIFF} /usr/local/bin/sops-diff
+        echo -e "${GREEN}✓${NC} sops-diff installed"
+    else
+        echo -e "${GREEN}✓${NC} sops-diff already installed"
+    fi
+
 elif [ "$PLATFORM" = "Linux" ]; then
     echo -e "${BLUE}📦 Installing Linux dependencies...${NC}"
 
@@ -96,6 +116,17 @@ elif [ "$PLATFORM" = "Linux" ]; then
         echo -e "${GREEN}✓${NC} age installed"
     else
         echo -e "${GREEN}✓${NC} age already installed"
+    fi
+
+    # sops-diff (for meaningful diffs)
+    if ! command_exists sops-diff; then
+        echo -e "${YELLOW}  ⬇️  Installing sops-diff...${NC}"
+        SOPS_DIFF_VERSION=$(curl -s https://api.github.com/repos/saltydogtechnology/sops-diff/releases/latest | grep tag_name | cut -d '"' -f 4)
+        curl -L "https://github.com/saltydogtechnology/sops-diff/releases/download/${SOPS_DIFF_VERSION}/sops-diff-${SOPS_DIFF_VERSION}-linux-${ARCH_SOPS_DIFF}.tar.gz" | tar xz
+        sudo mv sops-diff-linux-${ARCH_SOPS_DIFF} /usr/local/bin/sops-diff
+        echo -e "${GREEN}✓${NC} sops-diff installed"
+    else
+        echo -e "${GREEN}✓${NC} sops-diff already installed"
     fi
 
 else

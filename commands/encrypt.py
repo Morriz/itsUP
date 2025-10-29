@@ -29,15 +29,19 @@ class Colors:
 @click.command()
 @click.argument("name", required=False)
 @click.option("--delete", is_flag=True, help="Delete plaintext files after encryption")
-def encrypt(name: str, delete: bool):
+@click.option("--force", is_flag=True, help="Force re-encryption even if content unchanged")
+def encrypt(name: str, delete: bool, force: bool):
     """🔒 Encrypt secrets with SOPS [NAME]
 
     Encrypts plaintext secrets/*.txt files using SOPS encryption.
     Encrypted files are saved as *.enc.txt
 
+    By default, skips re-encryption if content is unchanged (avoids new git hashes).
+
     Examples:
-        itsup encrypt               # Encrypt all secrets/*.txt files
-        itsup encrypt itsup         # Encrypt only itsup.txt
+        itsup encrypt               # Encrypt all secrets/*.txt files (skip unchanged)
+        itsup encrypt itsup         # Encrypt only itsup.txt (skip if unchanged)
+        itsup encrypt --force       # Force re-encrypt all (even unchanged files)
         itsup encrypt --delete      # Encrypt all and delete plaintext
     """
     if not is_sops_available():
@@ -79,7 +83,7 @@ def encrypt(name: str, delete: bool):
     for plaintext_path in plaintext_files:
         encrypted_path = plaintext_path.with_suffix(".enc.txt")
 
-        if encrypt_file(plaintext_path, encrypted_path):
+        if encrypt_file(plaintext_path, encrypted_path, force=force):
             success_count += 1
 
             # Optionally delete plaintext

@@ -65,21 +65,10 @@ def _clone_repo(url: str, path: Path, name: str) -> bool:
     Returns: True if successful, False if failed
     """
     try:
-        subprocess.run(
-            ["git", "clone", url, str(path)],
-            check=True,
-            capture_output=True,
-            text=True
-        )
+        subprocess.run(["git", "clone", url, str(path)], check=True, capture_output=True, text=True)
 
         # Checkout main branch (in case default is different)
-        subprocess.run(
-            ["git", "checkout", "-B", "main"],
-            cwd=path,
-            check=True,
-            capture_output=True,
-            text=True
-        )
+        subprocess.run(["git", "checkout", "-B", "main"], cwd=path, check=True, capture_output=True, text=True)
 
         _success(f"Cloned {name}/ from {url}")
         return True
@@ -89,6 +78,34 @@ def _clone_repo(url: str, path: Path, name: str) -> bool:
         return False
 
 
+def _setup_sops_diff(repo_path: Path) -> None:
+    """Configure sops-diff for git in the secrets repo"""
+    try:
+        # Create .gitattributes for SOPS diff integration
+        gitattributes = repo_path / ".gitattributes"
+        gitattributes_content = """# SOPS encrypted files - use sops-diff for meaningful diffs
+*.enc.txt diff=sopsdiffer merge=sops
+*.enc.json diff=sopsdiffer merge=sops
+*.enc.yaml diff=sopsdiffer merge=sops
+*.enc.yml diff=sopsdiffer merge=sops
+*.enc.env diff=sopsdiffer merge=sops
+"""
+        if not gitattributes.exists():
+            gitattributes.write_text(gitattributes_content)
+            _success("Created .gitattributes for sops-diff")
+
+        # Configure git diff command for sops-diff
+        subprocess.run(
+            ["git", "config", "diff.sopsdiffer.command", "sops-diff --git"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        _success("Configured git diff integration for SOPS files")
+    except Exception as e:
+        _warning(f"Could not configure sops-diff: {e}")
+
+
 def _setup_repo(root: Path, name: str) -> None:
     """Setup a git repository (clone if needed, or verify existing)"""
     repo_path = root / name
@@ -96,6 +113,9 @@ def _setup_repo(root: Path, name: str) -> None:
     # Check if already exists and is a git repo
     if repo_path.exists() and _is_git_repo(repo_path):
         _success(f"{name}/ already exists (git repo)")
+        # Still setup sops-diff if this is the secrets repo
+        if name == "secrets":
+            _setup_sops_diff(repo_path)
         return
 
     # Need to clone - prompt for URL
@@ -124,6 +144,10 @@ def _setup_repo(root: Path, name: str) -> None:
 
     # Clone the repo
     _clone_repo(url, repo_path, name)
+
+    # Setup sops-diff if this is the secrets repo
+    if name == "secrets":
+        _setup_sops_diff(repo_path)
 
 
 def _copy_if_missing(src: Path, dst: Path, description: str) -> None:

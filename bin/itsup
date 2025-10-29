@@ -22,6 +22,7 @@ Usage:
 """
 
 import sys
+import click
 from pathlib import Path
 
 # Add project root to Python path for imports
@@ -29,7 +30,6 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-import click
 
 from lib.logging_config import setup_logging
 from commands.init import init
@@ -43,8 +43,10 @@ from commands.apply import apply
 from commands.svc import svc
 from commands.validate import validate
 from commands.monitor import monitor
+from commands.logs import logs
 from commands.encrypt import encrypt
 from commands.decrypt import decrypt
+from commands.diff_secrets import diff_secrets
 from commands.edit_secret import edit_secret
 from commands.sops_key import sops_key
 
@@ -83,8 +85,10 @@ cli.add_command(apply)
 cli.add_command(svc)
 cli.add_command(validate)
 cli.add_command(monitor)
+cli.add_command(logs)
 cli.add_command(encrypt)
 cli.add_command(decrypt)
+cli.add_command(diff_secrets)
 cli.add_command(edit_secret)
 cli.add_command(sops_key)
 

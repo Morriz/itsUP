@@ -215,7 +215,7 @@ itsup validate myapp     # Validate single project
 
 ## Working with Git
 
-Projects are stored in a git submodule:
+Projects are stored in an independent git repository (gitignored in main repo):
 
 ```bash
 # Commit changes

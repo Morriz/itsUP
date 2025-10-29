@@ -143,6 +143,11 @@ def write_upstream(project_name: str) -> None:
     # Load project from projects/
     compose, traefik = load_project(project_name)
 
+    # Skip docker-compose.yml generation for host-only projects (no services)
+    if not compose or not compose.get("services"):
+        logger.info(f"✓ {project_name} is host-only (no services), skipping docker-compose.yml generation")
+        return
+
     # Inject Traefik labels
     compose = inject_traefik_labels(compose, traefik, project_name)
 

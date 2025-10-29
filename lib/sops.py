@@ -6,6 +6,7 @@ SOPS encryption/decryption helpers for secret management.
 Provides transparent encryption of secrets/*.txt files using SOPS.
 """
 
+import hashlib
 import logging
 import subprocess
 from pathlib import Path
@@ -23,13 +24,27 @@ def is_sops_available() -> bool:
         return False
 
 
-def encrypt_file(plaintext_path: Path, encrypted_path: Path) -> bool:
+def _compute_file_hash(file_path: Path) -> str:
+    """Compute SHA256 hash of file content."""
+    sha256 = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+
+def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False) -> bool:
     """
     Encrypt a plaintext file using SOPS.
+
+    Skips encryption if the encrypted file already exists and contains the same
+    content (based on SHA256 hash comparison). This prevents unnecessary
+    re-encryption which would create new git hashes even for unchanged content.
 
     Args:
         plaintext_path: Path to plaintext file
         encrypted_path: Path where encrypted file should be saved
+        force: If True, always re-encrypt even if content is unchanged
 
     Returns:
         True if successful, False otherwise
@@ -42,6 +57,21 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path) -> bool:
         if not plaintext_path.exists():
             logger.error("Plaintext file not found: %s", plaintext_path)
             return False
+
+        # Skip if encrypted file exists and content is identical (unless force=True)
+        if not force and encrypted_path.exists():
+            # Decrypt existing file to memory and compare hashes
+            decrypted_content = decrypt_to_memory(encrypted_path)
+            if decrypted_content is not None:
+                # Compute hash of plaintext file
+                plaintext_hash = _compute_file_hash(plaintext_path)
+
+                # Compute hash of decrypted content
+                decrypted_hash = hashlib.sha256(decrypted_content.encode()).hexdigest()
+
+                if plaintext_hash == decrypted_hash:
+                    logger.info("⊙ Skipped %s (unchanged)", plaintext_path.name)
+                    return True
 
         # Encrypt: sops -e plaintext.txt > encrypted.enc.txt
         # Use --config to point to .sops.yaml in the secrets directory
