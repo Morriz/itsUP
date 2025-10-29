@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   workflow_run:
-    workflows: ["Test"]
+    workflows: ['Test']
     types:
       - completed
     branches: [main]
@@ -10,7 +10,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: false
 
     steps:
       - uses: actions/checkout@v2
@@ -39,5 +40,5 @@ jobs:
           key: '${{ secrets.SSH_PRIVATE_KEY }}'
           passphrase: '${{ secrets.SSH_PASSPHRASE }}'
           script: |
-            curl -v 'https://${{ secrets.API_HOST }}/update-upstream/itsUP?apikey=${{ secrets.API_KEY }}'
+            curl -v 'https://${{ secrets.API_HOST }}/update-upstream/itsUP' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
             exit
