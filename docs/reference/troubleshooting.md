@@ -551,7 +551,7 @@ docker exec {container} env | grep {VAR}
 
 **Force reload**:
 ```bash
-rm projects/{project}/.config_hash
+itsup svc {project} down
 itsup apply {project}
 ```
 

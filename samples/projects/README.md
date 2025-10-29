@@ -1,10 +1,12 @@
 # itsUP Project Configurations
 
-Sample project configurations demonstrating the itsup infrastructure setup patterns.
+Shareable itsUP configurations to quickly deploy docker compose stacks with predefined ingress for traefik. This repo Should be placed in the `projects/` directory of your itsUP setup. (see [itsUP readme](https://github.com/itsup/itsup))
+
+All `${VAR}` placeholders are replaced with values from the `itsUP-secrets` repo. (Should be placed in the `secrets/` directory.)
 
 ## Overview
 
-The `projects/` directory contains all infrastructure and service configurations for itsup. Each project follows a standard structure with `docker-compose.yml` (service definitions) and `ingress.yml` (routing configuration).
+The `projects/` directory contains all infrastructure and service configurations for itsUP. Each project follows a standard structure with `docker-compose.yml` (service definitions) and `ingress.yml` (routing configuration).
 
 ## Structure
 
@@ -22,6 +24,7 @@ projects/
 ### Global Configuration
 
 **`itsup.yml`** - Infrastructure settings:
+
 ```yaml
 # Network configuration
 router_ip: 192.168.1.1
@@ -33,12 +36,13 @@ versions:
 # Backup configuration
 backup:
   s3:
-    bucket: my-backup-bucket
-    prefix: itsup/
-    region: us-east-1
+    host: ${AWS_S3_HOST}
+    region: ${AWS_S3_REGION}
+    bucket: ${AWS_S3_BUCKET}
 ```
 
 **`traefik.yml`** - Traefik overrides:
+
 ```yaml
 # Custom middlewares
 http:
@@ -52,31 +56,32 @@ http:
 ### Project Configuration
 
 **`docker-compose.yml`** - Standard Docker Compose file:
+
 ```yaml
 services:
   web:
     image: nginx:latest
     environment:
-      - DOMAIN=${DOMAIN}          # From secrets/
+      - DOMAIN=${DOMAIN} # From secrets/
     volumes:
       - ./html:/usr/share/nginx/html:ro
     networks:
       - proxynet
 
 networks:
-  proxynet:
+  proxynet: # this makes it accessible to traefik
     external: true
 ```
 
 **`ingress.yml`** - Routing configuration (IngressV2 schema):
+
 ```yaml
 enabled: true
 ingress:
   - service: web
     domain: example.com
-    port: 80
+    port: 8080
     router: http
-    middleware: []  # Optional Traefik middlewares
 ```
 
 ## IngressV2 Schema
@@ -109,6 +114,7 @@ ingress:
 ### HTTP Service
 
 **docker-compose.yml:**
+
 ```yaml
 services:
   web:
@@ -122,16 +128,18 @@ networks:
 ```
 
 **ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
   - service: web
     domain: app.example.com
-    port: 80
+    port: 8080
     router: http
 ```
 
 **Generates Traefik labels:**
+
 ```yaml
 labels:
   - traefik.enable=true
@@ -143,6 +151,7 @@ labels:
 ### TCP Service
 
 **ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
@@ -155,6 +164,7 @@ ingress:
 ### TLS Passthrough (No Termination)
 
 **ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
@@ -169,6 +179,7 @@ ingress:
 ### Multi-Service Project
 
 **docker-compose.yml:**
+
 ```yaml
 services:
   frontend:
@@ -185,7 +196,7 @@ services:
   db:
     image: postgres:16
     networks:
-      - backend  # Not exposed to Traefik
+      - backend # Not exposed to Traefik
 
 networks:
   proxynet:
@@ -195,12 +206,13 @@ networks:
 ```
 
 **ingress.yml:**
+
 ```yaml
 enabled: true
 ingress:
   - service: frontend
     domain: app.example.com
-    port: 80
+    port: 8080
     router: http
 
   - service: api
@@ -215,15 +227,17 @@ ingress:
 For services running on host (not containerized):
 
 **docker-compose.yml:**
+
 ```yaml
 # Empty or minimal - no containers
 services: {}
 ```
 
 **ingress.yml:**
+
 ```yaml
 enabled: true
-host: 192.168.1.10              # Host IP where service runs
+host: 192.168.1.10 # Host IP where service runs
 ingress:
   - service: api
     domain: api.example.com
@@ -232,6 +246,7 @@ ingress:
 ```
 
 **Behavior:**
+
 - No artifact generation in `upstream/`
 - No deployment (no containers)
 - Traefik routing still configured (proxies to host:port)
@@ -241,6 +256,7 @@ ingress:
 ### Using Secrets in Projects
 
 **In docker-compose.yml:**
+
 ```yaml
 services:
   app:
@@ -256,6 +272,7 @@ services:
 ```
 
 **In secrets/{project}.txt:**
+
 ```bash
 DB_HOST=postgres
 DB_USER=app
@@ -266,6 +283,7 @@ DB_NAME=myapp
 ### Loading Order
 
 Secrets are loaded in order (later overrides earlier):
+
 1. `secrets/itsup.txt` (shared infrastructure)
 2. `secrets/{project}.txt` (project-specific)
 
@@ -295,7 +313,7 @@ enabled: true
 ingress:
   - service: web
     domain: my-app.example.com
-    port: 80
+    port: 8080
     router: http
 EOF
 ```
@@ -339,6 +357,7 @@ curl https://my-app.example.com
 ## Example Project
 
 See `samples/projects/example-project/` for a complete working example with:
+
 - Standard docker-compose.yml setup
 - Ingress configuration
 - Network configuration
@@ -349,13 +368,14 @@ See `samples/projects/example-project/` for a complete working example with:
 ### With Middleware
 
 **Define in `traefik.yml`:**
+
 ```yaml
 http:
   middlewares:
     auth:
       basicAuth:
         users:
-          - "admin:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/"
+          - 'admin:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/'
 
     rate-limit:
       rateLimit:
@@ -364,6 +384,7 @@ http:
 ```
 
 **Reference in `ingress.yml`:**
+
 ```yaml
 ingress:
   - service: admin
@@ -376,12 +397,13 @@ ingress:
 ### With Health Checks
 
 **In docker-compose.yml:**
+
 ```yaml
 services:
   api:
     image: my-api:latest
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/health']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -393,6 +415,7 @@ services:
 ### With Volume Mounts
 
 **In docker-compose.yml:**
+
 ```yaml
 services:
   app:
@@ -413,6 +436,7 @@ volumes:
 If migrating from older itsup configurations:
 
 **Old (V1):**
+
 ```yaml
 # project.yml
 enabled: true
@@ -421,17 +445,19 @@ target: web:80
 ```
 
 **New (V2):**
+
 ```yaml
 # ingress.yml
 enabled: true
 ingress:
   - service: web
     domain: example.com
-    port: 80
+    port: 8080
     router: http
 ```
 
 **Benefits of V2:**
+
 - Multiple ingress entries per project
 - Explicit router type (http/tcp)
 - Middleware support
@@ -441,30 +467,35 @@ ingress:
 ## Best Practices
 
 1. **Pin image versions**: Use specific tags (not `latest`)
+
    ```yaml
    image: nginx:1.25.3-alpine
    ```
 
 2. **Use health checks**: Enable automatic recovery
+
    ```yaml
    healthcheck:
-     test: ["CMD", "curl", "-f", "http://localhost/health"]
+     test: ['CMD', 'curl', '-f', 'http://localhost/health']
    ```
 
 3. **Separate networks**: Internal services on separate network
+
    ```yaml
    networks:
-     - proxynet  # External (Traefik)
-     - backend   # Internal only
+     - proxynet # External (Traefik)
+     - backend # Internal only
    ```
 
 4. **Use secrets**: Never hard-code sensitive values
+
    ```yaml
    environment:
-     - DB_PASSWORD=${DB_PASSWORD}  # From secrets file
+     - DB_PASSWORD=${DB_PASSWORD} # From secrets file
    ```
 
 5. **Enable restarts**: Automatic recovery from crashes
+
    ```yaml
    restart: unless-stopped
    ```
@@ -479,12 +510,14 @@ ingress:
 ### Service Not Reachable
 
 **Check configuration:**
+
 ```bash
 cat projects/my-app/ingress.yml
 grep "traefik.enable" upstream/my-app/docker-compose.yml
 ```
 
 **Check Traefik logs:**
+
 ```bash
 itsup proxy logs traefik | grep my-app
 ```
@@ -492,26 +525,30 @@ itsup proxy logs traefik | grep my-app
 ### Secrets Not Loading
 
 **Verify secrets file:**
+
 ```bash
 cat secrets/my-app.txt | grep VAR
 ```
 
 **Check container environment:**
+
 ```bash
 docker exec {container} env | grep VAR
 ```
 
 ### Configuration Not Taking Effect
 
-**Force regeneration:**
+**Force deployment:**
+
 ```bash
-rm projects/my-app/.config_hash
+itsup svc my-app down
 itsup apply my-app
 ```
 
 ## Documentation
 
 For complete documentation, see:
+
 - [Configuration Guide](../../docs/development/configuration.md)
 - [Deployment Guide](../../docs/operations/deployment.md)
 - [CLI Reference](../../docs/reference/cli.md)

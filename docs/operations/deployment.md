@@ -25,7 +25,7 @@ User Change → itsup apply → Config Hash → Changed? → Generate Artifacts 
 
 **How it works**:
 1. Calculate MD5 hash of project configuration (`docker-compose.yml` + `ingress.yml`)
-2. Compare with stored hash (`.config_hash` file in project directory)
+2. Compare with hash stored in running container labels
 3. If different: Deploy
 4. If same: Skip
 
@@ -485,14 +485,15 @@ itsup apply {project}
 ls -l projects/{project}/docker-compose.yml
 ls -l upstream/{project}/docker-compose.yml
 
-# Check hash file
-cat projects/{project}/.config_hash
+# Check current vs running config hash
+docker compose -f upstream/{project}/docker-compose.yml config --hash "*"
+docker inspect {container} --format '{{index .Config.Labels "com.docker.compose.config-hash"}}'
 ```
 
 **Fix**:
 ```bash
-# Force regeneration by removing hash
-rm projects/{project}/.config_hash
+# Force deployment by stopping containers (removes hash labels)
+itsup svc {project} down
 
 # Deploy again
 itsup apply {project}

@@ -673,7 +673,7 @@ fi
 
 **Check**:
 1. Verify edited source, not generated: `ls -l projects/{project}/`
-2. Force regeneration: `rm projects/{project}/.config_hash && itsup apply {project}`
+2. Force deployment by stopping first: `itsup svc {project} down && itsup apply {project}`
 3. Check logs for errors: `itsup svc {project} logs`
 
 ## Configuration Examples
