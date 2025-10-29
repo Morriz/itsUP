@@ -8,4 +8,5 @@ netifaces==0.11.0
 python-dotenv==1.0.1
 PyYAML==6.0.2
 requests==2.32.5
+ruamel.yaml==0.18.16
 uvicorn==0.32.1
