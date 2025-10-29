@@ -19,8 +19,7 @@ http:
       plugin:
         bouncer:
           enabled: true
-          moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
-          logLevel: {{ plugin_registry.crowdsec.options.logLevel }}
+          logLevel: {{ plugin_registry.crowdsec.options.logLevel | upper }}
           updateIntervalSeconds: {{ plugin_registry.crowdsec.options.updateIntervalSeconds }}
           defaultDecisionSeconds: {{ plugin_registry.crowdsec.options.defaultDecisionSeconds }}
           httpTimeoutSeconds: {{ plugin_registry.crowdsec.options.httpTimeoutSeconds }}

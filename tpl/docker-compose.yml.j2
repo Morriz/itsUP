@@ -3,9 +3,9 @@ networks:
     external: true
 
 services:
-  dockerproxy:
+  docker:
     image: wollomatic/socket-proxy:1 # see https://github.com/wollomatic/simple-traefik for reference
-    container_name: dockerproxy
+    container_name: proxy_docker
     network_mode: host
     command:
       - '-loglevel=info'
@@ -45,7 +45,7 @@ services:
       - ../data/acme:/etc/acme
       - ../logs:/var/log/traefik
     depends_on:
-      dockerproxy:
+      docker:
         condition: service_started
 {%- if traefik.crowdsec.enabled %}
   {%- set cs = plugin_registry.crowdsec %}
@@ -68,7 +68,7 @@ services:
   {%- set cs = plugin_registry.crowdsec %}
 
   crowdsec:
-    container_name: crowdsec
+    container_name: proxy_crowdsec
     image: crowdsecurity/crowdsec:{{ versions.crowdsec }}
     restart: unless-stopped
     networks:

@@ -9,12 +9,19 @@ from jinja2 import Template
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from lib.data import list_projects, load_project, validate_all, load_itsup_config, load_traefik_overrides
-from lib.logging_config import setup_logging
-from lib.models import Protocol, ProxyProtocol, Router
-
 import logging
+
 import yaml
+
+from lib.data import (
+    list_projects,
+    load_itsup_config,
+    load_project,
+    load_traefik_overrides,
+    validate_all,
+)
+from lib.logging_config import setup_logging
+from lib.models import ProxyProtocol
 
 load_dotenv()
 
@@ -163,9 +170,7 @@ def write_upstream(project_name: str) -> None:
 
     # Add proxynet if not already present
     if "proxynet" not in compose["networks"]:
-        compose["networks"]["proxynet"] = {
-            "external": True
-        }
+        compose["networks"]["proxynet"] = {"external": True}
 
     # Ensure all services with Traefik labels are on proxynet, and all services use DNS honeypot
     services = compose.get("services", {})
@@ -192,7 +197,9 @@ def write_upstream(project_name: str) -> None:
 
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
     compose_file = Path("upstream") / project_name / "docker-compose.yml"
-    content = yaml.dump(compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False, width=float("inf"))
+    content = yaml.dump(
+        compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False, width=float("inf")
+    )
     write_file_if_changed(compose_file, content)
 
 
@@ -237,7 +244,7 @@ def write_traefik_config() -> None:
     """Generate proxy/traefik/traefik.yml from minimal template + user overrides"""
     logger.info("Generating proxy/traefik/traefik.yml")
 
-    from lib.data import get_trusted_ips, load_traefik_overrides
+    from lib.data import get_trusted_ips
 
     # Get trusted IPs for template
     trusted_ips_cidrs = get_trusted_ips()
@@ -252,18 +259,17 @@ def write_traefik_config() -> None:
             for i in traefik_config.ingress:
                 if i.router in ["tcp", "udp"]:
                     # Convert to dict with string values for template
-                    tcp_udp_ingress.append({
-                        "service": i.service,
-                        "router": str(i.router.value) if hasattr(i.router, 'value') else str(i.router),
-                        "protocol": str(i.protocol.value) if hasattr(i.protocol, 'value') else str(i.protocol),
-                        "port": i.port,
-                        "hostport": i.hostport
-                    })
+                    tcp_udp_ingress.append(
+                        {
+                            "service": i.service,
+                            "router": str(i.router.value) if hasattr(i.router, "value") else str(i.router),
+                            "protocol": str(i.protocol.value) if hasattr(i.protocol, "value") else str(i.protocol),
+                            "port": i.port,
+                            "hostport": i.hostport,
+                        }
+                    )
             if tcp_udp_ingress:
-                projects_data.append({
-                    "name": project_name,
-                    "ingress": tcp_udp_ingress
-                })
+                projects_data.append({"name": project_name, "ingress": tcp_udp_ingress})
 
     # Load minimal template
     with open("tpl/traefik.yml.j2", encoding="utf-8") as f:
@@ -304,7 +310,7 @@ def write_dynamic_routers() -> None:
     """Generate dynamic Traefik router configs"""
     logger.info("Generating dynamic router configs")
 
-    from lib.data import get_trusted_ips, load_itsup_config, load_secrets, load_traefik_overrides
+    from lib.data import get_trusted_ips, load_secrets
 
     # Load itsUP config for traefik domain
     itsup_config = load_itsup_config()
@@ -330,8 +336,7 @@ def write_dynamic_routers() -> None:
         )
 
     # Load traefik overrides for plugin_registry
-    traefik_overrides = load_traefik_overrides()
-    plugin_registry = traefik_overrides.get("plugins", {})
+    plugin_registry = itsup_config.get("plugins", {})
 
     # Build project list in V1 format for templates
     all_project_names = list_projects()
@@ -437,22 +442,16 @@ def write_proxy_compose() -> None:
     """Generate proxy/docker-compose.yml from template"""
     logger.info("Generating proxy/docker-compose.yml")
 
-    from lib.data import load_itsup_config, load_traefik_overrides
-
     # Load versions from itsup.yml (top-level versions key)
     itsup_config = load_itsup_config()
     versions = itsup_config.get("versions", {})
-    traefik_version = versions.get("traefik", "v3.2")
-    crowdsec_version = versions.get("crowdsec", "v1.6.8")
-
-    # Load traefik overrides to check CrowdSec status
-    traefik_config = load_traefik_overrides()
+    traefik_version = versions.get("traefik", "v3.5.4")
+    crowdsec_version = versions.get("crowdsec", "v1.7.3")
 
     # Check if CrowdSec is enabled
-    crowdsec_plugin = traefik_config.get("experimental", {}).get("plugins", {}).get("bouncer", {})
-    crowdsec_config = traefik_config.get("plugins", {}).get("crowdsec", {})
+    crowdsec_config = itsup_config.get("plugins", {}).get("crowdsec", {})
 
-    crowdsec_enabled = bool(crowdsec_plugin and crowdsec_config.get("enabled", False))
+    crowdsec_enabled = bool(crowdsec_config.get("enabled", False))
 
     # Build template context
     context = {
@@ -461,18 +460,14 @@ def write_proxy_compose() -> None:
             "traefik": traefik_version,
             "crowdsec": crowdsec_version,
         },
-        "traefik": {
-            "crowdsec": {
-                "enabled": crowdsec_enabled
-            }
-        },
+        "traefik": {"crowdsec": {"enabled": crowdsec_enabled}},
         "plugin_registry": {
             "crowdsec": {
                 "enabled": crowdsec_enabled,
                 "collections": crowdsec_config.get("collections", []),
                 "apikey": crowdsec_config.get("apikey"),
             }
-        }
+        },
     }
 
     with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
@@ -509,6 +504,13 @@ if __name__ == "__main__":
     logger.info("Generating proxy artifacts...")
     write_proxy_artifacts()
 
+    # Generate upstream configs
+    logger.info("Generating upstream configs...")
+    if not write_upstreams():
+        logger.error("Failed to generate some upstream configs")
+        sys.exit(1)
+
+    logger.info("✅ All artifacts generated successfully")
     # Generate upstream configs
     logger.info("Generating upstream configs...")
     if not write_upstreams():
