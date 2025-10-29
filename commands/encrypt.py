@@ -77,14 +77,19 @@ def encrypt(name: str, delete: bool, force: bool):
     click.echo("Encrypting secrets...")
     click.echo()
 
-    success_count = 0
+    encrypted_count = 0
+    skipped_count = 0
     failed_files = []
 
     for plaintext_path in plaintext_files:
         encrypted_path = plaintext_path.with_suffix(".enc.txt")
 
-        if encrypt_file(plaintext_path, encrypted_path, force=force):
-            success_count += 1
+        success, was_encrypted = encrypt_file(plaintext_path, encrypted_path, force=force)
+        if success:
+            if was_encrypted:
+                encrypted_count += 1
+            else:
+                skipped_count += 1
 
             # Optionally delete plaintext
             if delete:
@@ -100,7 +105,10 @@ def encrypt(name: str, delete: bool, force: bool):
         click.echo(f"{Colors.RED}✗{Colors.NC} Failed to encrypt: {', '.join(failed_files)}", err=True)
         sys.exit(1)
     else:
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} Encrypted {success_count} file(s)")
+        if encrypted_count > 0:
+            click.echo(f"{Colors.GREEN}✓{Colors.NC} Encrypted {encrypted_count} file(s)")
+        if skipped_count > 0:
+            click.echo(f"{Colors.GREEN}✓{Colors.NC} Skipped {skipped_count} file(s) (unchanged)")
 
         if not delete:
             click.echo()

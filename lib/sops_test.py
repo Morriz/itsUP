@@ -48,9 +48,10 @@ class TestSOPS(unittest.TestCase):
                 with patch("subprocess.run") as mock_run:
                     mock_run.return_value = Mock(returncode=0)
 
-                    result = encrypt_file(plaintext_path, encrypted_path)
+                    success, was_encrypted = encrypt_file(plaintext_path, encrypted_path)
 
-                    self.assertTrue(result)
+                    self.assertTrue(success)
+                    self.assertTrue(was_encrypted)
                     mock_run.assert_called_once()
 
     def test_encrypt_file_sops_not_available(self) -> None:
@@ -63,8 +64,9 @@ class TestSOPS(unittest.TestCase):
 
             with patch("lib.sops.is_sops_available", return_value=False):
                 with patch("lib.sops.logger"):  # Suppress log output
-                    result = encrypt_file(plaintext_path, encrypted_path)
-                    self.assertFalse(result)
+                    success, was_encrypted = encrypt_file(plaintext_path, encrypted_path)
+                    self.assertFalse(success)
+                    self.assertFalse(was_encrypted)
 
     def test_encrypt_file_missing_plaintext(self) -> None:
         """Test encryption fails when plaintext file doesn't exist."""
@@ -74,8 +76,9 @@ class TestSOPS(unittest.TestCase):
 
             with patch("lib.sops.is_sops_available", return_value=True):
                 with patch("lib.sops.logger"):  # Suppress log output
-                    result = encrypt_file(plaintext_path, encrypted_path)
-                    self.assertFalse(result)
+                    success, was_encrypted = encrypt_file(plaintext_path, encrypted_path)
+                    self.assertFalse(success)
+                    self.assertFalse(was_encrypted)
 
     def test_decrypt_file_success(self) -> None:
         """Test successful file decryption."""
@@ -195,10 +198,11 @@ class TestSOPS(unittest.TestCase):
                     encrypted_path.write_text("encrypted content")
 
                     with patch("subprocess.run") as mock_run:
-                        result = encrypt_file(plaintext_path, encrypted_path, force=False)
+                        success, was_encrypted = encrypt_file(plaintext_path, encrypted_path, force=False)
 
                         # Should succeed without calling sops (skipped)
-                        self.assertTrue(result)
+                        self.assertTrue(success)
+                        self.assertFalse(was_encrypted)  # Not encrypted (skipped)
                         mock_run.assert_not_called()
 
     def test_encrypt_file_force_reencrypt(self) -> None:
@@ -221,10 +225,11 @@ class TestSOPS(unittest.TestCase):
                     with patch("subprocess.run") as mock_run:
                         mock_run.return_value = Mock(returncode=0)
 
-                        result = encrypt_file(plaintext_path, encrypted_path, force=True)
+                        success, was_encrypted = encrypt_file(plaintext_path, encrypted_path, force=True)
 
                         # Should call sops even though content is same (force=True)
-                        self.assertTrue(result)
+                        self.assertTrue(success)
+                        self.assertTrue(was_encrypted)  # Forced re-encryption
                         mock_run.assert_called_once()
 
     def test_encrypt_file_reencrypt_on_change(self) -> None:
@@ -246,10 +251,11 @@ class TestSOPS(unittest.TestCase):
                     with patch("subprocess.run") as mock_run:
                         mock_run.return_value = Mock(returncode=0)
 
-                        result = encrypt_file(plaintext_path, encrypted_path, force=False)
+                        success, was_encrypted = encrypt_file(plaintext_path, encrypted_path, force=False)
 
                         # Should call sops because content changed
-                        self.assertTrue(result)
+                        self.assertTrue(success)
+                        self.assertTrue(was_encrypted)  # Content changed, so encrypted
                         mock_run.assert_called_once()
 
 

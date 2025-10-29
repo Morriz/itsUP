@@ -116,7 +116,8 @@ def edit_secret(name: str):
 
         # Step 3: Re-encrypt
         click.echo(f"  🔒 Re-encrypting...")
-        if not encrypt_file(tmp_path, encrypted_path):
+        success, _ = encrypt_file(tmp_path, encrypted_path)
+        if not success:
             click.echo(f"{Colors.RED}✗{Colors.NC} Failed to re-encrypt", err=True)
             click.echo(f"  Plaintext saved at: {tmp_path}")
             sys.exit(1)

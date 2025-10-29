@@ -33,7 +33,7 @@ def _compute_file_hash(file_path: Path) -> str:
     return sha256.hexdigest()
 
 
-def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False) -> bool:
+def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False) -> tuple[bool, bool]:
     """
     Encrypt a plaintext file using SOPS.
 
@@ -47,16 +47,18 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False
         force: If True, always re-encrypt even if content is unchanged
 
     Returns:
-        True if successful, False otherwise
+        Tuple of (success: bool, encrypted: bool)
+        - success: True if operation succeeded (encrypted or skipped)
+        - encrypted: True if file was actually encrypted, False if skipped
     """
     try:
         if not is_sops_available():
             logger.error("SOPS is not installed. Install with: brew install sops")
-            return False
+            return (False, False)
 
         if not plaintext_path.exists():
             logger.error("Plaintext file not found: %s", plaintext_path)
-            return False
+            return (False, False)
 
         # Skip if encrypted file exists and content is identical (unless force=True)
         if not force and encrypted_path.exists():
@@ -71,7 +73,7 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False
 
                 if plaintext_hash == decrypted_hash:
                     logger.info("⊙ Skipped %s (unchanged)", plaintext_path.name)
-                    return True
+                    return (True, False)  # Success but not encrypted (skipped)
 
         # Encrypt: sops -e plaintext.txt > encrypted.enc.txt
         # Use --config to point to .sops.yaml in the secrets directory
@@ -83,11 +85,11 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False
             subprocess.run(cmd, stdout=outfile, check=True, text=True)
 
         logger.info("✓ Encrypted %s → %s", plaintext_path.name, encrypted_path.name)
-        return True
+        return (True, True)  # Success and encrypted
 
     except subprocess.CalledProcessError as e:
         logger.error("✗ Failed to encrypt %s: %s", plaintext_path.name, e)
-        return False
+        return (False, False)
 
 
 def decrypt_file(encrypted_path: Path, plaintext_path: Path) -> bool:
