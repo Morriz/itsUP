@@ -5,17 +5,21 @@ repos:
     rev: v3.14.1
     hooks:
       - id: commitizen
+        stages: [commit-msg]
   - repo: local
     hooks:
       - id: format
         name: Format code
         entry: bin/format.sh
         language: script
+        stages: [pre-commit]
       - id: lint
         name: Lint code
         entry: bin/lint.sh
         language: script
+        stages: [pre-commit]
       - id: test
         name: Test code
         entry: bin/test.sh
         language: script
+        stages: [pre-commit]
