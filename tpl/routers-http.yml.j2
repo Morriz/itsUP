@@ -46,51 +46,6 @@ http:
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}
-  middlewares:
-    removeServiceSelector:
-      stripPrefix:
-        forceSlash: false
-    redirect:
-      redirectScheme:
-        scheme: https
-    traefik-auth:
-      basicauth:
-        users: {{ traefik_admin }}
-    default-headers:
-      headers:
-        # frameDeny: true
-        browserXssFilter: true
-        contentTypeNosniff: true
-        # HSTS - uncomment for HSTS
-        #forceSTSHeader: true
-        #stsIncludeSubdomains: true
-        #stsPreload: true
-    rate-limit:
-      rateLimit:
-        period: 1s
-        average: 100
-        burst: 200
-{%- if plugin_registry.crowdsec.enabled %}
-    crowdsec:
-      plugin:
-        bouncer:
-{%- for k, v in plugin_registry.crowdsec.options.items() %}
-          {{ k }}: {{ v }}
-{%- endfor %}
-          enabled: true
-          forwardedHeadersTrustedIPs:
-            - 172.16.0.0/12
-            - 192.168.0.0/16
-          clientTrustedIPs: {{ trusted_ips_cidrs }}
-          crowdsecMode: live
-          crowdsecAppsecEnabled: true
-          crowdsecAppsecFailureBlock: true
-          crowdsecAppsecHost: 127.0.0.1:7422
-          crowdsecLapiKey: {{ plugin_registry.crowdsec.apikey }}
-          crowdsecLapiHost: 127.0.0.1:18080
-          crowdsecLapiScheme: http
-          crowdsecLapiTLSInsecureVerify: false
-{%- endif %}
 
 tls:
   options:

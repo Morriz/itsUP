@@ -290,10 +290,11 @@ def get_trusted_ips() -> list[str]:
     """Build trusted IPs list for Traefik - Docker networks + router subnet"""
     router_ip = get_router_ip()
     # Extract network (e.g., 192.168.1.1 -> 192.168.1.0/24)
-    parts = router_ip.split(".")
-    subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
+    # parts = router_ip.split(".")
+    # subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
     # 172.0.0.0/8 (Docker), router subnet
-    return ["172.0.0.0/8", subnet]
+    # return [subnet]
+    return [f"{router_ip}/32"]
 
 
 def load_itsup_config() -> dict[str, Any]:
@@ -330,6 +331,26 @@ def load_traefik_overrides() -> dict[str, Any]:
         return {}
 
     with open(traefik_file, encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+
+    # Secrets are left as ${VAR} for safety
+    return config
+
+
+def load_middleware_overrides() -> dict[str, Any]:
+    """Load projects/middlewares.yml override configuration
+
+    Returns:
+        Dictionary of middleware configuration overrides
+        Secrets are left as ${VAR} placeholders - not expanded
+    """
+    middleware_file = Path("projects/middlewares.yml")
+
+    if not middleware_file.exists():
+        logger.warning("projects/middlewares.yml not found")
+        return {}
+
+    with open(middleware_file, encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
 
     # Secrets are left as ${VAR} for safety

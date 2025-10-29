@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://www.schemastore.org/traefik-v3.json
-itsup:
+global:
   checkNewVersion: false
   sendAnonymousUsage: false
 
@@ -7,55 +7,30 @@ api:
   dashboard: true
   insecure: false
 
+accessLog:
+  filePath: /var/log/traefik/access.log
+  format: json
+
+log:
+  level: INFO
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${LETSENCRYPT_EMAIL}
+      storage: /etc/acme/acme.json
+      httpChallenge:
+        entryPoint: web
+
+experimental:
+  plugins:
+    bouncer:
+      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      version: v1.4.5
+
 ping:
   entryPoint: web
 
-entryPoints:
-  web:
-    address: ':8080'
-    reusePort: true
-    forwardedHeaders:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-    proxyProtocol:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-
-  web-secure:
-    address: ':8443'
-    reusePort: true
-    forwardedHeaders:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-    proxyProtocol:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-
-{%- for project in projects %}
-  {%- for ingress in project.ingress %}
-  {{ ingress.router }}-{{ ingress.hostport or ingress.port }}:
-    address: ':{{ ingress.hostport or ingress.port }}/{{ ingress.protocol }}'
-    reusePort: true
-    forwardedHeaders:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-    proxyProtocol:
-      trustedIPs:
-{%- for ip in trusted_ips_cidrs %}
-        - {{ ip }}
-{%- endfor %}
-  {%- endfor %}
-{%- endfor %}
 
 providers:
   docker:
@@ -66,15 +41,31 @@ providers:
     directory: /etc/traefik/dynamic
     watch: true
 
-accessLog:
-  filePath: /var/log/traefik/access.log
-  format: json
+entryPoints:
+  web:
+    address: ':8080'
+    reusePort: true
+    forwardedHeaders:
+      trustedIPs: {{ trusted_ips_cidrs }}
+    proxyProtocol:
+      trustedIPs: {{ trusted_ips_cidrs }}
 
-log:
-  level: INFO
+  web-secure:
+    address: ':8443'
+    reusePort: true
+    forwardedHeaders:
+      trustedIPs: {{ trusted_ips_cidrs }}
+    proxyProtocol:
+      trustedIPs: {{ trusted_ips_cidrs }}
 
-experimental:
-  plugins:
-    bouncer:
-      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
-      version: v1.4.5
+{%- for project in projects %}
+  {%- for ingress in project.ingress %}
+  {{ ingress.router }}-{{ ingress.hostport or ingress.port }}:
+    address: ':{{ ingress.hostport or ingress.port }}/{{ ingress.protocol }}'
+    reusePort: true
+    forwardedHeaders:
+      trustedIPs: {{ trusted_ips_cidrs }}
+    proxyProtocol:
+      trustedIPs: {{ trusted_ips_cidrs }}
+  {%- endfor %}
+{%- endfor %}

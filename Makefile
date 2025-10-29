@@ -14,9 +14,8 @@ install: ## Install all dependencies (Docker, SOPS, Python packages)
 test-unit: ## Run unit tests (fast)
 	./bin/test.sh
 
-test-functional: ## Run functional tests (with real tools in Docker)
-	docker build -t itsup-test -f tests/Dockerfile .
-	docker run --rm itsup-test
+test-functional: ## Run functional tests (requires SOPS/age installed)
+	.venv/bin/pytest tests/functional/ -v --tb=short
 
 test-all: test-unit test-functional ## Run both unit and functional tests
 

@@ -22,8 +22,25 @@ jobs:
       - name: Install dependencies
         run: bin/requirements-update.sh
 
+      - name: Install SOPS and age
+        run: |
+          # Install age
+          sudo apt-get update
+          sudo apt-get install -y age
+
+          # Install SOPS
+          SOPS_VERSION=3.9.3
+          wget -q https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64
+          sudo mv sops-v${SOPS_VERSION}.linux.amd64 /usr/local/bin/sops
+          sudo chmod +x /usr/local/bin/sops
+
+      - name: Configure git
+        run: |
+          git config --global user.email "test@test.com"
+          git config --global user.name "Test User"
+
       - name: Run checks
         run: |
           bin/format.sh
           bin/lint.sh
-          bin/test.sh
+          make test-all

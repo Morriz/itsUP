@@ -12,10 +12,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import logging
 
 import yaml
+from ruamel.yaml import YAML
 
 from lib.data import (
     list_projects,
     load_itsup_config,
+    load_middleware_overrides,
     load_project,
     load_traefik_overrides,
     validate_all,
@@ -283,8 +285,15 @@ def write_traefik_config() -> None:
         projects=projects_data,
     )
 
-    # Parse generated base config
-    base_config = yaml.safe_load(config_content)
+    # Parse generated base config using ruamel.yaml to preserve comments
+    ryaml = YAML()
+    ryaml.preserve_quotes = True
+    ryaml.default_flow_style = False
+    ryaml.width = 4096  # Avoid line wrapping
+
+    from io import StringIO
+
+    base_config = ryaml.load(StringIO(config_content))
 
     # Load user overrides from projects/traefik.yml
     override_config = load_traefik_overrides()
@@ -300,29 +309,23 @@ def write_traefik_config() -> None:
     # Traefik expands {{ env "VAR" }} at runtime from environment
     # Variables are left as-is for Traefik to process
 
-    # Write final config (only if changed)
+    # Write final config (only if changed) using ruamel.yaml to preserve comments
     traefik_config_file = Path("proxy/traefik/traefik.yml")
-    content = yaml.dump(final_config, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    output = StringIO()
+    ryaml.dump(final_config, output)
+    content = output.getvalue()
     write_file_if_changed(traefik_config_file, content, "proxy/traefik/traefik.yml")
 
 
-def write_dynamic_routers() -> None:
-    """Generate dynamic Traefik router configs"""
-    logger.info("Generating dynamic router configs")
+def write_middleware_config() -> None:
+    """Generate proxy/traefik/dynamic/middlewares.yml from template + user overrides"""
+    logger.info("Generating proxy/traefik/dynamic/middlewares.yml")
 
     from lib.data import get_trusted_ips, load_secrets
 
-    # Load itsUP config for traefik domain
+    # Load itsUP config for CrowdSec settings
     itsup_config = load_itsup_config()
-    traefik_config = itsup_config.get("traefik", {})
-    if not traefik_config.get("domain"):
-        raise ValueError(
-            "Missing required config: projects/itsup.yml must have 'traefik.domain' field\n"
-            "Example:\n"
-            "  traefik:\n"
-            "    domain: traefik.example.com"
-        )
-    traefik_domain = traefik_config["domain"]
+    crowdsec_config = itsup_config.get("crowdsec", {})
 
     # Load secrets for template variables
     secrets = load_secrets()  # itsUP infrastructure secrets
@@ -335,8 +338,80 @@ def write_dynamic_routers() -> None:
             "Generate with: htpasswd -nb admin your-password"
         )
 
-    # Load traefik overrides for plugin_registry
-    plugin_registry = itsup_config.get("plugins", {})
+    # Load minimal template
+    with open("tpl/middlewares.yml.j2", encoding="utf-8") as f:
+        template_content = f.read()
+
+    template = Template(template_content)
+
+    # Render minimal base config
+    config_content = template.render(
+        traefik_admin=secrets["TRAEFIK_ADMIN"],
+        trusted_ips_cidrs=get_trusted_ips(),
+        crowdsec={
+            "enabled": crowdsec_config.get("enabled", False),
+            "apikey": crowdsec_config.get("apikey", ""),
+        },
+    )
+
+    # Parse generated base config using ruamel.yaml to preserve comments
+    ryaml = YAML()
+    ryaml.preserve_quotes = True
+    ryaml.default_flow_style = False
+    ryaml.width = 4096  # Avoid line wrapping
+
+    from io import StringIO
+
+    base_config = ryaml.load(StringIO(config_content))
+
+    # Load user overrides from projects/middlewares.yml
+    override_config = load_middleware_overrides()
+
+    if override_config:
+        logger.info("Merging user overrides from projects/middlewares.yml")
+        # Deep merge overrides ON TOP of base
+        final_config = deep_merge(base_config, override_config)
+    else:
+        logger.warning("No projects/middlewares.yml found - using minimal config only")
+        final_config = base_config
+
+    # Write final config (only if changed) using ruamel.yaml to preserve comments
+    middleware_config_file = Path("proxy/traefik/dynamic/middlewares.yml")
+    output = StringIO()
+    ryaml.dump(final_config, output)
+    content = output.getvalue()
+    write_file_if_changed(middleware_config_file, content, "middlewares.yml")
+
+
+def write_dynamic_routers() -> None:
+    """Generate dynamic Traefik router configs"""
+    logger.info("Generating dynamic router configs")
+
+    from lib.data import get_trusted_ips, load_secrets
+
+    # Load itsUP config for traefik domain
+    itsup_config = load_itsup_config()
+    traefikDomain = itsup_config.get("traefikDomain", {})
+    if not traefikDomain:
+        raise ValueError(
+            "Missing required config: projects/itsup.yml must have 'traefikDomain' field\n"
+            "Example:\n"
+            "  traefik:\n"
+            "    domain: traefik.example.com"
+        )
+
+    # Load secrets for template variables
+    secrets = load_secrets()  # itsUP infrastructure secrets
+
+    # Validate required secrets
+    if "TRAEFIK_ADMIN" not in secrets:
+        raise ValueError(
+            "Missing required secret: TRAEFIK_ADMIN\n"
+            "Add to secrets/itsup.txt or secrets/itsup.enc.txt\n"
+            "Generate with: htpasswd -nb admin your-password"
+        )
+
+    # Note: plugin_registry was removed - crowdsec config moved to top-level
 
     # Build project list in V1 format for templates
     all_project_names = list_projects()
@@ -399,10 +474,9 @@ def write_dynamic_routers() -> None:
     tpl_routers_http = Template(template_content)
 
     routers_http = tpl_routers_http.render(
-        plugin_registry=plugin_registry,
         projects=projects_http,
         traefik_admin=secrets["TRAEFIK_ADMIN"],
-        traefik_rule=f"Host(`{traefik_domain}`)",
+        traefik_rule=f"Host(`{traefikDomain}`)",
         trusted_ips_cidrs=get_trusted_ips(),
     )
 
@@ -444,30 +518,11 @@ def write_proxy_compose() -> None:
 
     # Load versions from itsup.yml (top-level versions key)
     itsup_config = load_itsup_config()
-    versions = itsup_config.get("versions", {})
-    traefik_version = versions.get("traefik", "v3.5.4")
-    crowdsec_version = versions.get("crowdsec", "v1.7.3")
-
-    # Check if CrowdSec is enabled
-    crowdsec_config = itsup_config.get("plugins", {}).get("crowdsec", {})
-
-    crowdsec_enabled = bool(crowdsec_config.get("enabled", False))
 
     # Build template context
     context = {
         "dns_honeypot": DNS_HONEYPOT,
-        "versions": {
-            "traefik": traefik_version,
-            "crowdsec": crowdsec_version,
-        },
-        "traefik": {"crowdsec": {"enabled": crowdsec_enabled}},
-        "plugin_registry": {
-            "crowdsec": {
-                "enabled": crowdsec_enabled,
-                "collections": crowdsec_config.get("collections", []),
-                "apikey": crowdsec_config.get("apikey"),
-            }
-        },
+        "itsup": itsup_config,
     }
 
     with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
@@ -484,6 +539,7 @@ def write_proxy_compose() -> None:
 def write_proxy_artifacts() -> None:
     """Generate all proxy-related artifacts"""
     write_traefik_config()
+    write_middleware_config()  # Dynamic middlewares (base + overrides)
     write_dynamic_routers()  # Dynamic routers (infrastructure + external hosts)
     write_proxy_compose()
 

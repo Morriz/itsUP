@@ -7,7 +7,6 @@ Validates that generated files are valid YAML and pass validation checks.
 Uses REAL docker compose and traefik binaries.
 """
 
-import os
 import shutil
 import subprocess
 import sys
@@ -18,8 +17,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
-from bin.write_artifacts import DNS_HONEYPOT, write_upstream, write_proxy_compose
-
+from bin.write_artifacts import DNS_HONEYPOT, write_proxy_compose, write_upstream
 
 # Path to real project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -43,23 +41,30 @@ def test_generated_compose_files_are_valid(tmp_path, monkeypatch):
 
     # Create minimal itsup.yml
     itsup_config = projects_dir / "itsup.yml"
-    itsup_config.write_text("""
-router_ip: 192.168.1.1
+    itsup_config.write_text(
+        """
+routerIP: 192.168.1.1
 versions:
   traefik: v3.2
   crowdsec: v1.6.8
-traefik:
-  domain: traefik.example.com
+traefikDomain: traefik.example.com
+crowdsec:
+  enabled: false
+  apikey: test-key
+  collections: []
 backup:
   enabled: false
-""")
+"""
+    )
 
     # Create traefik.yml
     traefik_config = projects_dir / "traefik.yml"
-    traefik_config.write_text("""
+    traefik_config.write_text(
+        """
 log:
   level: INFO
-""")
+"""
+    )
 
     # Create test project directory
     test_project = projects_dir / "test-project"
@@ -67,24 +72,28 @@ log:
 
     # Create minimal docker-compose.yml
     compose_file = test_project / "docker-compose.yml"
-    compose_file.write_text("""
+    compose_file.write_text(
+        """
 services:
   web:
     image: nginx:alpine
     ports:
       - "3000:80"
-""")
+"""
+    )
 
     # Create ingress.yml
     ingress_file = test_project / "ingress.yml"
-    ingress_file.write_text("""
+    ingress_file.write_text(
+        """
 enabled: true
 ingress:
   - service: web
     domain: test.example.com
     port: 80
     router: http
-""")
+"""
+    )
 
     # Setup upstream directory
     upstream_dir = tmp_path / "upstream"
@@ -168,23 +177,30 @@ def test_dns_honeypot_consistency(tmp_path, monkeypatch):
 
     # Create minimal itsup.yml
     itsup_config = projects_dir / "itsup.yml"
-    itsup_config.write_text("""
-router_ip: 192.168.1.1
+    itsup_config.write_text(
+        """
+routerIP: 192.168.1.1
 versions:
   traefik: v3.2
   crowdsec: v1.6.8
-traefik:
-  domain: traefik.example.com
+traefikDomain: traefik.example.com
+crowdsec:
+  enabled: false
+  apikey: test-key
+  collections: []
 backup:
   enabled: false
-""")
+"""
+    )
 
     # Create traefik.yml
     traefik_config = projects_dir / "traefik.yml"
-    traefik_config.write_text("""
+    traefik_config.write_text(
+        """
 log:
   level: INFO
-""")
+"""
+    )
 
     # Create test projects
     for i in range(3):
@@ -192,19 +208,23 @@ log:
         test_project.mkdir()
 
         # Create docker-compose.yml
-        (test_project / "docker-compose.yml").write_text(f"""
+        (test_project / "docker-compose.yml").write_text(
+            """
 services:
   web:
     image: nginx:alpine
   app:
     image: node:alpine
-""")
+"""
+        )
 
         # Create ingress.yml
-        (test_project / "ingress.yml").write_text("""
+        (test_project / "ingress.yml").write_text(
+            """
 enabled: true
 ingress: []
-""")
+"""
+        )
 
     # Setup upstream directory
     upstream_dir = tmp_path / "upstream"
@@ -270,7 +290,8 @@ def test_generated_traefik_config_is_valid(tmp_path, monkeypatch):
 
     # Create minimal itsup.yml
     itsup_config = projects_dir / "itsup.yml"
-    itsup_config.write_text("""
+    itsup_config.write_text(
+        """
 router_ip: 192.168.1.1
 versions:
   traefik: v3.2
@@ -278,17 +299,20 @@ traefik:
   domain: traefik.example.com
 backup:
   enabled: false
-""")
+"""
+    )
 
     # Create traefik.yml with some overrides
     traefik_config = projects_dir / "traefik.yml"
-    traefik_config.write_text("""
+    traefik_config.write_text(
+        """
 log:
   level: DEBUG
 api:
   dashboard: true
   insecure: false
-""")
+"""
+    )
 
     # Setup directories
     secrets_dir = tmp_path / "secrets"

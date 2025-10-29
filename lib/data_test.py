@@ -93,8 +93,9 @@ class TestDataV2(unittest.TestCase):
         # V2 does NOT load itsup secrets when project is specified
         self.assertNotIn("GLOBAL_KEY", secrets)
 
+    @mock.patch("lib.data.logger")
     @mock.patch("lib.data.Path")
-    def test_load_secrets_no_directory(self, mock_path: Mock) -> None:
+    def test_load_secrets_no_directory(self, mock_path: Mock, mock_logger: Mock) -> None:
         """Test loading secrets when directory doesn't exist."""
         mock_secrets_dir = Mock()
         mock_path.return_value = mock_secrets_dir
@@ -103,6 +104,8 @@ class TestDataV2(unittest.TestCase):
         secrets = load_secrets()
 
         self.assertEqual(secrets, {})
+        # Verify warning was logged (but suppressed from output)
+        mock_logger.warning.assert_called_once()
 
     @mock.patch("lib.data.Path")
     def test_list_projects_empty(self, mock_path: Mock) -> None:

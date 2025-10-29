@@ -34,7 +34,7 @@ services:
       start_period: 1s
 
   traefik:
-    image: traefik:{{ versions.traefik }}
+    image: traefik:{{ itsup.versions.traefik }}
     network_mode: host
     restart: always
     dns:
@@ -47,8 +47,7 @@ services:
     depends_on:
       docker:
         condition: service_started
-{%- if traefik.crowdsec.enabled %}
-  {%- set cs = plugin_registry.crowdsec %}
+{%- if itsup.crowdsec.enabled %}
       crowdsec:
         condition: service_healthy
 {%- endif %}
@@ -64,12 +63,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
-{%- if plugin_registry.crowdsec.enabled %}
-  {%- set cs = plugin_registry.crowdsec %}
+{%- if itsup.crowdsec.enabled %}
 
   crowdsec:
     container_name: proxy_crowdsec
-    image: crowdsecurity/crowdsec:{{ versions.crowdsec }}
+    image: crowdsecurity/crowdsec:{{ itsup.versions.crowdsec }}
     restart: unless-stopped
     networks:
       - default
@@ -81,11 +79,9 @@ services:
       - '127.0.0.1:18080:8080'
     environment:
       GID: ${GID-1000}
-      COLLECTIONS: {{ cs.collections | join(' ') }}
+      COLLECTIONS: {{ itsup.crowdsec.collections | join(' ') }}
       CUSTOM_HOSTNAME: crowdsec
-      {%- if cs.apikey %}
-      BOUNCER_KEY_TRAEFIK: {{ cs.apikey }}
-      {%- endif %}
+      BOUNCER_KEY_TRAEFIK: ${CROWDSEC_APIKEY:?}
     volumes:
       - ../crowdsec/acquis.yml:/etc/crowdsec/acquis.yaml:ro
       - ../data/crowdsec:/var/lib/crowdsec/data/

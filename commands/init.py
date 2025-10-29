@@ -239,6 +239,11 @@ def init(force: bool):
         root / "projects" / "traefik.yml",
         "samples/traefik.yml → projects/traefik.yml",
     )
+    _copy_if_missing(
+        root / "samples" / "middlewares.yml",
+        root / "projects" / "middlewares.yml",
+        "samples/middlewares.yml → projects/middlewares.yml",
+    )
     _copy_dir_if_missing(
         root / "samples" / "example-project",
         root / "projects" / "example-project",
@@ -261,8 +266,9 @@ def init(force: bool):
     click.echo("   vim secrets/itsup.txt   # All secrets (infrastructure + itsUP)")
     click.echo()
     click.echo("2. Edit infrastructure config:")
-    click.echo("   vim projects/itsup.yml   # Router IP, versions, backup config")
-    click.echo("   vim projects/traefik.yml # Traefik overrides (domains, log levels, plugins)")
+    click.echo("   vim projects/itsup.yml        # Router IP, versions, backup config")
+    click.echo("   vim projects/traefik.yml      # Traefik overrides (log levels, plugins)")
+    click.echo("   vim projects/middlewares.yml  # Middleware overrides (rate-limit, auth, crowdsec)")
     click.echo()
     click.echo("3. Add your first project (copy example-project as template):")
     click.echo("   cp -r projects/example-project projects/my-app")

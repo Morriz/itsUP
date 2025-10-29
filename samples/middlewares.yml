@@ -1,0 +1,44 @@
+# Traefik dynamic middleware overrides
+# This file uses native Traefik YAML schema and will be merged on top of dynamic/middleware.yml configs
+# Edit values below, then commit to git
+# Secrets referenced as ${VAR} - deployment injects live values
+
+# middlewares:
+#   default-headers:
+#     headers:
+#       browserXssFilter: true
+#       contentTypeNosniff: true
+#       forceSTSHeader: true
+#       frameDeny: true
+#       stsIncludeSubdomains: true
+#       stsPreload: true
+#       stsSeconds: 31536000
+
+#   rate-limit:
+#     rateLimit:
+#       period: 1s
+#       average: 100
+#       burst: 200
+
+#   crowdsec:
+#     plugin:
+#       bouncer:
+#         crowdsecCapiMachineId: ${CROWDSEC_CAPI_MACHINE_ID}
+#         crowdsecCapiPassword: ${CROWDSEC_CAPI_PASSWORD}
+#         crowdsecCapiScenarios:
+#           - crowdsecurity/http-admin-interface-probing
+#           - crowdsecurity/http-backdoors-attempts
+#           - crowdsecurity/http-bad-user-agent
+#           - crowdsecurity/http-crawl-non_statics
+#           - crowdsecurity/http-generic-bf
+#           - crowdsecurity/http-open-proxy
+#           - crowdsecurity/http-path-traversal-probing
+#           - crowdsecurity/http-probing
+#           - crowdsecurity/http-sensitive-files
+#           - crowdsecurity/http-sqli-probing
+#           - crowdsecurity/http-xss-probing
+#           - ltsich/http-w00tw00t
+#         defaultDecisionSeconds: 60
+#         httpTimeoutSeconds: 10
+#         logLevel: INFO
+#         updateIntervalSeconds: 60

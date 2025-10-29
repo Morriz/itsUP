@@ -2,24 +2,11 @@
 # This file uses native Traefik YAML schema and will be merged on top of generated config
 # Edit values below, then commit to git
 # Secrets referenced as ${VAR} - deployment injects live values
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: ${LETSENCRYPT_EMAIL}
-      storage: /etc/acme/acme.json
-      httpChallenge:
-        entryPoint: web
-      # Uncomment for Let's Encrypt staging (testing)
-      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
-log:
-  level: INFO # DEBUG, INFO, WARN, ERROR
-middlewares:
-  rate-limit:
-    rateLimit:
-      period: 1s
-      average: 100
-      burst: 200
-experimental:
-  plugins:
-    bouncer:
-      version: v1.4.5
+
+# log:
+#   level: INFO # DEBUG, INFO, WARN, ERROR
+
+# experimental:
+#   plugins:
+#     bouncer:
+#       version: v1.4.5
