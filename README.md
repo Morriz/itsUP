@@ -19,6 +19,7 @@ Still interested? Then read on...
 
 **Table of contents:**
 
+- [Documentation](#documentation)
 - [Key concepts](#key-concepts)
   - [Single source of truth](#single-source-of-truth)
   - [Managed proxy setup](#managed-proxy-setup)
@@ -70,6 +71,37 @@ Still interested? Then read on...
   - [Why Traefik over Nginx?](#why-traefik-over-nginx)
   - [Does this scale to more machines?](#does-this-scale-to-more-machines)
 - [Disclaimer](#disclaimer)
+
+## Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+**Getting Started:**
+- [Architecture Overview](docs/architecture.md) - System architecture and design principles
+- [Networking](docs/networking.md) - Network topology and configuration
+
+**Stacks:**
+- [DNS Stack](docs/stacks/dns.md) - DNS honeypot management
+- [Proxy Stack](docs/stacks/proxy.md) - Traefik configuration, routing, and TLS
+- [API Stack](docs/stacks/api.md) - Management API architecture and deployment
+
+**Operations:**
+- [Logging](docs/operations/logging.md) - Log management and rotation
+- [Monitoring](docs/operations/monitoring.md) - Container security monitoring
+- [Backups](docs/operations/backups.md) - Backup and disaster recovery
+- [Deployment](docs/operations/deployment.md) - Deployment procedures and best practices
+
+**Development:**
+- [Project Structure](docs/development/structure.md) - Codebase organization
+- [Configuration](docs/development/configuration.md) - Configuration guide with schemas
+- [Testing](docs/development/testing.md) - Testing strategies and practices
+
+**Reference:**
+- [CLI Reference](docs/reference/cli.md) - Complete command-line reference
+- [Environment Variables](docs/reference/environment-variables.md) - All environment variables
+- [Troubleshooting](docs/reference/troubleshooting.md) - Common issues and solutions
+
+For a complete documentation index, see [docs/README.md](docs/README.md).
 
 ## Key concepts
 
