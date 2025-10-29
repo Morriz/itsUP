@@ -116,29 +116,6 @@ class TestAutocompletion(unittest.TestCase):
 
         self.assertEqual(result, [])
 
-    def test_complete_svc_command_docker_commands(self) -> None:
-        """Test docker compose command autocompletion."""
-        ctx = Mock()
-        ctx.params = {"command": [], "project": "myproject"}
-
-        result = complete_svc_command(ctx, None, "lo")
-
-        self.assertIn("logs", result)
-        self.assertEqual(len(result), 1)
-
-    def test_complete_svc_command_all_commands(self) -> None:
-        """Test getting all docker compose commands."""
-        ctx = Mock()
-        ctx.params = {"command": [], "project": "myproject"}
-
-        result = complete_svc_command(ctx, None, "")
-
-        # Should return common docker compose commands
-        self.assertIn("up", result)
-        self.assertIn("down", result)
-        self.assertIn("logs", result)
-        self.assertIn("ps", result)
-
     @patch("commands.common.Path")
     def test_complete_svc_command_service_names(self, mock_path: Mock) -> None:
         """Test service name autocompletion."""

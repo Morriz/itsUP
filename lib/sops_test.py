@@ -62,8 +62,9 @@ class TestSOPS(unittest.TestCase):
             plaintext_path.write_text("SECRET_KEY=mysecret\n")
 
             with patch("lib.sops.is_sops_available", return_value=False):
-                result = encrypt_file(plaintext_path, encrypted_path)
-                self.assertFalse(result)
+                with patch("lib.sops.logger"):  # Suppress log output
+                    result = encrypt_file(plaintext_path, encrypted_path)
+                    self.assertFalse(result)
 
     def test_encrypt_file_missing_plaintext(self) -> None:
         """Test encryption fails when plaintext file doesn't exist."""
@@ -72,8 +73,9 @@ class TestSOPS(unittest.TestCase):
             encrypted_path = Path(tmpdir) / "secret.enc.txt"
 
             with patch("lib.sops.is_sops_available", return_value=True):
-                result = encrypt_file(plaintext_path, encrypted_path)
-                self.assertFalse(result)
+                with patch("lib.sops.logger"):  # Suppress log output
+                    result = encrypt_file(plaintext_path, encrypted_path)
+                    self.assertFalse(result)
 
     def test_decrypt_file_success(self) -> None:
         """Test successful file decryption."""
