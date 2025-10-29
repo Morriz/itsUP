@@ -1,11 +1,11 @@
 # Traefik configuration overrides
 # This file uses native Traefik YAML schema and will be merged on top of generated config
 # Edit values below, then commit to git
-# Secrets referenced as {{ env "VAR" }} - Traefik expands at runtime
+# Secrets referenced as ${VAR} - deployment injects live values
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: "{{ env \"LETSENCRYPT_EMAIL\" }}"
+      email: ${LETSENCRYPT_EMAIL}
       storage: /etc/acme/acme.json
       httpChallenge:
         entryPoint: web
@@ -27,7 +27,7 @@ experimental:
 
 plugins:
   crowdsec:
-    apikey: "{{ env \"CROWDSEC_APIKEY\" }}"
+    apikey: '${CROWDSEC_APIKEY}'
     collections:
       - crowdsecurity/linux
       - crowdsecurity/traefik
