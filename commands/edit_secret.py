@@ -64,38 +64,37 @@ def edit_secret(name: str):
     if not encrypted_path.exists():
         click.echo(f"{Colors.RED}✗{Colors.NC} Encrypted file not found: secrets/{name}.enc.txt", err=True)
         click.echo()
-        click.echo(f"To create a new secret:")
-        click.echo(f"  1. vim secrets/{name}.txt")
+        click.echo("To create a new secret:")
+        click.echo(f"  1. edit secrets/{name}.txt")
         click.echo(f"  2. itsup encrypt {name}")
         sys.exit(1)
 
-    # Get editor (try $EDITOR, then common editors)
-    editor = os.environ.get("EDITOR")
-    if not editor:
-        # Try common editors
-        for try_editor in ["vim", "nano", "vi"]:
-            try:
-                subprocess.run(["which", try_editor], capture_output=True, check=True)
-                editor = try_editor
-                break
-            except subprocess.CalledProcessError:
-                continue
+    # Get editor with fallback priority: vim > nano > vi > $EDITOR
+    # This ensures we use a blocking terminal editor, not GUI editors like 'code'
+    current_editor = os.environ.get("EDITOR", "")
+
+    # Find first available editor (prefer terminal editors over GUI)
+    editor = None
+    for try_editor in ["nano", "vim", "vi", current_editor]:
+        if try_editor and subprocess.run(["which", try_editor], capture_output=True).returncode == 0:
+            editor = try_editor
+            break
 
     if not editor:
         click.echo(f"{Colors.RED}✗{Colors.NC} No editor found", err=True)
-        click.echo("Set EDITOR environment variable or install vim/nano")
+        click.echo("Install either nano, vim, or vi")
         sys.exit(1)
 
     click.echo(f"Editing {name}.enc.txt...")
     click.echo()
 
     # Create temp file for editing
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
         tmp_path = Path(tmp.name)
 
     try:
         # Step 1: Decrypt to temp file
-        click.echo(f"  🔓 Decrypting...")
+        click.echo("  🔓 Decrypting...")
         if not decrypt_file(encrypted_path, tmp_path):
             click.echo(f"{Colors.RED}✗{Colors.NC} Failed to decrypt", err=True)
             sys.exit(1)
@@ -105,6 +104,7 @@ def edit_secret(name: str):
 
         # Step 2: Open in editor
         click.echo(f"  ✏️  Opening in {editor}...")
+
         subprocess.run([editor, str(tmp_path)], check=True)
 
         # Check if file was modified
@@ -115,7 +115,7 @@ def edit_secret(name: str):
             return
 
         # Step 3: Re-encrypt
-        click.echo(f"  🔒 Re-encrypting...")
+        click.echo("  🔒 Re-encrypting...")
         success, _ = encrypt_file(tmp_path, encrypted_path)
         if not success:
             click.echo(f"{Colors.RED}✗{Colors.NC} Failed to re-encrypt", err=True)
