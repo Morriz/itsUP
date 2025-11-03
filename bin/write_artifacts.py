@@ -174,28 +174,25 @@ def write_upstream(project_name: str) -> None:
     if "proxynet" not in compose["networks"]:
         compose["networks"]["proxynet"] = {"external": True}
 
-    # Ensure all services with Traefik labels are on proxynet, and all services use DNS honeypot
+    # Ensure all services are on encrypted proxynet, and all services use DNS honeypot
     services = compose.get("services", {})
     for service_name, service_config in services.items():
-        labels = service_config.get("labels", [])
-        # Check if service has traefik.enable=true label
-        has_traefik = any("traefik.enable=true" in str(label) for label in labels)
+        # Add all services to proxynet for encrypted inter-container communication
+        if "networks" not in service_config:
+            service_config["networks"] = []
 
-        if has_traefik:
-            if "networks" not in service_config:
-                service_config["networks"] = []
+        # Convert dict format to list if needed
+        if isinstance(service_config["networks"], dict):
+            service_config["networks"] = list(service_config["networks"].keys())
 
-            # Convert dict format to list if needed
-            if isinstance(service_config["networks"], dict):
-                service_config["networks"] = list(service_config["networks"].keys())
-
-            # Add proxynet if not present
-            if "proxynet" not in service_config["networks"]:
-                service_config["networks"].append("proxynet")
+        # Add proxynet if not present (for encrypted communication)
+        if "proxynet" not in service_config["networks"]:
+            service_config["networks"].append("proxynet")
 
         # Inject DNS honeypot into all services (for logging)
+        # Add Docker DNS (127.0.0.11) as fallback for internal name resolution
         if "dns" not in service_config:
-            service_config["dns"] = [DNS_HONEYPOT]
+            service_config["dns"] = [DNS_HONEYPOT, "127.0.0.11"]
 
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
     compose_file = Path("upstream") / project_name / "docker-compose.yml"
