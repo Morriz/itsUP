@@ -149,6 +149,7 @@ class TestDataV2(unittest.TestCase):
         mock_compose = {"services": {"web": {"image": "nginx"}}}
         mock_traefik = Mock()
         mock_traefik.ingress = [Mock(service="web")]
+        mock_traefik.egress = []
         mock_load_project.return_value = (mock_compose, mock_traefik)
 
         errors = validate_project("test_project")
@@ -161,6 +162,7 @@ class TestDataV2(unittest.TestCase):
         mock_compose = {"services": {"web": {"image": "nginx"}}}
         mock_traefik = Mock()
         mock_traefik.ingress = [Mock(service="api")]  # 'api' doesn't exist
+        mock_traefik.egress = []
         mock_load_project.return_value = (mock_compose, mock_traefik)
 
         errors = validate_project("test_project")
@@ -177,6 +179,85 @@ class TestDataV2(unittest.TestCase):
 
         self.assertEqual(len(errors), 1)
         self.assertIn("Project not found", errors[0])
+
+    @mock.patch("lib.data.list_projects")
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_egress_valid(self, mock_load_project: Mock, mock_list_projects: Mock) -> None:
+        """Test validating a project with valid egress declarations."""
+        mock_compose = {"services": {"web": {"image": "nginx"}}}
+        mock_traefik = Mock()
+        mock_traefik.ingress = []
+        mock_traefik.egress = ["target-project:redis"]
+
+        # Mock for current project
+        mock_target_compose = {"services": {"target-project-redis": {"image": "redis"}}}
+        mock_target_traefik = Mock()
+        mock_target_traefik.egress = []
+
+        mock_load_project.side_effect = [
+            (mock_compose, mock_traefik),  # Current project
+            (mock_target_compose, mock_target_traefik),  # Target project
+        ]
+        mock_list_projects.return_value = ["test-project", "target-project"]
+
+        errors = validate_project("test-project")
+
+        self.assertEqual(errors, [])
+
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_egress_invalid_format(self, mock_load_project: Mock) -> None:
+        """Test validation with invalid egress format (missing colon)."""
+        mock_compose = {"services": {"web": {"image": "nginx"}}}
+        mock_traefik = Mock()
+        mock_traefik.ingress = []
+        mock_traefik.egress = ["invalid-format"]  # Missing colon
+        mock_load_project.return_value = (mock_compose, mock_traefik)
+
+        errors = validate_project("test-project")
+
+        self.assertEqual(len(errors), 1)
+        self.assertIn("must be in format: project:service", errors[0])
+
+    @mock.patch("lib.data.list_projects")
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_egress_project_not_found(self, mock_load_project: Mock, mock_list_projects: Mock) -> None:
+        """Test validation when egress target project doesn't exist."""
+        mock_compose = {"services": {"web": {"image": "nginx"}}}
+        mock_traefik = Mock()
+        mock_traefik.ingress = []
+        mock_traefik.egress = ["nonexistent:redis"]
+        mock_load_project.return_value = (mock_compose, mock_traefik)
+        mock_list_projects.return_value = ["test-project"]  # 'nonexistent' not in list
+
+        errors = validate_project("test-project")
+
+        self.assertEqual(len(errors), 1)
+        self.assertIn("target project 'nonexistent' not found", errors[0])
+
+    @mock.patch("lib.data.list_projects")
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_egress_service_not_found(self, mock_load_project: Mock, mock_list_projects: Mock) -> None:
+        """Test validation when egress target service doesn't exist."""
+        mock_compose = {"services": {"web": {"image": "nginx"}}}
+        mock_traefik = Mock()
+        mock_traefik.ingress = []
+        mock_traefik.egress = ["target-project:nonexistent"]
+
+        # Target project has different services
+        mock_target_compose = {"services": {"target-project-redis": {"image": "redis"}}}
+        mock_target_traefik = Mock()
+        mock_target_traefik.egress = []
+
+        mock_load_project.side_effect = [
+            (mock_compose, mock_traefik),  # Current project
+            (mock_target_compose, mock_target_traefik),  # Target project
+        ]
+        mock_list_projects.return_value = ["test-project", "target-project"]
+
+        errors = validate_project("test-project")
+
+        self.assertEqual(len(errors), 1)
+        self.assertIn("target service 'nonexistent' not found", errors[0])
 
     @mock.patch("lib.data.list_projects")
     @mock.patch("lib.data.validate_project")

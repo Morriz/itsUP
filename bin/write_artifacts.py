@@ -174,10 +174,12 @@ def write_upstream(project_name: str) -> None:
     if "proxynet" not in compose["networks"]:
         compose["networks"]["proxynet"] = {"external": True}
 
-    # Ensure all services are on encrypted proxynet, and all services use DNS honeypot
+    # Network segmentation based on ingress/egress declarations
     services = compose.get("services", {})
+
+    # Phase 1: Configure service networks and DNS
     for service_name, service_config in services.items():
-        # Add all services to proxynet for encrypted inter-container communication
+        # Initialize networks if not present
         if "networks" not in service_config:
             service_config["networks"] = []
 
@@ -185,14 +187,38 @@ def write_upstream(project_name: str) -> None:
         if isinstance(service_config["networks"], dict):
             service_config["networks"] = list(service_config["networks"].keys())
 
-        # Add proxynet if not present (for encrypted communication)
-        if "proxynet" not in service_config["networks"]:
+        # Add proxynet ONLY if service has ingress (Traefik needs access)
+        labels = service_config.get("labels", [])
+        has_traefik = any("traefik.enable=true" in str(label) for label in labels)
+
+        if has_traefik and "proxynet" not in service_config["networks"]:
             service_config["networks"].append("proxynet")
 
         # Inject DNS honeypot into all services (for logging)
         # Add Docker DNS (127.0.0.11) as fallback for internal name resolution
         if "dns" not in service_config:
             service_config["dns"] = [DNS_HONEYPOT, "127.0.0.11"]
+
+    # Phase 2: Add egress target networks (project-level egress)
+    # All services in this project get access to declared egress targets
+    for egress_spec in traefik.egress:
+        # Parse target service (format: project:service)
+        # Example: "ai-chatbot:redis" -> project="ai-chatbot"
+        if ":" not in egress_spec:
+            logger.warning(f"Invalid egress format: {egress_spec} (expected: project:service)")
+            continue
+
+        target_project, _ = egress_spec.split(":", 1)
+        target_network = f"{target_project}_default"
+
+        # Add external network declaration
+        if target_network not in compose["networks"]:
+            compose["networks"][target_network] = {"external": True}
+
+        # Add target network to all services (project-level egress)
+        for service_name, service_config in services.items():
+            if target_network not in service_config["networks"]:
+                service_config["networks"].append(target_network)
 
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
     compose_file = Path("upstream") / project_name / "docker-compose.yml"

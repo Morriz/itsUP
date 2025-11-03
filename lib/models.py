@@ -181,3 +181,5 @@ class TraefikConfig(BaseModel):
     """External host IP/hostname (for ingress-only projects without containers)"""
     ingress: List[Ingress] = []
     """List of ingress rules"""
+    egress: List[str] = []
+    """List of target services this project can access (format: project:service)"""

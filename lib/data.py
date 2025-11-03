@@ -164,15 +164,31 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
         # No docker-compose.yml - this is an ingress-only external host project
         compose = {}
 
-    # Load ingress.yml
-    ingress_file = project_dir / "ingress.yml"
-    if not ingress_file.exists():
-        if not compose:
-            raise FileNotFoundError(f"Project {project_name} has neither docker-compose.yml nor ingress.yml")
-        logger.warning("No ingress.yml for %s, using defaults", project_name)
-        traefik = TraefikConfig()
+    # Load itsup-project.yml (or ingress.yml for backward compatibility)
+    new_config_file = project_dir / "itsup-project.yml"
+    old_config_file = project_dir / "ingress.yml"
+
+    # Initialize with defaults
+    traefik = TraefikConfig()
+
+    if new_config_file.exists():
+        config_file = new_config_file
+    elif old_config_file.exists():
+        config_file = old_config_file
+        logger.warning(
+            "⚠️  %s/ingress.yml is deprecated. " "Rename to itsup-project.yml (support ends in v3.0)",
+            project_name,
+        )
     else:
-        with open(ingress_file, encoding="utf-8") as f:
+        if not compose:
+            raise FileNotFoundError(
+                f"Project {project_name} has neither docker-compose.yml " f"nor itsup-project.yml/ingress.yml"
+            )
+        logger.warning("No itsup-project.yml for %s, using defaults", project_name)
+        config_file = None
+
+    if config_file:
+        with open(config_file, encoding="utf-8") as f:
             traefik_data = yaml.safe_load(f)
             traefik = TraefikConfig(**traefik_data)
 
@@ -190,7 +206,7 @@ def list_projects() -> list[str]:
         p.name
         for p in projects_dir.iterdir()
         if p.is_dir()
-        and ((p / "docker-compose.yml").exists() or (p / "ingress.yml").exists())
+        and ((p / "docker-compose.yml").exists() or (p / "itsup-project.yml").exists() or (p / "ingress.yml").exists())
         and not p.name.startswith(".")
     ]
 
@@ -208,16 +224,53 @@ def validate_project(project_name: str) -> list[str]:
     if not compose:
         # External host passthrough - only validate that host is set
         if not traefik.host:
-            errors.append("External host project must have 'host' field in ingress.yml")
+            errors.append("External host project must have 'host' field in itsup-project.yml")
         return errors
 
-    # Validate traefik references exist in compose (for container projects)
+    # Validate ingress references exist in compose (for container projects)
     services = compose.get("services", {})
     for ingress in traefik.ingress:
         if ingress is None:
             continue
         if ingress.service not in services:
-            errors.append(f"traefik.yml references unknown service: {ingress.service}")
+            errors.append(f"ingress references unknown service: {ingress.service}")
+
+    # Validate egress targets exist
+    for egress_spec in traefik.egress:
+        if not egress_spec:
+            continue
+
+        # Parse target service name (format: project:service)
+        # Example: "ai-chatbot:redis" -> project="ai-chatbot", service="redis"
+        if ":" not in egress_spec:
+            errors.append(f"egress '{egress_spec}' must be in format: project:service (e.g., 'ai-chatbot:redis')")
+            continue
+
+        target_project, target_service = egress_spec.split(":", 1)
+
+        # Check if target project exists
+        all_projects = list_projects()
+        if target_project not in all_projects:
+            errors.append(f"egress target project '{target_project}' not found (from: {egress_spec})")
+            continue
+
+        # Load target project and check if service exists
+        try:
+            target_compose, _ = load_project(target_project)
+            if target_compose:  # Only validate for container projects
+                target_services = target_compose.get("services", {})
+                # Build full service name: {project}-{service}
+                full_service_name = f"{target_project}-{target_service}"
+
+                # Check if service exists (match both short and full name)
+                if target_service not in target_services and full_service_name not in target_services:
+                    errors.append(
+                        f"egress target service '{target_service}' not found in "
+                        f"project '{target_project}' (available services: "
+                        f"{', '.join(target_services.keys())})"
+                    )
+        except Exception as e:
+            errors.append(f"Failed to load target project '{target_project}': {e}")
 
     return errors
 
