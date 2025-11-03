@@ -11,6 +11,7 @@ import click
 
 from commands.common import complete_docker_compose_command, complete_project
 from lib.data import get_env_with_secrets, list_projects
+from lib.version_check import check_schema_version
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ def svc(project, command):
         - Docker compose commands
         - Service names
     """
+    check_schema_version()
+
     # Validate project exists
     projects = list_projects()
     if project not in projects:

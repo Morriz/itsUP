@@ -11,6 +11,7 @@ import click
 from commands.common import complete_stack_or_project
 from lib.data import list_projects
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack, deploy_upstream_project
+from lib.version_check import check_schema_version
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,8 @@ def apply(project):
         itsup apply proxy            # Deploy proxy stack
         itsup apply instrukt-ai      # Deploy single project
     """
+    check_schema_version()
+
     def _deploy_single(target: str) -> tuple[str, bool, str]:
         """Deploy a single stack or project. Returns (target, success, error_msg)"""
         try:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "itsUP"
-version = "0.1.2"
+version = "2.1.1"
 license = { text = "GPL-3.0-only" }
 authors = [{ name = "Maurice Faber", email = "morriz@idiotz.nl" }]
 description = "Lean, automated, poor man's infra for lightweight services running in docker."

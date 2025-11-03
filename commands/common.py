@@ -147,6 +147,7 @@ def create_stack_command(stack_name: str, compose_dir: str, deploy_func, descrip
     import sys
     import click
     from lib.data import get_env_with_secrets
+    from lib.version_check import check_schema_version
 
     logger = logging.getLogger(__name__)
 
@@ -174,6 +175,8 @@ Examples:
     @click.argument("args", nargs=-1, type=click.UNPROCESSED,
                     shell_complete=complete_docker_compose_command(f"{compose_dir}/docker-compose.yml"))
     def stack_command(args):
+        check_schema_version()
+
         if not args:
             click.echo(stack_command.get_help(click.Context(stack_command)))
             sys.exit(0)

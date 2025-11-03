@@ -9,6 +9,7 @@ import click
 
 from commands.common import complete_project
 from lib.data import validate_all, validate_project
+from lib.version_check import check_schema_version
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ def validate(project):
         itsup validate              # Validate all projects
         itsup validate instrukt-ai  # Validate single project
     """
+    check_schema_version()
+
     if project:
         # Validate single project
         errors = validate_project(project)

@@ -10,6 +10,7 @@ import click
 
 from bin.write_artifacts import write_proxy_artifacts
 from lib.data import get_env_with_secrets
+from lib.version_check import check_schema_version
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ def run():
     Examples:
         itsup run    # Start everything including monitor (report-only)
     """
+    check_schema_version()
     logger.info("🚀 Running itsUP complete stack...")
 
     # Step 0: Regenerate proxy artifacts (in case config changed)

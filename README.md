@@ -219,6 +219,7 @@ itsup proxy logs traefik             # Tail Traefik logs only
 # Configuration & Deployment
 itsup apply [project]                # Apply configurations with smart zero-downtime updates
 itsup validate [project]             # Validate project configurations
+itsup migrate                        # Migrate configuration schema to latest version
 
 # Project Service Management
 itsup svc <project> <cmd> [service]  # Docker compose operations for project services
@@ -235,8 +236,51 @@ itsup monitor report                 # Generate threat report
 
 # Options
 itsup --version                      # Show version
-itsup --verbose                      # Enable DEBUG logging for any command
+itsup -v                             # Enable DEBUG logging
+itsup -vv                            # Enable TRACE logging (very verbose)
 ```
+
+**Schema Versioning & Migrations:**
+
+itsUP tracks configuration schema versions to ensure compatibility between the CLI and your configuration files. When you upgrade itsUP to a newer version that includes schema changes, you'll need to run a migration:
+
+```bash
+# Check if migration is needed (automatic on most commands)
+itsup validate                       # Will warn if schema is outdated
+
+# Dry-run to see what would change
+itsup migrate --dry-run              # Preview changes without applying
+
+# List pending migrations
+itsup migrate --list                 # Show which fixers would run
+
+# Run migration
+itsup migrate                        # Upgrade configuration schema
+```
+
+**Migration Features:**
+- Idempotent fixers (safe to run multiple times)
+- Git-aware file operations (uses `git mv` to preserve history)
+- Automatic validation after migration
+- Version tracked in `projects/itsup.yml` (`schemaVersion` field)
+
+**Smart Output:**
+
+itsUP automatically adapts its output based on context:
+
+- **Interactive terminal (TTY)**: Clean colored output with symbols
+  ```
+  ✓ Migration complete!
+  ⚠ Config needs review
+  ✗ Failed to rename project
+  ```
+
+- **Pipes/logs/automation**: Full structured output with timestamps
+  ```
+  2025-11-04 00:11:48.166 INFO lib/migrations.py:97 Migration complete!
+  2025-11-04 00:11:48.166 WARNING lib/migrations.py:71 Config needs review
+  2025-11-04 00:11:48.166 ERROR lib/fixers/rename_ingress.py:62 Failed to rename project
+  ```
 
 **Smart Behavior:**
 

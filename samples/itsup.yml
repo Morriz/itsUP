@@ -1,4 +1,5 @@
 # itsUP infrastructure configuration
+schemaVersion: "2.1.0"
 
 # Traefik dashboard configuration
 traefikDomain: traefik.example.com # Dashboard domain (REQUIRED)
