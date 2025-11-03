@@ -11,7 +11,7 @@ services:
              echo 'no-poll' >> /etc/dnsmasq.conf &&
              echo 'cache-size=0' >> /etc/dnsmasq.conf &&
              echo 'dns-forward-max=1000' >> /etc/dnsmasq.conf &&
-             echo 'server=192.168.1.1' >> /etc/dnsmasq.conf &&
+             echo 'server=127.0.0.11' >> /etc/dnsmasq.conf &&
              echo 'strict-order' >> /etc/dnsmasq.conf &&
              dnsmasq --no-daemon --conf-file=/etc/dnsmasq.conf"
     expose:

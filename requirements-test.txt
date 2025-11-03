@@ -8,5 +8,6 @@ pytest
 pytest-cov
 pytest-timeout
 requests
+types-netifaces
 types-PyYAML
 qdrant-client
