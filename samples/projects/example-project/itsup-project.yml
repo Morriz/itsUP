@@ -1,0 +1,9 @@
+enabled: true
+
+ingress:
+  - service: web
+    domain: my-app.example.com # CHANGE THIS
+    port: 3000
+# Uncomment to enable egress rules to allow outbound to other docker compose services
+# egress:
+#   - internal-api:app

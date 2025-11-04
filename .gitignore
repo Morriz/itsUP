@@ -15,3 +15,5 @@ __pycache__
 # Independent git repos (not submodules)
 /projects/
 /secrets/
+
+*.local.json
