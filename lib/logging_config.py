@@ -75,8 +75,8 @@ class TTYAwareFormatter(logging.Formatter):
             # TTY: Clean output with just message
             super().__init__("%(message)s")
         else:
-            # Non-TTY: Full structured format with timestamps and paths
-            super().__init__("%(asctime)s %(levelname)-8s %(custom_pathname)s:%(lineno)d %(message)s")
+            # Non-TTY: Original format with > separator and line numbers (for logs/pipes/daemons)
+            super().__init__("%(asctime)s %(levelname)s > %(custom_pathname)s:%(lineno)d: %(message)s")
 
     def formatTime(self, record: logging.LogRecord, datefmt: Optional[str] = None) -> str:
         """Format time with milliseconds support (for non-TTY mode)."""

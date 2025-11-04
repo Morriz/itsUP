@@ -33,3 +33,5 @@ htmlcov/
 *.swp
 *.swo
 *~
+
+*.local.json
