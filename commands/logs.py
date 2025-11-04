@@ -50,6 +50,7 @@ def logs(names, lines):
     are automatically formatted for readability. Output is clean without
     file name separators.
 
+    \b
     Examples:
         itsup logs                  # Follow all logs
         itsup logs access           # Follow access.log only

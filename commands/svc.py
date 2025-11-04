@@ -29,12 +29,14 @@ def svc(project, command):
     Direct passthrough to docker compose for project service management.
     No regeneration - just runs docker compose commands directly.
 
+    \b
     Examples:
         itsup svc instrukt-ai ps           # Check status
         itsup svc instrukt-ai logs -f web  # Tail logs
         itsup svc instrukt-ai restart web  # Restart service
         itsup svc minio exec minio bash    # Shell into container
 
+    \b
     Tab completion works for:
         - Project names
         - Docker compose commands

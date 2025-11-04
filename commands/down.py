@@ -37,6 +37,8 @@ def down(clean: bool):
     🛑 Stop ALL containers: DNS, proxy, AND all upstream projects
 
     Stops everything in reverse order (in parallel where possible):
+
+    \b
     1. Container security monitor
     2. API server
     3. All upstream projects (IN PARALLEL)
@@ -46,6 +48,7 @@ def down(clean: bool):
     With --clean: Also removes stopped containers from itsUP-managed projects (in parallel).
     Only touches itsUP containers - never affects other Docker containers.
 
+    \b
     Examples:
         itsup down           # Stop everything
         itsup down --clean   # Stop + remove stopped containers

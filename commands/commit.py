@@ -96,6 +96,7 @@ def commit(message, force):
     Auto-generates commit message if not provided. Detects key rotation.
     Auto-encrypts plaintext secrets before committing for security.
 
+    \b
     Examples:
         itsup commit                          # Auto-generated message
         itsup commit "feat: add new service"  # Custom message

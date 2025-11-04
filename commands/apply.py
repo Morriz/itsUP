@@ -23,12 +23,15 @@ def apply(project):
     ⚙️ Apply configurations with smart zero-downtime rollout [PROJECT]
 
     Regenerates docker-compose files with Traefik labels and deploys with smart rollout:
+
+    \b
     - Stateless services: zero-downtime rollout via docker-rollout
     - Stateful services: normal restart via docker compose up -d
     - Change detection: skips rollout if config unchanged
 
     Handles infrastructure stacks (dns, proxy) and upstream projects.
 
+    \b
     Examples:
         itsup apply                  # Deploy all (dns + proxy + all projects)
         itsup apply dns              # Deploy DNS stack

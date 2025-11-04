@@ -53,8 +53,13 @@ from commands.edit_secret import edit_secret
 from commands.sops_key import sops_key
 
 
-@click.group(context_settings=dict(allow_interspersed_args=False))
-@click.version_option(version="2.1.1", prog_name="itsup")
+@click.group(
+    context_settings=dict(
+        allow_interspersed_args=False,
+        help_option_names=["-h", "--help"]
+    )
+)
+@click.version_option("2.1.1", "-V", "--version", prog_name="itsup")
 @click.option("--verbose", "-v", count=True, help="Verbosity: -v (DEBUG), -vv (TRACE)", is_eager=True)
 def cli(verbose):
     """itsUP - Infrastructure management CLI"""

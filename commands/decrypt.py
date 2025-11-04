@@ -36,6 +36,7 @@ def decrypt(name: str):
     ⚠️  SECURITY WARNING: Plaintext files remain on disk until re-encrypted!
     For secure editing, use 'itsup edit-secret' instead (auto-cleanup).
 
+    \b
     Examples:
         itsup decrypt               # Decrypt all secrets/*.enc.txt files
         itsup decrypt itsup         # Decrypt only itsup.enc.txt

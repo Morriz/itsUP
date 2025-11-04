@@ -37,6 +37,7 @@ def edit_secret(name: str):
     Ultimate UX: Decrypts secret, opens in editor, re-encrypts on save.
     You never touch the encrypted file directly!
 
+    \b
     Examples:
         itsup edit-secret itsup         # Edit itsup.enc.txt
         itsup edit-secret my-project    # Edit my-project.enc.txt

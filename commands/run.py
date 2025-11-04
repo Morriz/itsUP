@@ -21,6 +21,8 @@ def run():
     🚀 Run itsUP stack: dns, proxy and monitor (needs sudo)
 
     Starts all infrastructure components in the correct order:
+
+    \b
     1. DNS stack (creates proxynet network)
     2. Proxy stack (Traefik + dockerproxy)
     3. API server (Python process)
@@ -32,6 +34,7 @@ def run():
     The monitor runs in report-only mode (detection without blocking).
     For full protection, use: itsup monitor start
 
+    \b
     Examples:
         itsup run    # Start everything including monitor (report-only)
     """

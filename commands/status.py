@@ -59,6 +59,7 @@ def status():
 
     Check for uncommitted changes in your configuration repositories.
 
+    \b
     Examples:
         itsup status    # Show git status for both repos
     """

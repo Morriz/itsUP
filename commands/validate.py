@@ -22,6 +22,7 @@ def validate(project):
 
     Checks project config files for errors and missing required fields.
 
+    \b
     Examples:
         itsup validate              # Validate all projects
         itsup validate instrukt-ai  # Validate single project

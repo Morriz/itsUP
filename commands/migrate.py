@@ -22,6 +22,7 @@ def migrate_cmd(dry_run, list_only):
     Run all pending migrations to upgrade your configuration schema
     to match the current itsUP version.
 
+    \b
     Examples:
         itsup migrate              # Run all pending migrations
         itsup migrate --dry-run    # Show what would change

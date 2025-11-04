@@ -48,6 +48,7 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
 
     Without arguments: Shows git diff for all *.enc.txt files in secrets/
 
+    \b
     Examples:
         # Diff all encrypted secrets vs git HEAD
         itsup diff-secrets

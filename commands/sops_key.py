@@ -51,6 +51,7 @@ def sops_key(rotate: bool):
 
     With --rotate: Backs up old key + re-encrypts all secrets with new key
 
+    \b
     Examples:
         itsup sops-key              # Generate new key + update .sops.yaml
         itsup sops-key --rotate     # Rotate key + re-encrypt all secrets

@@ -38,6 +38,7 @@ def encrypt(name: str, delete: bool, force: bool):
 
     By default, skips re-encryption if content is unchanged (avoids new git hashes).
 
+    \b
     Examples:
         itsup encrypt               # Encrypt all secrets/*.txt files (skip unchanged)
         itsup encrypt itsup         # Encrypt only itsup.txt (skip if unchanged)

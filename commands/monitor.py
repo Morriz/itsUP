@@ -19,6 +19,7 @@ def monitor():
     Manage the container security monitor that detects compromised containers
     through DNS correlation analysis.
 
+    \b
     Examples:
         itsup monitor start              # Start with blocking
         itsup monitor start --report-only  # Detection only
@@ -38,6 +39,7 @@ def start(skip_sync, report_only, use_opensnitch):
 
     Starts the monitor with optional configuration flags.
 
+    \b
     Examples:
         itsup monitor start                           # Full protection mode
         itsup monitor start --report-only             # Detection only
@@ -70,6 +72,7 @@ def stop():
 
     Stops the running monitor process.
 
+    \b
     Examples:
         itsup monitor stop
     """
@@ -94,6 +97,7 @@ def logs():
 
     Shows real-time monitor logs.
 
+    \b
     Examples:
         itsup monitor logs
     """
@@ -114,6 +118,7 @@ def cleanup():
 
     Run interactive cleanup mode to review blacklisted IPs.
 
+    \b
     Examples:
         itsup monitor cleanup
     """
@@ -133,6 +138,7 @@ def report():
 
     Analyzes threat actors and generates a detailed report.
 
+    \b
     Examples:
         itsup monitor report
     """

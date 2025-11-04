@@ -195,6 +195,7 @@ def init(force: bool):
     Sets up your itsUP installation by cloning/creating configuration repos
     and copying sample configuration files. Safe to run multiple times.
 
+    \b
     Examples:
         itsup init         # Interactive setup (prompts for git URLs if needed)
         itsup init --force # Force re-initialization
