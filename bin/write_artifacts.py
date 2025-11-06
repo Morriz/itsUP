@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import sys
+from io import StringIO
 from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 from jinja2 import Template
+from ruamel.yaml import YAML
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import logging
-
-import yaml
-from ruamel.yaml import YAML
 
 from lib.data import (
+    get_trusted_ips,
     list_projects,
     load_itsup_config,
     load_middleware_overrides,
     load_project,
+    load_secrets,
     load_traefik_overrides,
     validate_all,
 )
@@ -131,22 +133,24 @@ def inject_traefik_labels(compose: dict, traefik_config, project_name: str) -> d
             # Path prefix stripping middleware (if needed)
             # This would be added based on path_remove in IngressV2 if we add that field
 
-        elif ingress.router == "tcp":
-            # TCP router
-            labels.append(f"traefik.tcp.routers.{router_name}.entrypoints=tcp-{ingress.hostport or ingress.port}")
-            labels.append(f"traefik.tcp.routers.{router_name}.rule=HostSNI(`*`)")
+        # We DON'T do this for tcp and udp as those need other port and thus new entrypoints MUST be made in traefik.yml
+        # We decided to be explicit+consistent and generate the entrypoints AND the routers (this needs `itsup apply proxy` anyway)
+        # elif ingress.router == "tcp":
+        #     # TCP router
+        #     labels.append(f"traefik.tcp.routers.{router_name}.entrypoints=tcp-{ingress.hostport or ingress.port}")
+        #     labels.append(f"traefik.tcp.routers.{router_name}.rule=HostSNI(`*`)")
 
-            if ingress.passthrough:
-                labels.append(f"traefik.tcp.routers.{router_name}.tls.passthrough=true")
-            else:
-                labels.append(f"traefik.tcp.routers.{router_name}.tls=true")
+        #     if ingress.passthrough:
+        #         labels.append(f"traefik.tcp.routers.{router_name}.tls.passthrough=true")
+        #     else:
+        #         labels.append(f"traefik.tcp.routers.{router_name}.tls=true")
 
-            labels.append(f"traefik.tcp.services.{router_name}.loadbalancer.server.port={ingress.port}")
+        #     labels.append(f"traefik.tcp.services.{router_name}.loadbalancer.server.port={ingress.port}")
 
-        elif ingress.router == "udp":
-            # UDP router
-            labels.append(f"traefik.udp.routers.{router_name}.entrypoints=udp-{ingress.hostport or ingress.port}")
-            labels.append(f"traefik.udp.services.{router_name}.loadbalancer.server.port={ingress.port}")
+        # elif ingress.router == "udp":
+        #     # UDP router
+        #     labels.append(f"traefik.udp.routers.{router_name}.entrypoints=udp-{ingress.hostport or ingress.port}")
+        #     labels.append(f"traefik.udp.services.{router_name}.loadbalancer.server.port={ingress.port}")
 
     return compose
 
@@ -269,8 +273,6 @@ def write_traefik_config() -> None:
     """Generate proxy/traefik/traefik.yml from minimal template + user overrides"""
     logger.info("Generating proxy/traefik/traefik.yml")
 
-    from lib.data import get_trusted_ips
-
     # Get trusted IPs for template
     trusted_ips_cidrs = get_trusted_ips()
 
@@ -282,7 +284,7 @@ def write_traefik_config() -> None:
             # Only include projects with TCP/UDP ingress
             tcp_udp_ingress = []
             for i in traefik_config.ingress:
-                if i.router in ["tcp", "udp"]:
+                if i.router in ["tcp", "udp"] and not i.passthrough:  # avoid passthrough entries
                     # Convert to dict with string values for template
                     tcp_udp_ingress.append(
                         {
@@ -314,8 +316,6 @@ def write_traefik_config() -> None:
     ryaml.default_flow_style = False
     ryaml.width = 4096  # Avoid line wrapping
 
-    from io import StringIO
-
     base_config = ryaml.load(StringIO(config_content))
 
     # Load user overrides from projects/traefik.yml
@@ -343,8 +343,6 @@ def write_traefik_config() -> None:
 def write_middleware_config() -> None:
     """Generate proxy/traefik/dynamic/middlewares.yml from template + user overrides"""
     logger.info("Generating proxy/traefik/dynamic/middlewares.yml")
-
-    from lib.data import get_trusted_ips, load_secrets
 
     # Load itsUP config for CrowdSec settings
     itsup_config = load_itsup_config()
@@ -383,8 +381,6 @@ def write_middleware_config() -> None:
     ryaml.default_flow_style = False
     ryaml.width = 4096  # Avoid line wrapping
 
-    from io import StringIO
-
     base_config = ryaml.load(StringIO(config_content))
 
     # Load user overrides from projects/middlewares.yml
@@ -409,8 +405,6 @@ def write_middleware_config() -> None:
 def write_dynamic_routers() -> None:
     """Generate dynamic Traefik router configs"""
     logger.info("Generating dynamic router configs")
-
-    from lib.data import get_trusted_ips, load_secrets
 
     # Load itsUP config for traefik domain
     itsup_config = load_itsup_config()
@@ -454,12 +448,22 @@ def write_dynamic_routers() -> None:
             all_projects.append(
                 {
                     "name": project_name,
+                    "services": [{"host": traefik.host, "ingress": traefik.ingress}],
+                }
+            )
+        elif any(
+            i.hostport or i.passthrough or i.protocol not in ["http", "https"] for i in traefik.ingress
+        ):  # Container with hostport/passthrough
+            all_projects.append(
+                {
+                    "name": project_name,
                     "services": [
-                        {"host": traefik.host, "image": None, "ingress": traefik.ingress}  # External host has no image
+                        {"host": i.service, "ingress": [i]}
+                        for i in traefik.ingress
+                        if i.hostport or i.passthrough or i.protocol not in ["http", "https"]
                     ],
                 }
             )
-        # TODO: Add container projects with passthrough/hostport ingress here if needed
 
     # Filter by router type for templates
     projects_http = []
@@ -472,16 +476,20 @@ def write_dynamic_routers() -> None:
         udp_services = []
 
         for s in p["services"]:
-            http_ingress = [i for i in s["ingress"] if i.router == "http"]
-            tcp_ingress = [i for i in s["ingress"] if i.router == "tcp"]
+            http_ingress = [
+                i
+                for i in s["ingress"]
+                if (not i.router or i.router == "http") and i.hostport and i.hostport not in (8080, 8443)
+            ]
+            tcp_ingress = [i for i in s["ingress"] if i.router == "tcp" and not i.passthrough]
             udp_ingress = [i for i in s["ingress"] if i.router == "udp"]
 
             if http_ingress:
-                http_services.append({"host": s["host"], "image": s["image"], "ingress": http_ingress})
+                http_services.append({"host": s["host"], "ingress": http_ingress})
             if tcp_ingress:
-                tcp_services.append({"host": s["host"], "image": s["image"], "ingress": tcp_ingress})
+                tcp_services.append({"host": s["host"], "ingress": tcp_ingress})
             if udp_ingress:
-                udp_services.append({"host": s["host"], "image": s["image"], "ingress": udp_ingress})
+                udp_services.append({"host": s["host"], "ingress": udp_ingress})
 
         if http_services:
             projects_http.append({"name": p["name"], "services": http_services})
