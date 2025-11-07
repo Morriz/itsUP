@@ -17,7 +17,6 @@ tcp:
       {%- else %}
       rule: 'HostSNI(`*`)'
       {%- endif %}
-      rulesyntax: v2
       service: {{ name }}
       {%- if i.passthrough %}
       tls:
@@ -40,7 +39,7 @@ tcp:
         proxyProtocol:
           version: 2
         servers:
-          - address: {% if s.image %}{{ p.name }}-{% endif %}{{ s.host }}:{{ i.port }}
+          - address: {{ s.host }}:{{ i.port }}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}

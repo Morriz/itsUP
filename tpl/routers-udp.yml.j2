@@ -21,7 +21,7 @@ udp:
     {{ name }}:
       loadBalancer:
         servers:
-          - address: {{ p.name }}-{{ s.host }}:{{ i.port }}
+          - address: {{ s.host }}:{{ i.port }}
       {%- endfor %}
     {%- endfor %}
   {%- endfor %}

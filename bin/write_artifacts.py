@@ -481,7 +481,7 @@ def write_dynamic_routers() -> None:
                 for i in s["ingress"]
                 if (not i.router or i.router == "http") and i.hostport and i.hostport not in (8080, 8443)
             ]
-            tcp_ingress = [i for i in s["ingress"] if i.router == "tcp" and not i.passthrough]
+            tcp_ingress = [i for i in s["ingress"] if i.router == "tcp"]
             udp_ingress = [i for i in s["ingress"] if i.router == "udp"]
 
             if http_ingress:
