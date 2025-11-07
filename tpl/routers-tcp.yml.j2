@@ -36,8 +36,10 @@ tcp:
       {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
     {{ name }}:
       loadBalancer:
+        {%- if i.proxyprotocol %}
         proxyProtocol:
-          version: 2
+          version: {{ ProxyProtocol(i.proxyprotocol).value }}
+        {%- endif %}
         servers:
           - address: {{ s.host }}:{{ i.port }}
     {%- endfor %}
