@@ -61,6 +61,10 @@ def svc(project, command):
         # Don't add -d if user explicitly wants attached mode
         if not any(flag in command_list for flag in ["-d", "--detach", "--no-detach"]):
             command_list.insert(1, "-d")
+        # Always pull latest images before starting
+        if "--pull" not in command_list:
+            command_list.insert(1, "--pull")
+            command_list.insert(2, "always")
 
     cmd = ["docker", "compose", "--project-directory", upstream_dir, "-p", project, "-f", compose_file, *command_list]
 
