@@ -121,6 +121,9 @@ sed -i '/1.2.3.4/d' data/blacklist/blacklist-outbound-ips.txt
 ### Clear iptables Rules
 
 ```bash
+itsup monitor clear-iptables
+
+# Or via make:
 make monitor-clear-iptables
 ```
 

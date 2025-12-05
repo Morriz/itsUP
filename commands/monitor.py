@@ -131,6 +131,26 @@ def cleanup():
         sys.exit(e.returncode)
 
 
+@monitor.command(name="clear-iptables")
+def clear_iptables():
+    """
+    Clear iptables rules created by monitor
+
+    Removes LOG and DROP rules added by the monitor without touching blacklist files.
+
+    \b
+    Examples:
+        itsup monitor clear-iptables
+    """
+    logger.info("Clearing iptables rules created by monitor...")
+
+    try:
+        subprocess.run(["sudo", "python3", "bin/monitor.py", "--clear-iptables"], check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to clear iptables rules")
+        sys.exit(e.returncode)
+
+
 @monitor.command()
 def report():
     """

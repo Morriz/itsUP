@@ -327,6 +327,15 @@ itsup monitor cleanup
 # ✓ Removed 1.2.3.4
 ```
 
+### `itsup monitor clear-iptables`
+
+Remove iptables rules created by the monitor without touching blacklist files.
+
+**Usage**:
+```bash
+itsup monitor clear-iptables
+```
+
 ### `itsup monitor report`
 
 Generate threat intelligence report.

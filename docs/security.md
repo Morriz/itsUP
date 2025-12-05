@@ -168,7 +168,7 @@ sudo python3 bin/monitor.py
 sudo python3 bin/monitor.py --cleanup
 
 # Clear iptables rules (stop monitoring)
-sudo python3 bin/monitor.py --clear-iptables
+itsup monitor clear-iptables
 ```
 
 ## 10. Current Defense Posture
