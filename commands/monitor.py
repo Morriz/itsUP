@@ -21,10 +21,10 @@ def monitor():
 
     \b
     Examples:
-        itsup monitor start              # Start with blocking
-        itsup monitor start --report-only  # Detection only
-        itsup monitor stop               # Stop monitor
-        itsup monitor logs               # View logs
+        itsup monitor start               # Start with blocking
+        itsup monitor start --report-only # Detection only
+        itsup monitor stop                # Stop monitor
+        itsup monitor logs                # View logs
     """
     pass
 
