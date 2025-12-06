@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 from click.testing import CliRunner
 
 from commands.encrypt import encrypt
+from lib.sops import encrypt_file
 
 
 def test_encrypt_command_with_real_sops(tmp_path, real_age_key):
@@ -70,6 +71,47 @@ def test_encrypt_command_with_real_sops(tmp_path, real_age_key):
     assert "sops" in encrypted_content, "Should contain SOPS metadata"
 
     # Verify we can decrypt with real sops
+    decrypted_content = subprocess.run(
+        ["sops", "-d", str(encrypted)],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=True,
+    ).stdout
+
+    assert decrypted_content == plaintext_content, "Decrypted content should match original"
+
+
+def test_encrypt_temp_plaintext_uses_secrets_config(tmp_path, real_age_key):
+    """Ensure encryption uses secrets/.sops.yaml when plaintext lives elsewhere."""
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+
+    sops_config = secrets_dir / ".sops.yaml"
+    sops_config.write_text(
+        f"""creation_rules:
+  - age: {real_age_key["public_key"]}
+"""
+    )
+
+    plaintext = tmp_path / "temp-edit.txt"
+    plaintext_content = "API_TOKEN=temp123"
+    plaintext.write_text(plaintext_content)
+
+    encrypted = secrets_dir / "temp-edit.enc.txt"
+
+    env = {
+        **os.environ,
+        "SOPS_AGE_KEY_FILE": str(real_age_key["private_key_file"]),
+    }
+
+    with patch.dict(os.environ, env, clear=False):
+        success, was_encrypted = encrypt_file(plaintext, encrypted, force=True)
+
+    assert success is True, "Encryption should succeed using secrets/.sops.yaml"
+    assert was_encrypted is True, "Plaintext was new so it should be encrypted"
+    assert encrypted.exists(), "Encrypted file should be created in secrets/"
+
     decrypted_content = subprocess.run(
         ["sops", "-d", str(encrypted)],
         capture_output=True,

@@ -76,8 +76,11 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False
                     return (True, False)  # Success but not encrypted (skipped)
 
         # Encrypt: sops -e plaintext.txt > encrypted.enc.txt
-        # Use --config to point to .sops.yaml in the secrets directory
-        config_file = plaintext_path.parent / ".sops.yaml"
+        # Use --config from the encrypted file's directory (secrets/)
+        config_file = encrypted_path.parent / ".sops.yaml"
+        if not config_file.exists():
+            logger.error("SOPS config not found: %s", config_file)
+            return (False, False)
         cmd = ["sops", "--config", str(config_file), "-e", str(plaintext_path)]
         logger.debug("Encrypting: %s → %s", plaintext_path, encrypted_path)
         logger.debug("Command: %s", " ".join(cmd))

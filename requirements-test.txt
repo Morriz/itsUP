@@ -5,6 +5,7 @@ pre-commit
 pylint
 pyproject-fmt
 pytest
+pytest-xdist
 pytest-cov
 pytest-timeout
 requests
