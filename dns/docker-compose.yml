@@ -2,20 +2,28 @@ services:
   dns-honeypot:
     image: alpine:latest
     container_name: dns-honeypot
-    command: >
-      sh -c "apk add --no-cache dnsmasq &&
-             echo 'log-queries' > /etc/dnsmasq.conf &&
-             echo 'log-facility=-' >> /etc/dnsmasq.conf &&
-             echo 'port=53' >> /etc/dnsmasq.conf &&
-             echo 'no-hosts' >> /etc/dnsmasq.conf &&
-             echo 'no-poll' >> /etc/dnsmasq.conf &&
-             echo 'cache-size=0' >> /etc/dnsmasq.conf &&
-             echo 'dns-forward-max=1000' >> /etc/dnsmasq.conf &&
-             echo 'server=127.0.0.11' >> /etc/dnsmasq.conf &&
-             echo 'strict-order' >> /etc/dnsmasq.conf &&
-             dnsmasq --no-daemon --conf-file=/etc/dnsmasq.conf"
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache dnsmasq &&
+        cat > /etc/dnsmasq.conf <<'EOF'
+        log-queries
+        log-facility=-
+        port=53
+        no-hosts
+        no-poll
+        no-resolv
+        server=1.1.1.1
+        server=9.9.9.9
+        cache-size=0
+        dns-forward-max=1000
+        listen-address=0.0.0.0
+        bind-interfaces
+        EOF
+        exec dnsmasq --no-daemon --conf-file=/etc/dnsmasq.conf
     expose:
-      - '53/udp'
+      - "53/udp"
     networks:
       proxynet:
         ipv4_address: 172.20.0.253
@@ -24,7 +32,7 @@ services:
       driver: json-file
       options:
         max-size: 10m
-        max-file: '3'
+        max-file: "3"
 
 networks:
   proxynet:

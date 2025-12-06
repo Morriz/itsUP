@@ -335,7 +335,13 @@ labels:
   - traefik.http.services.example-project-web.loadbalancer.server.port=3000
 ```
 
+## Code Standards
+
+See `@~/.claude/docs/development/coding-directives.md`
+
 ## Testing
+
+See `~/.claude/docs/development/testing-directives.md`
 
 - Framework: Python `unittest`
 - Naming: `*_test.py` files
