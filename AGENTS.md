@@ -1,79 +1,87 @@
-## Make Targets (dev workflow)
+# Developer Guide (concise, complete)
+Read `README.md` first for architecture, components, and workflows.
 
-```bash
-make help
-make install
-make test
-make lint
-make format
-make clean
-```
+## Critical Rules
+- Always operate from repo root; never stay `cd`'d in subdirs. Use `(cd dir && command)` with relative paths.
+- This repo itself is **not** containerized (Python CLI/API/monitoring/dns/proxy code). Only upstream project services are containerized. Do not containerize itsUP code.
+- Never modify/move OpenSnitch DB `/var/lib/opensnitch/opensnitch.sqlite3`; read-only SELECTs only. No mv/cp/rm; handle via whitelist/iptables instead.
 
-Runtime operations use `itsup`, not Make.
+## Formatting, Linting, Tests (pre-commit order)
+- Pre-commit runs: `bin/format.sh` → `bin/lint.sh` → `bin/test.sh`.
+- Run `bin/format.sh` before committing to avoid formatting loops.
+- Commands:
+  - `bin/format.sh` (isort + black on api/ and lib/)
+  - `bin/lint.sh` (pylint + mypy)
+  - `bin/test.sh` (all `*_test.py`)
 
-## Artifact Generation Helpers
+## Python Naming
+- Public API: no leading underscore.
+- Internal/private: single leading underscore on instance vars/methods. Be consistent.
 
-```bash
-itsup apply                # regen + deploy everything
-itsup apply <project>      # regen + deploy single project
-bin/write_artifacts.py     # regen proxy and upstream configs without deploying
-```
+## Setup & Installation
+1) `make install` (creates .venv, installs deps).  
+2) `source env.sh` (activates venv, adds `bin/` to PATH, enables completion). Add to shell rc if desired.  
+3) `itsup init` (clones projects/secrets if needed; copies samples: `samples/env`→`.env`, `samples/itsup.yml`→`projects/itsup.yml`, `samples/traefik.yml`→`projects/traefik.yml`, `samples/example-project/`→`projects/example-project/`, `samples/secrets/itsup.txt`→`secrets/itsup.txt`). Idempotent.
+
+## Deploy / Orchestration
+- `itsup apply` (all configs regen + deploy in parallel; hash-based change detection); `itsup apply <project>` (single).
+- `itsup run` (orchestrated startup dns→proxy→api→monitor, monitor report-only).
+- `itsup down` (orchestrated shutdown monitor→api→ALL projects→proxy→dns); `itsup down --clean` also removes stopped itsUP containers.
+
+## Stack Commands
+- DNS stack (`dns/docker-compose.yml`): `itsup dns up|down|restart|logs`.
+- Proxy stack (`proxy/docker-compose.yml`): `itsup proxy up [traefik] | down | restart | logs [traefik]`.
+- Monitor: `itsup monitor start [--report-only|--use-opensnitch] | stop | logs | cleanup | report`.
+
+## Project Service Ops
+- Pattern: `itsup svc <project> <cmd> [service]`
+  - `up` (all or specific service), `down`, `restart`, `logs -f [svc]`, `exec <svc> sh`.
+- Tab completion covers projects, compose commands, services.
+
+## Make (dev tools only; runtime uses itsup)
+- `make help | install | test | lint | format | clean`.
+
+## Artifact Generation
+- `itsup apply` (all or single project).
+- `bin/write_artifacts.py` (regen proxy & upstream configs without deploy).
 
 ## Utilities
+- `bin/backup.py` (backup `upstream/` to S3)
+- `bin/requirements-update.sh` (update Python deps)
+- CLI: `itsup --help | --version | --verbose`
 
-```bash
-bin/backup.py              # Backup upstream/ to S3
-bin/requirements-update.sh # Update Python dependencies
-itsup --help               # Global help
-itsup --version            # Version
-itsup --verbose            # Enable DEBUG logging for any command
-```
+## Testing (always test after changes!)
+- `bin/test.sh` (all Python unit tests `*_test.py`)
+- `bin/lint.sh`, `bin/format.sh` as above
+- Key suites: `lib/data_test.py`, `lib/upstream_test.py`, `bin/backup_test.py`
 
-## Git / Commits
+## V2 Architecture Patterns
+- Structure:
+  ```
+  projects/
+    itsup.yml              # infra config with ${VAR}
+    traefik.yml            # overrides merged onto template output
+    example-project/
+      docker-compose.yml   # services with ${VAR} secrets
+      ingress.yml          # IngressV2 routing config
+  ```
+- Secrets loading order (later overrides earlier): 1) `secrets/itsup.txt` 2) `secrets/{project}.txt` (optional).
+- Secrets remain `${VAR}` in generated files; at deploy time `itsup apply/run` loads env so compose expands.
+- Always start compose via `get_env_with_secrets(project)` from `lib.data`:
+  ```python
+  subprocess.run(cmd, env=get_env_with_secrets(project), check=True)
+  # infra stacks (no project):
+  subprocess.run(cmd, env=get_env_with_secrets(), check=True)
+  ```
+- Templates: `tpl/proxy/traefik.yml.j2` and `tpl/proxy/docker-compose.yml.j2` produce minimal bases; merged with `projects/traefik.yml`.
+- Label injection: `ingress.yml` auto-generates Traefik labels (router rules, TLS, service ports).
 
-- Pre-commit hooks (format/lint/test) run automatically on commit.
-- Commit messages must follow Commitizen/Conventional Commit style (hook enforced); use `cz commit` or write `type: message` manually.
-- Keep changes small and focused; use feature branches for larger edits, then PR.
-
-## Architecture Notes (v2)
-
-Project structure in `projects/`:
-```
-projects/
-├── itsup.yml              # Infrastructure config with ${VAR} placeholders
-├── traefik.yml            # Traefik overrides
-└── example-project/
-    ├── docker-compose.yml # Service definitions (secrets as ${VAR})
-    └── ingress.yml        # Routing configuration (IngressV2 schema)
-```
-
-Secrets loading order (later overrides earlier):
-1. `secrets/itsup.txt`
-2. `secrets/{project}.txt` (optional)
-
-Secrets stay as `${VAR}` in generated files. At deploy time, `itsup apply/run` loads secrets into the environment so docker compose can expand them. Use `get_env_with_secrets(project)` (from `lib.data`) when invoking compose commands:
-
-```python
-subprocess.run(cmd, env=get_env_with_secrets(project), check=True)
-# For infrastructure stacks (no project):
-subprocess.run(cmd, env=get_env_with_secrets(), check=True)
-```
-
-Templates:
-- `tpl/proxy/traefik.yml.j2` and `tpl/proxy/docker-compose.yml.j2` generate minimal bases.
-- Merge `projects/traefik.yml` on top for overrides.
-
-Label injection: `ingress.yml` drives Traefik labels automatically (router rules, TLS, service ports).
+## Containerization Scope
+- Containerized: upstream project services only.
+- Not containerized: dns honeypot mgmt code, proxy/Traefik config code, API server (`bin/start-api.sh`), CLI `itsup`, monitoring scripts.
 
 ## Code Standards
+- See `@~/.claude/docs/development/coding-directives.md`
 
-See  `@~/.claude/docs/development/coding-directives.md`
-
-## Testing
-
-See `~/.claude/docs/development/testing-directives.md`
-
-- Framework: Python `unittest`
-- Naming: `*_test.py`
-- Run: `bin/test.sh`
-- Key suites: `lib/data_test.py`, `lib/upstream_test.py`, `bin/backup_test.py`
+## Testing Standards
+- See `~/.claude/docs/development/testing-directives.md`

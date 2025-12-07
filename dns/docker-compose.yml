@@ -13,7 +13,11 @@ services:
         port=53
         no-hosts
         no-poll
+        # Order matters: resolve container/service names first via Docker DNS,
+        # then fall back to public resolvers for everything else.
+        strict-order
         no-resolv
+        server=127.0.0.11
         server=1.1.1.1
         server=9.9.9.9
         cache-size=0
