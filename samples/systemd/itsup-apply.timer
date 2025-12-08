@@ -1,0 +1,10 @@
+[Unit]
+Description=Run itsup apply nightly at 03:00
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=itsup-apply.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=itsUP nightly backup to S3 (runs bin/backup.py)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User={{USER}}
+Group={{GROUP}}
+WorkingDirectory={{ROOT}}
+Environment=HOME=/home/{{USER}}
+ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && .venv/bin/python bin/backup.py'

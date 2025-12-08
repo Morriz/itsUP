@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly itsUP apply (regen + deploy all stacks/projects)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User={{USER}}
+Group={{GROUP}}
+WorkingDirectory={{ROOT}}
+Environment=HOME=/home/{{USER}}
+ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup apply'

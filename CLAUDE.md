@@ -85,9 +85,9 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 
 **First-time setup:**
 
-1. **Install Python dependencies** (MUST be done first):
+1. **Install Python dependencies + bringup service** (MUST be done first):
    ```bash
-   make install             # Creates .venv, installs dependencies
+   make install             # Installs deps and installs/enables systemd bringup service (itsup run && itsup apply on boot)
    ```
 
 2. **Add itsup to PATH** (recommended):
@@ -125,6 +125,14 @@ Developer guide for working with this codebase. **Read [README.md](README.md) fi
 ```bash
 itsup apply                 # Apply all configurations (regenerate + deploy in parallel)
 itsup apply <project>       # Apply single project configuration
+```
+
+**System service (auto boot):**
+```bash
+sudo systemctl status itsup-bringup.service   # runs itsup run && itsup apply at boot, down --clean on shutdown
+sudo systemctl list-timers itsup-apply.timer  # nightly itsup apply at 03:00 via systemd timer
+sudo systemctl list-timers itsup-backup.timer # nightly backup at 05:00 via systemd timer
+sudo systemctl list-timers pi-healthcheck.timer # healthcheck every 5 min (strike window logic)
 ```
 
 **Note:** `itsup apply` (without project arg) deploys all projects in parallel. Uses smart change detection via config hash comparison - only performs rollouts when changes detected.

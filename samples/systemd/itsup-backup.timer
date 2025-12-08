@@ -1,0 +1,10 @@
+[Unit]
+Description=Run itsUP backup nightly at 05:00
+
+[Timer]
+OnCalendar=*-*-* 05:00:00
+Persistent=true
+Unit=itsup-backup.service
+
+[Install]
+WantedBy=timers.target

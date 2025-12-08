@@ -8,8 +8,9 @@ help: ## Show this help message
 	@echo ''
 	@echo 'For runtime operations (start/stop/logs/monitor), use: itsup --help'
 
-install: ## Install all dependencies (Docker, SOPS, Python packages)
+install: ## Install dependencies and (re)install systemd bringup service
 	@./bin/install.sh
+	@./bin/install-bringup-service.sh
 
 test-unit: ## Run unit tests (fast)
 	./bin/test.sh

@@ -17,3 +17,4 @@ __pycache__
 /secrets/
 
 *.local.json
+itsup.tar.gz

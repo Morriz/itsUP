@@ -318,7 +318,7 @@ itsUP automatically adapts its output based on context:
 A minimal Makefile focused on development workflow. Run `make help` to see all available targets:
 
 ```bash
-make install           # Install dependencies (calls itsup init)
+make install           # Install deps + install/enable itsup-bringup systemd service
 make test              # Run all tests
 make lint              # Run linter
 make format            # Format code
@@ -326,6 +326,12 @@ make clean             # Remove generated artifacts
 ```
 
 **For runtime operations** (run/dns/proxy/svc/monitor), use `itsup` commands instead. The Makefile is intentionally minimal to avoid command sprawl.
+
+**Background automation**
+- `itsup-bringup.service` (enabled): runs `itsup run && itsup apply` at boot; `itsup down --clean` on shutdown.
+- `itsup-apply.timer` (enabled): runs `itsup apply` nightly at 03:00 (systemd timer).
+- `itsup-backup.timer` (enabled): runs `bin/backup.py` nightly at 05:00 (systemd timer).
+- `pi-healthcheck.timer` (enabled): runs `bin/pi-healthcheck.sh` every 5 minutes (systemd timer) with maintenance window logic (02:30–03:30 aggressive, otherwise strike-based).
 
 ### DNS Honeypot
 
@@ -412,7 +418,15 @@ Both repositories are **gitignored** in the main itsUP repo and managed as indep
 
 #### 2. Run installation
 
-The `itsup init` command will:
+Install everything + systemd bringup service:
+
+```bash
+make install
+```
+
+This installs dependencies and installs/enables the `itsup-bringup` systemd service, which runs `itsup run && itsup apply` at boot and `itsup down --clean` at shutdown.
+
+If you prefer to run only the CLI bootstrap, the `itsup init` command will:
 
 - Prompt for git URLs and clone `projects/` and `secrets/` repositories
 - Copy sample configuration files (won't overwrite existing files)

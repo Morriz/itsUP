@@ -19,7 +19,7 @@ Read `README.md` first for architecture, components, and workflows.
 - Internal/private: single leading underscore on instance vars/methods. Be consistent.
 
 ## Setup & Installation
-1) `make install` (creates .venv, installs deps).  
+1) `make install` (installs deps and installs/enables systemd bringup service that runs `itsup run && itsup apply` on boot; `itsup down --clean` on shutdown; also enables timers: `itsup apply` at 03:00, backup at 05:00, and pi-healthcheck every 5 minutes).  
 2) `source env.sh` (activates venv, adds `bin/` to PATH, enables completion). Add to shell rc if desired.  
 3) `itsup init` (clones projects/secrets if needed; copies samples: `samples/env`→`.env`, `samples/itsup.yml`→`projects/itsup.yml`, `samples/traefik.yml`→`projects/traefik.yml`, `samples/example-project/`→`projects/example-project/`, `samples/secrets/itsup.txt`→`secrets/itsup.txt`). Idempotent.
 

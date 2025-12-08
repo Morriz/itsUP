@@ -1,0 +1,11 @@
+[Unit]
+Description=Run pi-healthcheck every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=pi-healthcheck.service
+
+[Install]
+WantedBy=timers.target
