@@ -40,6 +40,7 @@ Read `README.md` first for architecture, components, and workflows.
 
 ## Make (dev tools only; runtime uses itsup)
 - `make help | install | test | lint | format | clean`.
+- `git config core.hooksPath bin/hooks` to enable post-merge hook that auto-installs dependencies when `requirements*.txt` changes.
 
 ## Artifact Generation
 - `itsup apply` (all or single project).

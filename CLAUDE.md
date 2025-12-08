@@ -133,6 +133,12 @@ sudo systemctl status itsup-bringup.service   # runs itsup run && itsup apply at
 sudo systemctl list-timers itsup-apply.timer  # nightly itsup apply at 03:00 via systemd timer
 sudo systemctl list-timers itsup-backup.timer # nightly backup at 05:00 via systemd timer
 sudo systemctl list-timers pi-healthcheck.timer # healthcheck every 5 min (strike window logic)
+
+Git hook (auto requirements install):
+```bash
+git config core.hooksPath bin/hooks
+```
+This enables post-merge hook to pip install if any `requirements*.txt` changed.
 ```
 
 **Note:** `itsup apply` (without project arg) deploys all projects in parallel. Uses smart change detection via config hash comparison - only performs rollouts when changes detected.

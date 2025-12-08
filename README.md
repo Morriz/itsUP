@@ -332,6 +332,7 @@ make clean             # Remove generated artifacts
 - `itsup-apply.timer` (enabled): runs `itsup apply` nightly at 03:00 (systemd timer).
 - `itsup-backup.timer` (enabled): runs `bin/backup.py` nightly at 05:00 (systemd timer).
 - `pi-healthcheck.timer` (enabled): runs `bin/pi-healthcheck.sh` every 5 minutes (systemd timer) with maintenance window logic (02:30–03:30 aggressive, otherwise strike-based).
+- `git hooks`: set `git config core.hooksPath bin/hooks` to enable auto-install of requirements after pulls when `requirements*.txt` changes.
 
 ### DNS Honeypot
 

@@ -216,3 +216,15 @@ echo ""
 echo "  5. Deploy:"
 echo "     itsup apply"
 echo ""
+echo "  6. Enable git hooks (auto requirements install on pull):"
+echo "     git config core.hooksPath bin/hooks"
+echo ""
+
+# Auto-enable git hooks (post-merge requirements install) if inside a git repo
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git config core.hooksPath bin/hooks
+    echo -e "${GREEN}✓${NC} Git hooks enabled (core.hooksPath=bin/hooks)"
+else
+    echo -e "${YELLOW}⚠${NC} Not a git repo; skipping hooks setup"
+fi
+echo ""

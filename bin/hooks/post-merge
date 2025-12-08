@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Auto-install Python requirements after a pull/merge if requirements files changed.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+# Find previous HEAD ref
+prev="$(git rev-parse HEAD@{1} 2>/dev/null || true)"
+if [[ -z "$prev" ]]; then
+  exit 0
+fi
+
+changed_reqs="$(git diff --name-only "$prev"..HEAD -- 'requirements*.txt')"
+if [[ -z "$changed_reqs" ]]; then
+  exit 0
+fi
+
+pip_bin="$root/.venv/bin/pip"
+if [[ ! -x "$pip_bin" ]]; then
+  echo "requirements changed, but .venv not found at $pip_bin; skipping auto-install" >&2
+  exit 0
+fi
+
+echo "Detected updated requirements files:"
+printf '  - %s\n' $changed_reqs
+
+# Source env for PATH/exported vars (optional, but keeps parity with manual workflow)
+if [[ -f "$root/env.sh" ]]; then
+  # shellcheck disable=SC1090
+  source "$root/env.sh"
+fi
+
+unique_files=$(printf '%s\n' $changed_reqs | sort -u)
+for req in $unique_files; do
+  if [[ -f "$req" ]]; then
+    echo "Installing updated dependencies from $req ..."
+    "$pip_bin" install -q -r "$req"
+  fi
+done
+
+echo "✓ requirements auto-install complete"
