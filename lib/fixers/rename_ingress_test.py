@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lib.fixers.rename_ingress import apply
+from lib.fixers.rename_ingress import apply, get_git_env
 
 
 class TestRenameIngress(unittest.TestCase):
@@ -37,16 +37,29 @@ class TestRenameIngress(unittest.TestCase):
 
     def _init_git_repo(self) -> None:
         """Initialize git repository in projects dir"""
-        subprocess.run(["git", "init"], cwd=self.projects_dir, check=True, capture_output=True)
+        git_env = get_git_env()
+        subprocess.run(["git", "init"], cwd=self.projects_dir, check=True, capture_output=True, env=git_env)
         subprocess.run(
-            ["git", "config", "user.email", "test@test.com"], cwd=self.projects_dir, check=True, capture_output=True
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=self.projects_dir,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
         subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=self.projects_dir, check=True, capture_output=True
+            ["git", "config", "user.name", "Test User"],
+            cwd=self.projects_dir,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
-        subprocess.run(["git", "add", "."], cwd=self.projects_dir, check=True, capture_output=True)
+        subprocess.run(["git", "add", "."], cwd=self.projects_dir, check=True, capture_output=True, env=git_env)
         subprocess.run(
-            ["git", "commit", "-m", "Initial commit"], cwd=self.projects_dir, check=True, capture_output=True
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=self.projects_dir,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
 
     def test_rename_without_git(self) -> None:
@@ -91,6 +104,7 @@ class TestRenameIngress(unittest.TestCase):
             capture_output=True,
             text=True,
             check=True,
+            env=get_git_env(),
         )
         # Git should show renamed files
         self.assertIn("R", git_result.stdout)  # R = renamed

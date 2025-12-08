@@ -77,26 +77,31 @@ Still interested? Then read on...
 Comprehensive documentation is available in the `docs/` directory:
 
 **Getting Started:**
+
 - [Architecture Overview](docs/architecture.md) - System architecture and design principles
 - [Networking](docs/networking.md) - Network topology and configuration
 
 **Stacks:**
+
 - [DNS Stack](docs/stacks/dns.md) - DNS honeypot management
 - [Proxy Stack](docs/stacks/proxy.md) - Traefik configuration, routing, and TLS
 - [API Stack](docs/stacks/api.md) - Management API architecture and deployment
 
 **Operations:**
+
 - [Logging](docs/operations/logging.md) - Log management and rotation
 - [Monitoring](docs/operations/monitoring.md) - Container security monitoring
 - [Backups](docs/operations/backups.md) - Backup and disaster recovery
 - [Deployment](docs/operations/deployment.md) - Deployment procedures and best practices
 
 **Development:**
+
 - [Project Structure](docs/development/structure.md) - Codebase organization
 - [Configuration](docs/development/configuration.md) - Configuration guide with schemas
 - [Testing](docs/development/testing.md) - Testing strategies and practices
 
 **Reference:**
+
 - [CLI Reference](docs/reference/cli.md) - Complete command-line reference
 - [Environment Variables](docs/reference/environment-variables.md) - All environment variables
 - [Troubleshooting](docs/reference/troubleshooting.md) - Common issues and solutions
@@ -168,10 +173,7 @@ It is surely possible to deploy stateful services but beware that those might no
 
 ## Apps included
 
-- [traefik/traefik](https://github.com/traefik/traefik): the famous L7 routing proxy that manages letsencrypt certificates
-- [minio/minio](https://github.com/minio/minio): S3 storage
-- [nubacuk/docker-openvpn](https://github.com/nuBacuk/docker-openvpn): vpn access to the host running this stack
-- [traefik/whoami](https://github.com/traefik/whoami): to demonstrate that headers are correctly passed along
+See [itsup-projects](https://github.com/Morriz/itsUP-projects) for all the apps I am currently running.
 
 ## Prerequisites
 
@@ -259,6 +261,7 @@ itsup migrate                        # Upgrade configuration schema
 ```
 
 **Migration Features:**
+
 - Idempotent fixers (safe to run multiple times)
 - Git-aware file operations (uses `git mv` to preserve history)
 - Automatic validation after migration
@@ -269,6 +272,7 @@ itsup migrate                        # Upgrade configuration schema
 itsUP automatically adapts its output based on context:
 
 - **Interactive terminal (TTY)**: Clean colored output with symbols
+
   ```
   ✓ Migration complete!
   ⚠ Config needs review

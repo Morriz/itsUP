@@ -1,8 +1,14 @@
 import logging
+import os
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def get_git_env() -> dict[str, str]:
+    """Return environment with git variables stripped to avoid bleed-through from hooks."""
+    return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
 
 
 def apply(projects_dir: Path, dry_run: bool = False) -> dict[str, list[str]]:
@@ -53,6 +59,7 @@ def apply(projects_dir: Path, dry_run: bool = False) -> dict[str, list[str]]:
                     cwd=projects_dir,
                     check=True,
                     capture_output=True,
+                    env=get_git_env(),
                 )
             else:
                 old_file.rename(new_file)
