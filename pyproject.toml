@@ -57,6 +57,7 @@ warn_untyped_fields = true
 # ALL imports MUST be at the top of the file (see CLAUDE.md)
 disable = [
   "invalid-name",
+  "logging-fstring-interpolation",
   "missing-docstring",
   "missing-module-docstring",
   "missing-timeout",
@@ -124,3 +125,4 @@ exclude_lines = [
   "class .*\\bProtocol\\):",
   "@(abc\\.)?abstractmethod",
 ]
+

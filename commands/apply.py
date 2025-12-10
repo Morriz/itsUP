@@ -4,7 +4,6 @@
 
 import logging
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 
@@ -76,22 +75,17 @@ def apply(project):
         # Apply all (dns + proxy + upstreams)
         logger.info("Deploying all stacks with smart rollout...")
 
-        # Deploy ALL targets IN PARALLEL (dns, proxy, and all projects)
+        # Deploy ALL targets sequentially (dns, proxy, and all projects)
         all_targets = ["dns", "proxy"] + list_projects()
         failed = []
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            # Submit all deployments in parallel
-            futures = {executor.submit(_deploy_single, target): target for target in all_targets}
-
-            # Collect results as they complete
-            for future in as_completed(futures):
-                target, success, error_msg = future.result()
-                if success:
-                    logger.info(f"  ✓ {target}")
-                else:
-                    logger.error(f"  ✗ {target} failed: {error_msg}")
-                    failed.append(target)
+        for target in all_targets:
+            target, success, error_msg = _deploy_single(target)
+            if success:
+                logger.info(f"  ✓ {target}")
+            else:
+                logger.error(f"  ✗ {target} failed: {error_msg}")
+                failed.append(target)
 
         if failed:
             logger.error(f"Failed: {', '.join(failed)}")
