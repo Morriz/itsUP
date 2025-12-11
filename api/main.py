@@ -8,27 +8,18 @@ from typing import List
 
 import dotenv
 import uvicorn
-from fastapi import BackgroundTasks, Depends
-from fastapi.datastructures import QueryParams
-from github_webhooks import create_app
-from github_webhooks.schemas import WebhookHeaders
+from fastapi import BackgroundTasks, Depends, FastAPI
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.auth import verify_apikey
-from lib.data import list_projects, load_secrets
+from lib.data import list_projects
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack
-from lib.models import PingPayload, WorkflowJobPayload
 
 dotenv.load_dotenv()
 
-# Load API key from secrets
-secrets = load_secrets()
-if "API_KEY" not in secrets:
-    raise ValueError("Missing required secret: API_KEY\n" "Add to secrets/itsup.txt or secrets/itsup.enc.txt")
-api_token = secrets["API_KEY"]
-app = create_app(secret_token=api_token)
+app = FastAPI(title="itsUP API", version="2.0")
 
 
 def _handle_update_upstream(project: str, service: str = None) -> None:
@@ -98,30 +89,6 @@ def get_hook_handler(
 ) -> None:
     """Handle requests to update the upstream"""
     _handle_hook(project, background_tasks, service)
-
-
-@app.hooks.register("ping", PingPayload)
-async def github_ping_handler(
-    payload: PingPayload, headers: WebhookHeaders, query_params: QueryParams, background_tasks: BackgroundTasks
-) -> str:
-    """Handle incoming github webhook requests for ping events to notify callers we're up"""
-    info(f"Got ping message: {payload.zen}")
-    return "pong"
-
-
-@app.hooks.register("workflow_job", WorkflowJobPayload)
-async def github_workflow_job_handler(
-    payload: WorkflowJobPayload,
-    headers: WebhookHeaders,
-    query_params: QueryParams,
-    background_tasks: BackgroundTasks,
-) -> None:
-    """Handle incoming github webhook requests for workflow_job events to update ourselves or an upstream"""
-    if payload.workflow_job.status == "completed" and payload.workflow_job.conclusion == "success":
-        project = query_params.get("project")
-        assert project is not None
-        service = payload.workflow_job.name
-        _handle_hook(project, background_tasks, service)
 
 
 @app.get("/projects", response_model=List[str])
