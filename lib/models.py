@@ -1,7 +1,6 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from github_webhooks.schemas import WebhookCommonPayload
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -153,20 +152,6 @@ class Project(BaseModel):
     """The name of the project"""
     services: List[Service] = []
     """A list of services to run in the project"""
-
-
-class PingPayload(WebhookCommonPayload):
-
-    zen: str
-
-
-class WorkflowJobPayload(WebhookCommonPayload):
-    class WorkflowJob(BaseModel):
-        name: str
-        status: str
-        conclusion: str | None = None
-
-    workflow_job: WorkflowJob
 
 
 # V2 Models for projects/ structure
