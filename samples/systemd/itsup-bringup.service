@@ -11,7 +11,7 @@ Group={{GROUP}}
 WorkingDirectory={{ROOT}}
 Environment=HOME=/home/{{USER}}
 # Start core infra then deploy all projects (apply may take time for pulls)
-ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup run && itsup apply || true'
+ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup run && itsup apply'
 # On shutdown, tear everything down cleanly
 ExecStop=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup down --clean'
 RemainAfterExit=yes
