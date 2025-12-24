@@ -5,10 +5,12 @@ import sys
 from functools import cache
 from logging import info
 from typing import List
+from urllib.parse import urlparse
 
 import dotenv
 import uvicorn
-from fastapi import BackgroundTasks, Depends, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -96,6 +98,22 @@ def get_hook_handler(
 def list_projects_handler(_: None = Depends(verify_apikey)) -> List[str]:
     """Get the list of all projects (V2 - file-based configuration)"""
     return list_projects()
+
+
+@app.get("/redirect", response_class=RedirectResponse)
+def redirect_handler(url: str) -> RedirectResponse:
+    """Redirect to the provided url (message:// or imessage:// only)."""
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing url")
+
+    parsed = urlparse(url)
+    if parsed.scheme not in {"message", "imessage"}:
+        raise HTTPException(status_code=400, detail="Unsupported url scheme")
+
+    if any(char.isspace() for char in url):
+        raise HTTPException(status_code=400, detail="Invalid url")
+
+    return RedirectResponse(url=url, status_code=307)
 
 
 if __name__ == "__main__":
