@@ -1,25 +1,39 @@
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
 repos:
-  - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.14.1
-    hooks:
-      - id: commitizen
-        stages: [commit-msg]
-  - repo: local
-    hooks:
-      - id: format
-        name: Format code
-        entry: bin/format.sh
-        language: script
-        stages: [pre-commit]
-      - id: lint
-        name: Lint code
-        entry: bin/lint.sh
-        language: script
-        stages: [pre-commit]
-      - id: test
-        name: Test code
-        entry: bin/test.sh
-        language: script
-        stages: [pre-commit]
+- repo: https://github.com/commitizen-tools/commitizen
+  rev: v3.14.1
+  hooks:
+  - id: commitizen
+    stages:
+    - commit-msg
+- repo: local
+  hooks:
+  - id: format
+    name: Format code
+    entry: bin/format.sh
+    language: script
+    stages:
+    - pre-commit
+  - id: lint
+    name: Lint code
+    entry: bin/lint.sh
+    language: script
+    stages:
+    - pre-commit
+  - id: test
+    name: Test code
+    entry: bin/test.sh
+    language: script
+    stages:
+    - pre-commit
+- repo: local
+  hooks:
+  - id: teleclaude-docs-check
+    name: Check for hardcoded HOME paths in docs
+    entry: bash -c
+    args:
+    - 'git diff --cached --name-only --diff-filter=ACM | grep ''\.md$'' | xargs -r
+      grep -l "@/Users/\|@/home/" && echo "ERROR: Hardcoded HOME paths found in docs.
+      Run ''telec init'' to set up filters." && exit 1 || true'
+    language: system
+    files: \.md$
+    pass_filenames: false

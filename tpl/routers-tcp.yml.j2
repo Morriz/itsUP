@@ -1,5 +1,12 @@
 # yaml-language-server: $schema=https://www.schemastore.org/traefik-v3.json
 tcp:
+  serversTransports:
+    proxy-transport-v1:
+      proxyProtocol:
+        version: 1
+    proxy-transport-v2:
+      proxyProtocol:
+        version: 2
   routers:
 {%- for p in projects %}
   {%- for s in p.services %}
@@ -37,8 +44,11 @@ tcp:
     {{ name }}:
       loadBalancer:
         {%- if i.proxyprotocol %}
-        proxyProtocol:
-          version: {{ ProxyProtocol(i.proxyprotocol).value }}
+          {%- if i.proxyprotocol == 1 %}
+        serversTransport: proxy-transport-v1
+          {%- elif i.proxyprotocol == 2 %}
+        serversTransport: proxy-transport-v2
+          {%- endif %}
         {%- endif %}
         servers:
           - address: {{ s.host }}:{{ i.port }}

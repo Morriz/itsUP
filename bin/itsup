@@ -51,6 +51,8 @@ from commands.decrypt import decrypt
 from commands.diff_secrets import diff_secrets
 from commands.edit_secret import edit_secret
 from commands.sops_key import sops_key
+from commands.create import create
+from commands.pull import pull
 
 
 @click.group(
@@ -79,6 +81,8 @@ def cli(verbose):
 
 # Register commands
 cli.add_command(init)
+cli.add_command(create)
+cli.add_command(pull)
 cli.add_command(status)
 cli.add_command(commit)
 cli.add_command(run)
