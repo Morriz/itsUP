@@ -1,4 +1,4 @@
-boto3==1.43.14
+boto3==1.43.15
 click==8.4.1
 fastapi==0.136.3
 github-webhooks-framework2==0.2.2
