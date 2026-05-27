@@ -248,32 +248,41 @@ ingress: []
     # Also generate proxy compose
     write_proxy_compose()
 
-    # Collect all DNS IPs from generated files
-    dns_ips = set()
+    # Docker's embedded DNS, the only permitted fallback after the honeypot.
+    docker_embedded_dns = "127.0.0.11"
 
-    # Check upstream compose files
+    # Collect every service's DNS config (ordered) from generated files.
+    dns_configs = []
+
     for i in range(3):
         compose_file = upstream_dir / f"project{i}" / "docker-compose.yml"
         with open(compose_file) as f:
             compose_data = yaml.safe_load(f)
 
-        for service_name, service_config in compose_data["services"].items():
+        for service_config in compose_data["services"].values():
             if "dns" in service_config:
-                dns_ips.update(service_config["dns"])
+                dns_configs.append(service_config["dns"])
 
-    # Check proxy compose file
     proxy_compose = tmp_path / "proxy" / "docker-compose.yml"
     if proxy_compose.exists():
         with open(proxy_compose) as f:
             proxy_data = yaml.safe_load(f)
 
-        for service_name, service_config in proxy_data.get("services", {}).items():
+        for service_config in proxy_data.get("services", {}).values():
             if "dns" in service_config:
-                dns_ips.update(service_config["dns"])
+                dns_configs.append(service_config["dns"])
 
-    # All DNS IPs must be exactly the DNS_HONEYPOT constant
-    assert len(dns_ips) == 1, f"All services should use same DNS IP, found: {dns_ips}"
-    assert DNS_HONEYPOT in dns_ips, f"All services should use DNS_HONEYPOT {DNS_HONEYPOT}"
+    assert dns_configs, "Expected at least one service with DNS configured"
+
+    # Every service must query the honeypot FIRST, so all DNS is intercepted and logged.
+    # Upstream services additionally list Docker's embedded DNS as a fallback for internal
+    # name resolution; infra services use the honeypot alone. No other resolver is permitted
+    # — a foreign IP, or the honeypot not being first, would let a service bypass logging.
+    for dns in dns_configs:
+        assert dns[0] == DNS_HONEYPOT, f"Honeypot {DNS_HONEYPOT} must be the first resolver, found: {dns}"
+        assert set(dns) <= {DNS_HONEYPOT, docker_embedded_dns}, (
+            f"Only the honeypot and Docker DNS are permitted resolvers, found: {dns}"
+        )
 
 
 def test_generated_traefik_config_is_valid(tmp_path, monkeypatch):

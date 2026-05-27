@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import subprocess
 import tempfile
 import unittest
@@ -17,10 +18,19 @@ class TestRenameIngress(unittest.TestCase):
         self.projects_dir = Path(self.temp_dir) / "projects"
         self.projects_dir.mkdir()
 
+        # This fixture exercises apply()'s git-mv branch against a real repo. Strip the
+        # teleclaude commit-governance wrapper from PATH so all git calls (fixture setup
+        # and apply()) resolve to the real binary; a throwaway /tmp repo needs no governance.
+        self._original_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = os.pathsep.join(
+            entry for entry in self._original_path.split(os.pathsep) if "/.teleclaude/" not in entry
+        )
+
     def tearDown(self) -> None:
         """Clean up temporary directory"""
         import shutil
 
+        os.environ["PATH"] = self._original_path
         shutil.rmtree(self.temp_dir)
 
     def _create_project_with_ingress(self, project_name: str) -> None:

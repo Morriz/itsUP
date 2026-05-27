@@ -12,6 +12,35 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def real_git_binary(monkeypatch):
+    """Strip the teleclaude commit-governance wrapper from PATH.
+
+    Functional fixtures build throwaway /tmp git repos with real git (init/add/commit).
+    Those repos have nothing to govern, so they must resolve to the real binary rather
+    than the agent-session wrapper that blocks add/commit.
+    """
+    path = os.environ.get("PATH", "")
+    monkeypatch.setenv(
+        "PATH",
+        os.pathsep.join(entry for entry in path.split(os.pathsep) if "/.teleclaude/" not in entry),
+    )
+
+
+@pytest.fixture(autouse=True)
+def neutralize_schema_check(monkeypatch):
+    """Make the schema-version guard a no-op for command tests.
+
+    Config-reading commands call check_schema_version() at startup, which compares the
+    app version against the fixture config's schema version. These tests exercise command
+    behavior, not version compatibility (covered in lib/migrations_test.py), so equalize
+    the two versions. check_schema_version imports these lazily, so patching here covers
+    every command without per-module patches.
+    """
+    monkeypatch.setattr("lib.migrations.get_app_version", lambda: "0.0.0")
+    monkeypatch.setattr("lib.migrations.get_schema_version", lambda: "0.0.0")
+
+
 @pytest.fixture(scope="session")
 def real_age_key(tmp_path_factory):
     """Generate REAL age encryption key for tests.
