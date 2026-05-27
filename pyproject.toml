@@ -22,9 +22,9 @@ requires-python = ">=3.11"
 
 
 [project.urls]
-homepage = "https://github.com/morriz/github-webhooks"
-"Source Code" = "https://github.com/morriz/github-webhooks"
-"Bug Tracker" = "https://github.com/morriz/github-webhooks/issues"
+homepage = "https://github.com/morriz/itsUP"
+"Source Code" = "https://github.com/morriz/itsUP"
+"Bug Tracker" = "https://github.com/morriz/itsUP/issues"
 
 [tool.black]
 line-length = 120
