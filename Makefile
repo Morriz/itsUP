@@ -10,6 +10,8 @@ help: ## Show this help message
 
 install: ## Install dependencies and (re)install systemd bringup service
 	@./bin/install.sh
+
+make-deploy: ## Build and deploy the bringup service (requires sudo)
 	@./bin/install-bringup-service.sh
 
 test-unit: ## Run unit tests (fast)
