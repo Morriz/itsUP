@@ -19,6 +19,11 @@ class TestApply(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.runner = CliRunner()
+        # Apply runs a global, fail-closed validation gate first; keep it green by
+        # default so these tests exercise deploy logic, not real projects/ state.
+        validate_patcher = patch("commands.apply.validate_all", return_value={})
+        validate_patcher.start()
+        self.addCleanup(validate_patcher.stop)
 
     @patch("commands.apply.check_schema_version")
     @patch("commands.apply.list_projects")
@@ -105,6 +110,23 @@ class TestApply(unittest.TestCase):
         result = self.runner.invoke(apply, [])
 
         self.assertEqual(result.exit_code, 1)
+
+    @patch("commands.apply.check_schema_version")
+    @patch("commands.apply.deploy_upstream_project")
+    @patch("commands.apply.validate_all")
+    def test_apply_refuses_on_validation_error(
+        self, mock_validate_all: Mock, mock_deploy: Mock, mock_version_check: Mock
+    ) -> None:
+        """A validation failure (e.g. cross-project IP collision) blocks deploy, fail-closed."""
+        mock_validate_all.return_value = {
+            "adguard": ["ipv4_address '172.20.0.252' already claimed by project 'other'"]
+        }
+
+        result = self.runner.invoke(apply, ["adguard"])
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("already claimed", result.output)
+        mock_deploy.assert_not_called()
 
 
 if __name__ == "__main__":

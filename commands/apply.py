@@ -8,7 +8,7 @@ import sys
 import click
 
 from commands.common import complete_stack_or_project
-from lib.data import list_projects
+from lib.data import list_projects, validate_all
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack, deploy_upstream_project
 from lib.version_check import check_schema_version
 
@@ -38,6 +38,17 @@ def apply(project):
         itsup apply instrukt-ai      # Deploy single project
     """
     check_schema_version()
+
+    # Design-by-contract gate: the whole config must hold its invariants before we
+    # touch anything. Global and fail-closed — one invalid project or a cross-project
+    # collision blocks every deploy until the config is valid again.
+    errors = validate_all()
+    if errors:
+        for proj, errs in errors.items():
+            for err in errs:
+                click.echo(f"  {proj}: {err}", err=True)
+        click.echo("Validation failed; refusing to deploy", err=True)
+        sys.exit(1)
 
     def _deploy_single(target: str) -> tuple[str, bool, str]:
         """Deploy a single stack or project. Returns (target, success, error_msg)"""
