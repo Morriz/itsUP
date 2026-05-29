@@ -1,3 +1,4 @@
+import ipaddress
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -97,12 +98,30 @@ class Ingress(BaseModel):
     """TLS settings that will be used instead of 'domain'"""
     expose: bool = False
     """Expose the service to any other internal service"""
+    ipv4_address: str | None = None
+    """Static IPv4 address to pin the service on the proxynet network.
+    Written verbatim into the generated upstream docker-compose networks block.
+    Must lie within the proxynet subnet."""
+    dns: List[str] | None = None
+    """Explicit DNS servers for the service. When set, written verbatim as the
+    service's `dns:` block in the generated upstream docker-compose, replacing
+    the default DNS honeypot injection."""
 
     @model_validator(mode="after")
     @classmethod
     def check_passthrough_tcp(cls, data: Any) -> Any:
         if data.passthrough and data.port == 80 and not data.path_prefix == "/.well-known/acme-challenge/":
             raise ValueError("Passthrough is only allowed for ACME challenge on port 80.")
+        return data
+
+    @model_validator(mode="after")
+    @classmethod
+    def check_ipv4_address(cls, data: Any) -> Any:
+        if data.ipv4_address is not None:
+            try:
+                ipaddress.IPv4Address(data.ipv4_address)
+            except ValueError as e:
+                raise ValueError(f"ipv4_address must be a valid IPv4 address, got: {data.ipv4_address}") from e
         return data
 
 

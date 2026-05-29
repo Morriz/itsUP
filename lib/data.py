@@ -1,5 +1,6 @@
 """Data loading from projects/ and secrets/"""
 
+import ipaddress
 import logging
 import os
 import re
@@ -14,6 +15,11 @@ from lib.models import TraefikConfig
 from lib.sops import load_encrypted_env, load_env_file
 
 logger = logging.getLogger(__name__)
+
+# proxynet subnet (created by the DNS stack in dns/docker-compose.yml).
+# Static ingress IPs must lie within it and avoid the gateway/honeypot.
+PROXYNET_SUBNET = "172.20.0.0/16"
+PROXYNET_RESERVED_IPS = {"172.20.0.1", "172.20.0.253"}
 
 # === V2 API Functions (for projects/ structure) ===
 
@@ -211,6 +217,75 @@ def list_projects() -> list[str]:
     ]
 
 
+def _validate_ingress_ips(traefik: TraefikConfig) -> list[str]:
+    """Validate static proxynet ipv4_address declarations on a project's ingress rows."""
+    errors: list[str] = []
+    service_ips: dict[str, str] = {}
+    proxynet = ipaddress.ip_network(PROXYNET_SUBNET)
+
+    for ingress in traefik.ingress:
+        if ingress is None or not ingress.ipv4_address:
+            continue
+        ip = ingress.ipv4_address
+        try:
+            addr = ipaddress.IPv4Address(ip)
+        except ValueError:
+            errors.append(f"ingress.ipv4_address '{ip}' is not a valid IPv4 address")
+            continue
+        if addr not in proxynet:
+            errors.append(f"ingress.ipv4_address '{ip}' is outside proxynet subnet {PROXYNET_SUBNET}")
+        if ip in PROXYNET_RESERVED_IPS:
+            errors.append(f"ingress.ipv4_address '{ip}' is reserved (proxynet gateway/honeypot)")
+        prev = service_ips.get(ingress.service)
+        if prev and prev != ip:
+            errors.append(f"service '{ingress.service}' has conflicting ipv4_address values: {prev} and {ip}")
+        service_ips[ingress.service] = ip
+
+    return errors
+
+
+def _validate_egress_targets(traefik: TraefikConfig) -> list[str]:
+    """Validate that each egress declaration points at an existing project:service."""
+    errors: list[str] = []
+
+    for egress_spec in traefik.egress:
+        if not egress_spec:
+            continue
+
+        # Parse target service name (format: project:service)
+        # Example: "ai-chatbot:redis" -> project="ai-chatbot", service="redis"
+        if ":" not in egress_spec:
+            errors.append(f"egress '{egress_spec}' must be in format: project:service (e.g., 'ai-chatbot:redis')")
+            continue
+
+        target_project, target_service = egress_spec.split(":", 1)
+
+        # Check if target project exists
+        if target_project not in list_projects():
+            errors.append(f"egress target project '{target_project}' not found (from: {egress_spec})")
+            continue
+
+        # Load target project and check if service exists
+        try:
+            target_compose, _ = load_project(target_project)
+            if target_compose:  # Only validate for container projects
+                target_services = target_compose.get("services", {})
+                # Build full service name: {project}-{service}
+                full_service_name = f"{target_project}-{target_service}"
+
+                # Check if service exists (match both short and full name)
+                if target_service not in target_services and full_service_name not in target_services:
+                    errors.append(
+                        f"egress target service '{target_service}' not found in "
+                        f"project '{target_project}' (available services: "
+                        f"{', '.join(target_services.keys())})"
+                    )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            errors.append(f"Failed to load target project '{target_project}': {e}")
+
+    return errors
+
+
 def validate_project(project_name: str) -> list[str]:
     """Validate project configuration, return list of errors"""
     errors = []
@@ -235,42 +310,11 @@ def validate_project(project_name: str) -> list[str]:
         if ingress.service not in services:
             errors.append(f"ingress references unknown service: {ingress.service}")
 
+    # Validate static proxynet IPs declared on ingress rows
+    errors.extend(_validate_ingress_ips(traefik))
+
     # Validate egress targets exist
-    for egress_spec in traefik.egress:
-        if not egress_spec:
-            continue
-
-        # Parse target service name (format: project:service)
-        # Example: "ai-chatbot:redis" -> project="ai-chatbot", service="redis"
-        if ":" not in egress_spec:
-            errors.append(f"egress '{egress_spec}' must be in format: project:service (e.g., 'ai-chatbot:redis')")
-            continue
-
-        target_project, target_service = egress_spec.split(":", 1)
-
-        # Check if target project exists
-        all_projects = list_projects()
-        if target_project not in all_projects:
-            errors.append(f"egress target project '{target_project}' not found (from: {egress_spec})")
-            continue
-
-        # Load target project and check if service exists
-        try:
-            target_compose, _ = load_project(target_project)
-            if target_compose:  # Only validate for container projects
-                target_services = target_compose.get("services", {})
-                # Build full service name: {project}-{service}
-                full_service_name = f"{target_project}-{target_service}"
-
-                # Check if service exists (match both short and full name)
-                if target_service not in target_services and full_service_name not in target_services:
-                    errors.append(
-                        f"egress target service '{target_service}' not found in "
-                        f"project '{target_project}' (available services: "
-                        f"{', '.join(target_services.keys())})"
-                    )
-        except Exception as e:
-            errors.append(f"Failed to load target project '{target_project}': {e}")
+    errors.extend(_validate_egress_targets(traefik))
 
     return errors
 
@@ -278,8 +322,23 @@ def validate_project(project_name: str) -> list[str]:
 def validate_all() -> dict[str, list[str]]:
     """Validate all projects, return dict of project: [errors]"""
     results = {}
+    ip_owner: dict[str, str] = {}
     for project in list_projects():
         errors = validate_project(project)
+
+        # Detect proxynet IP collisions across projects (the only place with the global view)
+        try:
+            _, traefik = load_project(project)
+            for ingress in traefik.ingress:
+                if ingress and ingress.ipv4_address:
+                    owner = ip_owner.get(ingress.ipv4_address)
+                    if owner and owner != project:
+                        errors.append(f"ipv4_address '{ingress.ipv4_address}' already claimed by project '{owner}'")
+                    else:
+                        ip_owner[ingress.ipv4_address] = project
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass  # per-project load errors are already surfaced by validate_project
+
         if errors:
             results[project] = errors
     return results

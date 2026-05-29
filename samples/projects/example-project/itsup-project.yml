@@ -4,6 +4,8 @@ ingress:
   - service: web
     domain: my-app.example.com # CHANGE THIS
     port: 3000
+    # ipv4_address: 172.20.0.50   # Optional: pin a static IP on proxynet (within 172.20.0.0/16)
+    # dns: [127.0.0.11, 1.1.1.1]  # Optional: written verbatim as the service's dns: block (do not use if you don't understand this)
 # Uncomment to enable egress rules to allow outbound to other docker compose services
 # egress:
 #   - internal-api:app

@@ -279,6 +279,65 @@ class TestWriteArtifacts(unittest.TestCase):
         self.assertIn("db-project_default", result["services"]["api"]["networks"])
         self.assertIn("default", result["services"]["api"]["networks"])
 
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_ipv4_address_mapping_form(self, mock_load_project: Mock) -> None:
+        """A static ipv4_address renders the networks block in mapping form on proxynet."""
+        import yaml
+        from pathlib import Path
+
+        compose = {"services": {"web": {"image": "nginx"}}}
+        ingress = Ingress(service="web", domain="example.com", port=80, router="http", ipv4_address="172.20.0.50")
+        traefik = TraefikConfig(enabled=True, ingress=[ingress], egress=[])
+        mock_load_project.return_value = (compose, traefik)
+
+        write_upstream("test-project")
+
+        with open(Path("upstream/test-project/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        networks = result["services"]["web"]["networks"]
+        self.assertIsInstance(networks, dict)
+        self.assertEqual(networks["proxynet"], {"ipv4_address": "172.20.0.50"})
+
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_dns_override(self, mock_load_project: Mock) -> None:
+        """An explicit dns list on ingress replaces the honeypot injection verbatim."""
+        import yaml
+        from pathlib import Path
+
+        compose = {"services": {"web": {"image": "nginx"}}}
+        ingress = Ingress(
+            service="web", domain="example.com", port=80, router="http", dns=["127.0.0.11", "1.1.1.1"]
+        )
+        traefik = TraefikConfig(enabled=True, ingress=[ingress], egress=[])
+        mock_load_project.return_value = (compose, traefik)
+
+        write_upstream("test-project")
+
+        with open(Path("upstream/test-project/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        self.assertEqual(result["services"]["web"]["dns"], ["127.0.0.11", "1.1.1.1"])
+
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_no_ipv4_keeps_list_form(self, mock_load_project: Mock) -> None:
+        """Without a static IP the networks block stays in list form (no churn)."""
+        import yaml
+        from pathlib import Path
+
+        compose = {"services": {"web": {"image": "nginx"}}}
+        ingress = Ingress(service="web", domain="example.com", port=80, router="http")
+        traefik = TraefikConfig(enabled=True, ingress=[ingress], egress=[])
+        mock_load_project.return_value = (compose, traefik)
+
+        write_upstream("test-project")
+
+        with open(Path("upstream/test-project/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        self.assertIsInstance(result["services"]["web"]["networks"], list)
+        self.assertIn("proxynet", result["services"]["web"]["networks"])
+
 
 if __name__ == "__main__":
     unittest.main()

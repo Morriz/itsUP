@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 # DNS honeypot for logging (used by all containers)
 DNS_HONEYPOT = "172.20.0.253"
 
+# proxynet subnet (created by the DNS stack in dns/docker-compose.yml)
+PROXYNET_SUBNET = "172.20.0.0/16"
+
 
 def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
     """Write file only if content changed. Returns True if file was written.
@@ -181,6 +184,18 @@ def write_upstream(project_name: str) -> None:
     # Network segmentation based on ingress/egress declarations
     services = compose.get("services", {})
 
+    # Collect per-service overrides declared on ingress rows.
+    # Both are per-container concerns; an ingress row is the only per-service input surface.
+    static_ips: dict[str, str] = {}
+    dns_overrides: dict[str, list[str]] = {}
+    for ing in traefik.ingress:
+        if ing is None or not ing.service:
+            continue
+        if ing.ipv4_address:
+            static_ips[ing.service] = ing.ipv4_address
+        if ing.dns:
+            dns_overrides[ing.service] = ing.dns
+
     # Phase 1: Configure service networks and DNS
     for service_name, service_config in services.items():
         # Initialize networks if not present
@@ -197,6 +212,11 @@ def write_upstream(project_name: str) -> None:
 
         if has_traefik and "proxynet" not in service_config["networks"]:
             service_config["networks"].append("proxynet")
+
+        # An explicit dns override declared on ingress is written verbatim,
+        # replacing the default honeypot injection (the guard below yields to it).
+        if service_name in dns_overrides:
+            service_config["dns"] = dns_overrides[service_name]
 
         # Inject DNS honeypot into all services (for logging)
         # Add Docker DNS (127.0.0.11) as fallback for internal name resolution
@@ -223,6 +243,29 @@ def write_upstream(project_name: str) -> None:
         for service_name, service_config in services.items():
             if target_network not in service_config["networks"]:
                 service_config["networks"].append(target_network)
+
+    # Phase 3: Pin static proxynet IPs.
+    # docker compose requires the whole networks block in mapping form once any
+    # entry carries options, so convert that service's list to a mapping with
+    # ipv4_address on proxynet and bare (default-option) entries for the rest.
+    for service_name, ip in static_ips.items():
+        service_config = services.get(service_name)
+        if not service_config:
+            continue
+
+        nets = service_config.get("networks", [])
+        net_names = list(nets.keys()) if isinstance(nets, dict) else list(nets)
+
+        if "proxynet" not in net_names:
+            logger.warning(
+                f"ipv4_address {ip} declared for {project_name}/{service_name} "
+                f"but the service is not on proxynet; ignoring"
+            )
+            continue
+
+        service_config["networks"] = {
+            name: {"ipv4_address": ip} if name == "proxynet" else None for name in net_names
+        }
 
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
     compose_file = Path("upstream") / project_name / "docker-compose.yml"

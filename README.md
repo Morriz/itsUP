@@ -669,6 +669,8 @@ ingress:
     passthrough: false # (Optional) TLS passthrough
     path_prefix: / # (Optional) Path-based routing
     hostport: 8080 # (Optional) Expose on host port
+    ipv4_address: 172.20.0.50 # (Optional) Pin a static IP on proxynet (must be within 172.20.0.0/16)
+    dns: [127.0.0.11, 1.1.1.1] # (Optional) Override the generated dns: block verbatim for this service
 ```
 
 See `samples/example-project/` for a complete working example.

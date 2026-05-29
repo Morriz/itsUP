@@ -13,6 +13,7 @@ from lib.data import (
     validate_all,
     validate_project,
 )
+from lib.models import Ingress, TraefikConfig
 
 
 class TestDataV2(unittest.TestCase):
@@ -148,7 +149,7 @@ class TestDataV2(unittest.TestCase):
         """Test validating a correct project."""
         mock_compose = {"services": {"web": {"image": "nginx"}}}
         mock_traefik = Mock()
-        mock_traefik.ingress = [Mock(service="web")]
+        mock_traefik.ingress = [Mock(service="web", ipv4_address=None)]
         mock_traefik.egress = []
         mock_load_project.return_value = (mock_compose, mock_traefik)
 
@@ -161,7 +162,7 @@ class TestDataV2(unittest.TestCase):
         """Test validating a project with unknown service in traefik.yml."""
         mock_compose = {"services": {"web": {"image": "nginx"}}}
         mock_traefik = Mock()
-        mock_traefik.ingress = [Mock(service="api")]  # 'api' doesn't exist
+        mock_traefik.ingress = [Mock(service="api", ipv4_address=None)]  # 'api' doesn't exist
         mock_traefik.egress = []
         mock_load_project.return_value = (mock_compose, mock_traefik)
 
@@ -272,6 +273,80 @@ class TestDataV2(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertIn("project2", results)
         self.assertEqual(results["project2"], ["error1"])
+
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_ipv4_address_valid(self, mock_load_project: Mock) -> None:
+        """A static proxynet IP within the subnet validates cleanly."""
+        compose = {"services": {"adguard-app": {"image": "adguard/adguardhome"}}}
+        traefik = TraefikConfig(
+            ingress=[Ingress(service="adguard-app", domain="adguard.example.com", ipv4_address="172.20.0.252")]
+        )
+        mock_load_project.return_value = (compose, traefik)
+
+        self.assertEqual(validate_project("adguard"), [])
+
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_ipv4_address_out_of_subnet(self, mock_load_project: Mock) -> None:
+        """A static IP outside the proxynet subnet is rejected."""
+        compose = {"services": {"web": {"image": "nginx"}}}
+        traefik = TraefikConfig(ingress=[Ingress(service="web", domain="x.example.com", ipv4_address="10.0.0.5")])
+        mock_load_project.return_value = (compose, traefik)
+
+        errors = validate_project("test-project")
+
+        self.assertTrue(any("outside proxynet subnet" in e for e in errors))
+
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_ipv4_address_reserved(self, mock_load_project: Mock) -> None:
+        """The honeypot/gateway IPs are reserved and rejected."""
+        compose = {"services": {"web": {"image": "nginx"}}}
+        traefik = TraefikConfig(ingress=[Ingress(service="web", domain="x.example.com", ipv4_address="172.20.0.253")])
+        mock_load_project.return_value = (compose, traefik)
+
+        errors = validate_project("test-project")
+
+        self.assertTrue(any("reserved" in e for e in errors))
+
+    @mock.patch("lib.data.load_project")
+    def test_validate_project_ipv4_address_conflict_same_service(self, mock_load_project: Mock) -> None:
+        """Two ingress rows pinning the same service to different IPs is a conflict."""
+        compose = {"services": {"web": {"image": "nginx"}}}
+        traefik = TraefikConfig(
+            ingress=[
+                Ingress(service="web", domain="a.example.com", ipv4_address="172.20.0.10"),
+                Ingress(service="web", domain="b.example.com", ipv4_address="172.20.0.11"),
+            ]
+        )
+        mock_load_project.return_value = (compose, traefik)
+
+        errors = validate_project("test-project")
+
+        self.assertTrue(any("conflicting ipv4_address" in e for e in errors))
+
+    @mock.patch("lib.data.list_projects")
+    @mock.patch("lib.data.load_project")
+    def test_validate_all_ipv4_address_cross_project_collision(
+        self, mock_load_project: Mock, mock_list_projects: Mock
+    ) -> None:
+        """The same proxynet IP claimed by two projects is flagged."""
+        compose_a = {"services": {"a": {"image": "nginx"}}}
+        traefik_a = TraefikConfig(ingress=[Ingress(service="a", domain="a.example.com", ipv4_address="172.20.0.50")])
+        compose_b = {"services": {"b": {"image": "nginx"}}}
+        traefik_b = TraefikConfig(ingress=[Ingress(service="b", domain="b.example.com", ipv4_address="172.20.0.50")])
+
+        mock_list_projects.return_value = ["proj-a", "proj-b"]
+        # validate_project loads once per project, then validate_all loads once more per project
+        mock_load_project.side_effect = [
+            (compose_a, traefik_a),
+            (compose_b, traefik_b),
+            (compose_a, traefik_a),
+            (compose_b, traefik_b),
+        ]
+
+        results = validate_all()
+
+        self.assertIn("proj-b", results)
+        self.assertTrue(any("already claimed by project 'proj-a'" in e for e in results["proj-b"]))
 
 
 if __name__ == "__main__":
