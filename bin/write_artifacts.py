@@ -327,17 +327,23 @@ def write_traefik_config() -> None:
             # Only include projects with TCP/UDP ingress
             tcp_udp_ingress = []
             for i in traefik_config.ingress:
-                if i.router in ["tcp", "udp"] and not i.passthrough:  # avoid passthrough entries
-                    # Convert to dict with string values for template
-                    tcp_udp_ingress.append(
-                        {
-                            "service": i.service,
-                            "router": str(i.router.value) if hasattr(i.router, "value") else str(i.router),
-                            "protocol": str(i.protocol.value) if hasattr(i.protocol, "value") else str(i.protocol),
-                            "port": i.port,
-                            "hostport": i.hostport,
-                        }
-                    )
+                if i.router not in ("tcp", "udp"):
+                    continue
+                # Passthrough WITHOUT hostport reuses the existing web-secure entrypoint
+                # (no new entrypoint to generate). Passthrough WITH hostport (e.g. :443 for
+                # an SNI-routed broker) still needs its own entrypoint declared here.
+                if i.passthrough and not i.hostport:
+                    continue
+                # Convert to dict with string values for template
+                tcp_udp_ingress.append(
+                    {
+                        "service": i.service,
+                        "router": str(i.router.value) if hasattr(i.router, "value") else str(i.router),
+                        "protocol": str(i.protocol.value) if hasattr(i.protocol, "value") else str(i.protocol),
+                        "port": i.port,
+                        "hostport": i.hostport,
+                    }
+                )
             if tcp_udp_ingress:
                 projects_data.append({"name": project_name, "ingress": tcp_udp_ingress})
 
