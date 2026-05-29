@@ -44,9 +44,9 @@ tcp:
     {{ name }}:
       loadBalancer:
         {%- if i.proxyprotocol %}
-          {%- if i.proxyprotocol == 1 %}
+          {%- if i.proxyprotocol == '1' %}
         serversTransport: proxy-transport-v1
-          {%- elif i.proxyprotocol == 2 %}
+          {%- elif i.proxyprotocol == '2' %}
         serversTransport: proxy-transport-v2
           {%- endif %}
         {%- endif %}

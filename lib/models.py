@@ -47,6 +47,7 @@ class Protocol(str, Enum):
 class ProxyProtocol(str, Enum):
     """ProxyProtocol enum"""
 
+    v1 = 1
     v2 = 2
 
 

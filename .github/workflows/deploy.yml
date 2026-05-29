@@ -22,7 +22,7 @@ jobs:
           sudo apt install -y openvpn openvpn-systemd-resolved
 
       - name: Connect to VPN
-        uses: 'Morriz/github-openvpn-connect-action@v3'
+        uses: Morriz/github-openvpn-connect-action@v3
         with:
           config_file: .github/workflows/client.ovpn
           host: ${{ secrets.API_HOST }}
