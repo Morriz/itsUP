@@ -503,16 +503,17 @@ def write_dynamic_routers() -> None:
         elif any(
             i.hostport or i.passthrough or i.protocol not in ["http", "https"] for i in traefik.ingress
         ):  # Container with hostport/passthrough
-            all_projects.append(
-                {
-                    "name": project_name,
-                    "services": [
-                        {"host": i.service, "ingress": [i]}
-                        for i in traefik.ingress
-                        if i.hostport or i.passthrough or i.protocol not in ["http", "https"]
-                    ],
-                }
-            )
+            services = []
+            for i in traefik.ingress:
+                if not (i.hostport or i.passthrough or i.protocol not in ["http", "https"]):
+                    continue
+                # When the container has a pinned proxynet IP, Traefik (on the host
+                # network) can reach it directly by that IP — no name resolution needed.
+                # Otherwise fall back to the service name, which only works if it's
+                # resolvable from Traefik's network namespace.
+                backend_host = i.ipv4_address or i.service
+                services.append({"host": backend_host, "ingress": [i]})
+            all_projects.append({"name": project_name, "services": services})
 
     # Filter by router type for templates
     projects_http = []
