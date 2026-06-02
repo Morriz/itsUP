@@ -478,6 +478,14 @@ git push
 itsup apply
 ```
 
+##### Host DNS fallback (reboot resilience)
+
+If you point this host's resolver at its own AdGuard (or any local DNS container), add a public secondary so the host can still resolve when AdGuard is down — otherwise a stopped/crashed AdGuard takes the host's name resolution down with it (breaking ssh, cron jobs, `docker pull`, and the bringup script that's supposed to recover the stack). Add a fallback in whichever resolver manager your distro uses:
+
+- **systemd-resolved:** `/etc/systemd/resolved.conf` → `FallbackDNS=1.1.1.1 9.9.9.9`, then `sudo systemctl restart systemd-resolved`
+- **dhcpcd:** `/etc/dhcpcd.conf` → `static domain_name_servers=192.168.1.30 1.1.1.1 9.9.9.9`
+- **NetworkManager:** add a secondary DNS to the active connection profile
+
 #### 6. Monitor
 
 ```bash

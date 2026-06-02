@@ -1,12 +1,12 @@
 services:
   dns-honeypot:
-    image: alpine:latest
+    image: 4km3/dnsmasq:2.90-r3-alpine-3.22.2
     container_name: dns-honeypot
+    # dnsmasq is baked into the image, so the container starts without any network
+    # at all — crucial because this container IS the local DNS path on boot.
+    entrypoint: ["sh", "-c"]
     command:
-      - sh
-      - -c
       - |
-        apk add --no-cache dnsmasq &&
         cat > /etc/dnsmasq.conf <<'EOF'
         log-queries
         log-facility=-

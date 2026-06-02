@@ -56,7 +56,9 @@ def run():
     # Step 1: Start DNS stack (creates network)
     logger.info("  📡 Starting DNS stack...")
     try:
-        subprocess.run(["docker", "compose", "-f", "dns/docker-compose.yml", "up", "-d", "--pull", "always"], env=env, check=True)
+        # No --pull at boot: the Pi's own DNS may not be working yet (chicken-and-egg
+        # with AdGuard). Use cached images. Pulls happen via itsup-apply.timer / manual apply.
+        subprocess.run(["docker", "compose", "-f", "dns/docker-compose.yml", "up", "-d"], env=env, check=True)
         logger.info("  ✓ DNS stack started")
     except subprocess.CalledProcessError as e:
         logger.error("  ✗ Failed to start DNS stack")
@@ -65,7 +67,7 @@ def run():
     # Step 2: Start proxy stack
     logger.info("  🔀 Starting proxy stack...")
     try:
-        subprocess.run(["docker", "compose", "-f", "proxy/docker-compose.yml", "up", "-d", "--pull", "always"], env=env, check=True)
+        subprocess.run(["docker", "compose", "-f", "proxy/docker-compose.yml", "up", "-d"], env=env, check=True)
         logger.info("  ✓ Proxy stack started")
     except subprocess.CalledProcessError as e:
         logger.error("  ✗ Failed to start proxy stack")
