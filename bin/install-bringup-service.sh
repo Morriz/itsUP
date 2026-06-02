@@ -13,6 +13,43 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TEMPLATE_DIR="${REPO_ROOT}/samples/systemd"
 
+# ── Host prerequisites ─────────────────────────────────────────────────────
+# Pi-level state that itsUP services depend on. Idempotent — safe to re-run.
+
+LOG_DIR="/var/log/instrukt-ai/itsup"
+RESOLV_TAIL="/etc/resolvconf/resolv.conf.d/tail"
+RESOLV_FALLBACK_LINE="nameserver 1.1.1.1"
+
+echo "Ensuring ${LOG_DIR}..."
+sudo mkdir -p "${LOG_DIR}"
+sudo chown -R "${ITSUP_USER}:${ITSUP_GROUP}" "${LOG_DIR}"
+
+echo "Ensuring host DNS fallback (${RESOLV_FALLBACK_LINE})..."
+# Without this, an AdGuard outage takes host DNS down with it (ssh, cron,
+# git fetch, this script itself). The primary nameserver in resolv.conf
+# stays in place; this only adds a public fallback if not already present.
+if [ -f "${RESOLV_TAIL}" ] && grep -qxF "${RESOLV_FALLBACK_LINE}" "${RESOLV_TAIL}"; then
+  echo "  already present"
+else
+  echo "${RESOLV_FALLBACK_LINE}" | sudo tee -a "${RESOLV_TAIL}" >/dev/null
+  sudo resolvconf -u
+  echo "  added"
+fi
+
+echo "Ensuring host dnsmasq is absent..."
+# Host dnsmasq is unused by current architecture (honeypot lives in proxynet;
+# AdGuard owns LAN :53 when deployed). Leaving it installed = boot failure +
+# misleading systemctl --failed marker.
+if dpkg -s dnsmasq >/dev/null 2>&1; then
+  sudo apt-get -y purge dnsmasq
+  echo "  purged"
+else
+  echo "  not installed"
+fi
+
+echo ""
+# ── End host prerequisites ──────────────────────────────────────────────────
+
 SERVICE_PATH="${SERVICE_DIR}/itsup-bringup.service"
 APPLY_SERVICE_PATH="${SERVICE_DIR}/itsup-apply.service"
 APPLY_TIMER_PATH="${SERVICE_DIR}/itsup-apply.timer"

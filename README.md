@@ -486,6 +486,18 @@ If you point this host's resolver at its own AdGuard (or any local DNS container
 - **dhcpcd:** `/etc/dhcpcd.conf` → `static domain_name_servers=192.168.1.30 1.1.1.1 9.9.9.9`
 - **NetworkManager:** add a secondary DNS to the active connection profile
 
+On Raspberry Pi OS (NetworkManager + resolvconf), `bin/install-bringup-service.sh` already configures this automatically by appending the fallback to `/etc/resolvconf/resolv.conf.d/tail` — the three options above are for distros where that path doesn't apply.
+
+##### Runtime logs
+
+itsUP runtime scripts write logs to `/var/log/instrukt-ai/itsup/`, following the InstruktAI fleet convention. The directory and permissions are created by `bin/install-bringup-service.sh`. Tail across the fleet with:
+
+```bash
+instrukt-ai-logs -f itsup
+```
+
+Systemd-managed services additionally have their stdout/stderr captured by the journal (`journalctl -u <service>`).
+
 #### 6. Monitor
 
 ```bash
