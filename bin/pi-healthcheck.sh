@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-LOG=/var/log/pi-healthcheck.log
+# stdout/stderr is captured by systemd; view with `journalctl -u pi-healthcheck.service`.
 STAMP=/run/pi-healthcheck.fail
 NOW=$(date -Is)
 HOUR=$(date +%H%M)  # HHMM for maintenance window checks
@@ -33,7 +33,7 @@ if (( conn * 100 / conn_max > MAX_CONN_PCT )); then ok=0; reasons+=("conntrack:$
 if (( root_pct > MAX_ROOT_PCT )); then ok=0; reasons+=("disk:${root_pct}%"); fi
 if ! docker ps >/dev/null 2>&1; then ok=0; reasons+=("docker_down"); fi
 
-log() { echo "$NOW $*" | tee -a "$LOG"; }
+log() { echo "$NOW $*"; }
 
 if (( ok )); then
   rm -f "$STAMP"
