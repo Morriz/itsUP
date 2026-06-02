@@ -8,7 +8,7 @@ import sys
 import click
 
 from commands.common import complete_stack_or_project
-from lib.data import list_projects, validate_all
+from lib.data import list_projects, list_projects_topo, validate_all
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack, deploy_upstream_project
 from lib.version_check import check_schema_version
 
@@ -67,7 +67,7 @@ def apply(project):
         # Apply single stack or project
         logger.info(f"Deploying {project} with smart rollout...")
 
-        # Validate exists
+        # Validate exists (membership only — order doesn't matter here)
         valid_targets = ["dns", "proxy"] + list_projects()
         if project not in valid_targets:
             click.echo(f"Error: '{project}' not found", err=True)
@@ -87,7 +87,7 @@ def apply(project):
         logger.info("Deploying all stacks with smart rollout...")
 
         # Deploy ALL targets sequentially (dns, proxy, and all projects)
-        all_targets = ["dns", "proxy"] + list_projects()
+        all_targets = ["dns", "proxy"] + list_projects_topo()
         failed = []
 
         for target in all_targets:

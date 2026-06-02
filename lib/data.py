@@ -217,6 +217,51 @@ def list_projects() -> list[str]:
     ]
 
 
+def list_projects_topo() -> list[str]:
+    """List projects in dependency order based on egress declarations.
+
+    Project P with `egress: [Q:service, ...]` joins Q's `{Q}_default` network
+    as external, so Q must be deployed first or the `docker compose up` for P
+    fails with `network {Q}_default declared as external, but could not be found`.
+    Kahn's algorithm with alphabetical tie-breaking gives a deterministic order.
+    A dependency cycle (invalid config) falls back to alphabetical with a
+    warning rather than crashing — validate_all surfaces the actual config bug.
+    """
+    projects = sorted(list_projects())
+    deps: dict[str, set[str]] = {p: set() for p in projects}
+
+    for proj in projects:
+        try:
+            _, traefik = load_project(proj)
+        except Exception:  # pylint: disable=broad-exception-caught
+            continue  # validate_all surfaces the real error
+        for egress_spec in traefik.egress:
+            if not egress_spec or ":" not in egress_spec:
+                continue
+            target = egress_spec.split(":", 1)[0]
+            if target in deps and target != proj:
+                deps[proj].add(target)
+
+    ordered: list[str] = []
+    remaining = set(projects)
+    while remaining:
+        ready = sorted(p for p in remaining if not deps[p])
+        if not ready:
+            # Cycle: surface the projects involved and fall back to alphabetical
+            logger.warning(
+                "Egress dependency cycle detected among %s; falling back to alphabetical order",
+                sorted(remaining),
+            )
+            return projects
+        for n in ready:
+            ordered.append(n)
+            remaining.discard(n)
+            for p in remaining:
+                deps[p].discard(n)
+
+    return ordered
+
+
 def _validate_ingress_ips(traefik: TraefikConfig) -> list[str]:
     """Validate static proxynet ipv4_address declarations on a project's ingress rows."""
     errors: list[str] = []

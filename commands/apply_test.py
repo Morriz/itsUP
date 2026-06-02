@@ -69,18 +69,21 @@ class TestApply(unittest.TestCase):
     @patch("commands.apply.check_schema_version")
     @patch("commands.apply.deploy_proxy_stack")
     @patch("commands.apply.deploy_dns_stack")
+    @patch("commands.apply.list_projects_topo")
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_success(
         self,
         mock_deploy: Mock,
         mock_list_projects: Mock,
+        mock_list_projects_topo: Mock,
         mock_dns: Mock,
         mock_proxy: Mock,
         mock_version_check: Mock,
     ) -> None:
         """Test applying all projects successfully."""
         mock_list_projects.return_value = ["project1", "project2"]
+        mock_list_projects_topo.return_value = ["project1", "project2"]
 
         result = self.runner.invoke(apply, [])
 
@@ -93,18 +96,21 @@ class TestApply(unittest.TestCase):
     @patch("commands.apply.check_schema_version")
     @patch("commands.apply.deploy_proxy_stack")
     @patch("commands.apply.deploy_dns_stack")
+    @patch("commands.apply.list_projects_topo")
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
     def test_apply_all_upstream_generation_failure(
         self,
         mock_deploy: Mock,
         mock_list_projects: Mock,
+        mock_list_projects_topo: Mock,
         mock_dns: Mock,
         mock_proxy: Mock,
         mock_version_check: Mock,
     ) -> None:
         """Test handling upstream generation/deployment failure."""
         mock_list_projects.return_value = ["project1", "project2"]
+        mock_list_projects_topo.return_value = ["project1", "project2"]
         mock_deploy.side_effect = Exception("Generation failed")
 
         result = self.runner.invoke(apply, [])

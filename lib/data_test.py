@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from lib.data import (
     expand_env_vars,
     list_projects,
+    list_projects_topo,
     load_secrets,
     validate_all,
     validate_project,
@@ -347,6 +348,66 @@ class TestDataV2(unittest.TestCase):
 
         self.assertIn("proj-b", results)
         self.assertTrue(any("already claimed by project 'proj-a'" in e for e in results["proj-b"]))
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_list_projects_topo_empty(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """Empty project set yields empty order."""
+        mock_list_projects.return_value = []
+        self.assertEqual(list_projects_topo(), [])
+        mock_load_project.assert_not_called()
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_list_projects_topo_independent_alphabetical(
+        self, mock_list_projects: Mock, mock_load_project: Mock
+    ) -> None:
+        """Projects without egress edges sort alphabetically (deterministic)."""
+        mock_list_projects.return_value = ["c", "a", "b"]
+        mock_load_project.return_value = ({}, TraefikConfig(egress=[]))
+
+        self.assertEqual(list_projects_topo(), ["a", "b", "c"])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_list_projects_topo_linear_dependency(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """`a` egress→`b` puts b before a despite a coming first alphabetically."""
+        mock_list_projects.return_value = ["a", "b"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["b:svc"] if name == "a" else []),
+        )
+
+        self.assertEqual(list_projects_topo(), ["b", "a"])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_list_projects_topo_diamond(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """`c` depends on `a` and `b`; both deploy first (alphabetical), then `c`."""
+        mock_list_projects.return_value = ["a", "b", "c"]
+
+        def loader(name: str) -> tuple[dict[str, object], TraefikConfig]:
+            if name == "c":
+                return ({}, TraefikConfig(egress=["a:svc", "b:svc"]))
+            return ({}, TraefikConfig(egress=[]))
+
+        mock_load_project.side_effect = loader
+
+        self.assertEqual(list_projects_topo(), ["a", "b", "c"])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_list_projects_topo_cycle_falls_back_alphabetical(
+        self, mock_list_projects: Mock, mock_load_project: Mock
+    ) -> None:
+        """An egress cycle (a↔b) is invalid config; fall back to alphabetical, do not raise."""
+        mock_list_projects.return_value = ["a", "b"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["b:svc"] if name == "a" else ["a:svc"]),
+        )
+
+        self.assertEqual(list_projects_topo(), ["a", "b"])
 
 
 if __name__ == "__main__":
