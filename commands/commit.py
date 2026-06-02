@@ -37,29 +37,22 @@ def _has_changes(path: Path) -> bool:
         return False
 
 
-def _commit_and_push(path: Path, name: str, message: str, custom_message: str = None, force: bool = False) -> bool:
+def _commit_and_push(path: Path, name: str, message: str, force: bool = False) -> bool:
     """Commit and push changes in a repo
 
     Args:
         path: Path to the git repo
         name: Display name of the repo
-        message: Commit message to use (only if custom_message not provided)
-        custom_message: Optional custom message (overrides message)
+        message: Commit message to use
         force: If True, skip rebase and force push
 
     Returns: True if successful, False if failed
     """
     try:
-        # Add all changes
         subprocess.run(["git", "add", "-A"], cwd=path, check=True)
+        subprocess.run(["git", "commit", "-m", message], cwd=path, check=True)
 
-        # Use custom message if provided, otherwise use generated message
-        commit_msg = custom_message if custom_message else message
-
-        # Commit
-        subprocess.run(["git", "commit", "-m", commit_msg], cwd=path, check=True)
-
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ committed: {commit_msg}")
+        click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ committed: {message}")
 
         # Pull with rebase to handle diverged branches (unless force)
         if not force:
@@ -87,20 +80,18 @@ def _commit_and_push(path: Path, name: str, message: str, custom_message: str = 
 
 
 @click.command()
-@click.argument("message", required=False)
 @click.option("--force", "-f", is_flag=True, help="Skip encryption prompts and commit as-is")
-def commit(message, force):
-    """💾 Commit and push changes to "projects" and "secrets" repos [MESSAGE]
+def commit(force):
+    """💾 Commit and push changes to "projects" and "secrets" repos
 
     Commits changes to both configuration repos and pushes to origin.
-    Auto-generates commit message if not provided. Detects key rotation.
+    Commit message is always auto-generated. Detects key rotation.
     Auto-encrypts plaintext secrets before committing for security.
 
     \b
     Examples:
-        itsup commit                          # Auto-generated message
-        itsup commit "feat: add new service"  # Custom message
-        itsup commit -f                       # Force commit, skip encryption prompts
+        itsup commit          # Auto-generated message
+        itsup commit -f       # Force commit, skip encryption prompts
     """
     # Get project root
     root = Path(__file__).resolve().parent.parent
@@ -165,7 +156,7 @@ def commit(message, force):
 
     # Detect key rotation for secrets repo
     key_rotation = False
-    if secrets_dirty and not message:
+    if secrets_dirty:
         sops_yaml_changed = False
         try:
             result = subprocess.run(
@@ -191,19 +182,13 @@ def commit(message, force):
     success = True
 
     if projects_dirty:
-        projects_msg = message if message else "Update configuration"
+        projects_msg = "Update configuration"
         click.echo(f"projects/ message: {Colors.YELLOW}{projects_msg}{Colors.NC}")
         if not _commit_and_push(projects_path, "projects", projects_msg, force=force):
             success = False
 
     if secrets_dirty:
-        if message:
-            secrets_msg = message
-        elif key_rotation:
-            secrets_msg = "Rotate SOPS encryption key"
-        else:
-            secrets_msg = "Update secrets"
-
+        secrets_msg = "Rotate SOPS encryption key" if key_rotation else "Update secrets"
         click.echo(f"secrets/ message: {Colors.YELLOW}{secrets_msg}{Colors.NC}")
         if not _commit_and_push(secrets_path, "secrets", secrets_msg, force=force):
             success = False
