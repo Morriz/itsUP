@@ -161,7 +161,7 @@ Multiple projects deploy simultaneously:
 ## File Structure
 
 ```
-/home/morriz/srv/
+/home/youruser/srv/
 ├── api/                    # API server code
 ├── bin/                    # CLI scripts and utilities
 ├── commands/               # itsup subcommands

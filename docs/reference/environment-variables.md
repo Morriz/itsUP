@@ -193,7 +193,7 @@ NODE_ENV=production  # Overrides itsup.txt
 
 **`PATH`** (system variable)
 - **Purpose**: Executable search path
-- **Example**: `export PATH=$PATH:/home/morriz/srv/bin`
+- **Example**: `export PATH=$PATH:/home/youruser/srv/bin`
 - **Use case**: Access `itsup` command without `./` or full path
 
 ## Variable Expansion

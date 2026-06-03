@@ -747,10 +747,10 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_IP }}
-          username: morriz
+          username: youruser
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/morriz/srv
+            cd /home/youruser/srv
             git pull
             source env.sh
             itsup apply

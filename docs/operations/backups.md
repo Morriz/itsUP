@@ -85,7 +85,7 @@ backup:
 
 **1. Git backup** (configuration + secrets):
 ```bash
-cd /home/morriz/srv
+cd /home/youruser/srv
 git add projects/ secrets/*.enc.txt
 git commit -m "Backup: $(date -Iseconds)"
 git push
@@ -107,7 +107,7 @@ bin/backup.py
 crontab -e
 
 # Add daily backup at 3 AM
-0 3 * * * /home/morriz/srv/bin/backup.py >> /home/morriz/srv/logs/backup.log 2>&1
+0 3 * * * /home/youruser/srv/bin/backup.py >> /home/youruser/srv/logs/backup.log 2>&1
 ```
 
 **Git backup remains manual** (commit/push when making changes).
@@ -174,7 +174,7 @@ bin/backup.py
    ```bash
    # Download and extract backup
    aws s3 cp s3://my-backup-bucket/itsup/latest.tar.gz /tmp/
-   cd /home/morriz/srv
+   cd /home/youruser/srv
    tar -xzf /tmp/latest.tar.gz
    ```
 
@@ -201,7 +201,7 @@ bin/backup.py
 
 1. **Git restore** (if in git):
    ```bash
-   cd /home/morriz/srv
+   cd /home/youruser/srv
    git checkout HEAD -- projects/{project}/
    git checkout HEAD -- secrets/{project}.enc.txt
    itsup decrypt {project}
@@ -529,7 +529,7 @@ aws s3api put-bucket-encryption \
 ```bash
 # In crontab
 MAILTO=ops@example.com
-0 3 * * * /home/morriz/srv/bin/backup.py || echo "Backup failed!" | mail -s "BACKUP FAILURE" ops@example.com
+0 3 * * * /home/youruser/srv/bin/backup.py || echo "Backup failed!" | mail -s "BACKUP FAILURE" ops@example.com
 ```
 
 **S3 Monitoring**:

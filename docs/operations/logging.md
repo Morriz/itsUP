@@ -61,7 +61,7 @@ Managed by `/etc/logrotate.d/itsup`:
 
 ### Traefik Access Log
 ```
-/home/morriz/srv/logs/access.log {
+/home/youruser/srv/logs/access.log {
   size 10M
   rotate 5
   missingok
@@ -69,7 +69,7 @@ Managed by `/etc/logrotate.d/itsup`:
   compress
   delaycompress
   postrotate
-    docker compose -f /home/morriz/srv/proxy/docker-compose.yml exec -T traefik kill -USR1 1 2>/dev/null || true
+    docker compose -f /home/youruser/srv/proxy/docker-compose.yml exec -T traefik kill -USR1 1 2>/dev/null || true
   endscript
 }
 ```
@@ -88,7 +88,7 @@ Managed by `/etc/logrotate.d/itsup`:
 
 ### API & Monitor Logs
 ```
-/home/morriz/srv/logs/api.log /home/morriz/srv/logs/monitor.log {
+/home/youruser/srv/logs/api.log /home/youruser/srv/logs/monitor.log {
   size 10M
   rotate 5
   missingok

@@ -91,13 +91,13 @@ After=network.target docker.service
 
 [Service]
 Type=simple
-User=morriz
-WorkingDirectory=/home/morriz/srv
-ExecStart=/home/morriz/srv/bin/start-api.sh
+User=youruser
+WorkingDirectory=/home/youruser/srv
+ExecStart=/home/youruser/srv/bin/start-api.sh
 Restart=always
 RestartSec=10
-StandardOutput=append:/home/morriz/srv/logs/api.log
-StandardError=append:/home/morriz/srv/logs/api.log
+StandardOutput=append:/home/youruser/srv/logs/api.log
+StandardError=append:/home/youruser/srv/logs/api.log
 
 [Install]
 WantedBy=multi-user.target
@@ -295,7 +295,7 @@ If API stops logging after rotation:
 
 **Check copytruncate** is enabled in `/etc/logrotate.d/itsup`:
 ```
-/home/morriz/srv/logs/api.log {
+/home/youruser/srv/logs/api.log {
   copytruncate  # Required for Python processes
   ...
 }

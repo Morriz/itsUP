@@ -4,6 +4,8 @@ set -euo pipefail
 # `journalctl -u pi-healthcheck.service`) and the InstruktAI fleet log path
 # (view across the fleet with `instrukt-ai-logs -f itsup`). The dir is
 # created with the right perms by bin/install-bringup.sh.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LOG=/var/log/instrukt-ai/itsup/pi-healthcheck.log
 STAMP=/run/pi-healthcheck.fail
 NOW=$(date -Is)
@@ -74,7 +76,7 @@ if ! [[ "$HOUR" > "0230" && "$HOUR" < "0330" ]]; then
   # On 3rd consecutive strike: restart docker + stacks; next strike would reboot (still daytime).
   log "WARN (day strike ${strikes}/3) ${reasons[*]} -> restarting docker + itsup stacks"
   systemctl restart docker || log "ERROR failed to restart docker"
-  su -l morriz -c 'cd /home/morriz/srv && source env.sh && itsup dns up && itsup proxy up' || log "ERROR itsup bringup failed"
+  ( cd "$REPO_ROOT" && source env.sh && itsup dns up && itsup proxy up ) || log "ERROR itsup bringup failed"
   exit 0
 fi
 
@@ -84,7 +86,7 @@ if [[ ! -f "$STAMP" ]]; then
   log "WARN ${reasons[*]} -> restarting docker + itsup stacks"
   systemctl restart docker || log "ERROR failed to restart docker"
   # bring stacks back
-  su -l morriz -c 'cd /home/morriz/srv && source env.sh && itsup dns up && itsup proxy up' || log "ERROR itsup bringup failed"
+  ( cd "$REPO_ROOT" && source env.sh && itsup dns up && itsup proxy up ) || log "ERROR itsup bringup failed"
   exit 0
 fi
 

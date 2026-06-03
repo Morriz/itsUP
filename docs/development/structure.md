@@ -5,7 +5,7 @@ Overview of the itsup codebase organization and key directories.
 ## Directory Layout
 
 ```
-/home/morriz/srv/
+/home/youruser/srv/
 ├── api/                    # API server (FastAPI application)
 ├── bin/                    # Executable scripts
 │   ├── itsup              # Main CLI entry point

@@ -100,12 +100,12 @@ After=network.target docker.service opensnitch.service
 [Service]
 Type=simple
 User=root  # Required for eBPF and iptables
-WorkingDirectory=/home/morriz/srv
-ExecStart=/home/morriz/srv/.venv/bin/python -m monitor.main --use-opensnitch
+WorkingDirectory=/home/youruser/srv
+ExecStart=/home/youruser/srv/.venv/bin/python -m monitor.main --use-opensnitch
 Restart=always
 RestartSec=10
-StandardOutput=append:/home/morriz/srv/logs/monitor.log
-StandardError=append:/home/morriz/srv/logs/monitor.log
+StandardOutput=append:/home/youruser/srv/logs/monitor.log
+StandardError=append:/home/youruser/srv/logs/monitor.log
 
 [Install]
 WantedBy=multi-user.target
