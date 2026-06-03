@@ -30,9 +30,30 @@ esac
 echo -e "${GREEN}✓${NC} Detected: ${PLATFORM} (${ARCH})"
 echo ""
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# True inside a Docker container. Containers often run as root with no `sudo`
+# command, so privileged commands inside them must omit sudo.
+is_container() {
+    [ -f /.dockerenv ] || [ -n "${CONTAINER:-}" ]
+}
+
+# True on a persistent host (macOS or Linux) where itsUP's host integration
+# (systemd units on Linux, launchd agents on macOS, host prereqs on both)
+# should be installed. False in containers and CI runners (transient envs
+# that don't need — and shouldn't get — runtime services installed). Pass
+# ITSUP_NO_BRINGUP=1 to skip the host integration on a dev box that just
+# wants the language deps installed.
+is_deploy_target() {
+    ! is_container \
+        && [ "${CI:-}" != "true" ] \
+        && [ "${GITHUB_ACTIONS:-}" != "true" ] \
+        && [ "${ITSUP_NO_BRINGUP:-}" != "1" ]
 }
 
 # Install dependencies based on platform
@@ -89,7 +110,7 @@ elif [ "$PLATFORM" = "Linux" ]; then
     echo -e "${BLUE}📦 Installing Linux dependencies...${NC}"
 
     # Docker (skip check if running in container - e.g., during tests)
-    if [ -f /.dockerenv ] || [ -n "$CONTAINER" ]; then
+    if is_container; then
         echo -e "${YELLOW}⚠${NC} Running in container - skipping Docker check"
     elif ! command_exists docker; then
         echo -e "${RED}✗${NC} Docker not found"
@@ -112,11 +133,7 @@ elif [ "$PLATFORM" = "Linux" ]; then
             *)          SOPS_ARCH="amd64";;
         esac
 
-        # Conditional sudo (not needed in container)
-        SUDO=""
-        if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
-            SUDO="sudo"
-        fi
+        if is_container; then SUDO=""; else SUDO="sudo"; fi
 
         # Download binary directly (more reliable than .deb for arm64)
         SOPS_URL="https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${SOPS_ARCH}"
@@ -138,11 +155,7 @@ elif [ "$PLATFORM" = "Linux" ]; then
     if ! command_exists age; then
         echo -e "${YELLOW}  ⬇️  Installing age...${NC}"
 
-        # Conditional sudo (not needed in container)
-        SUDO=""
-        if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
-            SUDO="sudo"
-        fi
+        if is_container; then SUDO=""; else SUDO="sudo"; fi
 
         $SUDO apt-get update
         $SUDO apt-get install -y age
@@ -155,11 +168,7 @@ elif [ "$PLATFORM" = "Linux" ]; then
     if ! command_exists sops-diff; then
         echo -e "${YELLOW}  ⬇️  Installing sops-diff...${NC}"
 
-        # Conditional sudo (not needed in container)
-        SUDO=""
-        if [ ! -f /.dockerenv ] && [ -z "$CONTAINER" ]; then
-            SUDO="sudo"
-        fi
+        if is_container; then SUDO=""; else SUDO="sudo"; fi
 
         SOPS_DIFF_VERSION=$(curl -s https://api.github.com/repos/saltydogtechnology/sops-diff/releases/latest | grep tag_name | cut -d '"' -f 4)
         curl -L "https://github.com/saltydogtechnology/sops-diff/releases/download/${SOPS_DIFF_VERSION}/sops-diff-${SOPS_DIFF_VERSION}-linux-${ARCH_SOPS_DIFF}.tar.gz" | tar xz
@@ -195,6 +204,15 @@ echo "Installing Python dependencies..."
 .venv/bin/pip install -q -r requirements-prod.txt
 .venv/bin/pip install -q -r requirements-test.txt
 echo -e "${GREEN}✓${NC} Installed Python dependencies (prod + test)"
+
+# Host integration: launchd agents (macOS) or systemd units (Linux) + host
+# prereqs. Skipped in containers and CI runners; opt out on a dev box with
+# ITSUP_NO_BRINGUP=1.
+if is_deploy_target; then
+    echo ""
+    echo -e "${BLUE}🔧 Installing host integration ($([ "$PLATFORM" = "Mac" ] && echo "launchd" || echo "systemd"))...${NC}"
+    "${SCRIPT_DIR}/install-bringup.sh"
+fi
 
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"

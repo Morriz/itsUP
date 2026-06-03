@@ -318,7 +318,7 @@ itsUP automatically adapts its output based on context:
 A minimal Makefile focused on development workflow. Run `make help` to see all available targets:
 
 ```bash
-make install           # Install deps + install/enable itsup-bringup systemd service
+make install           # Install deps; on persistent Linux hosts, also install systemd bringup + host prereqs
 make test              # Run all tests
 make lint              # Run linter
 make format            # Format code
@@ -419,13 +419,11 @@ Both repositories are **gitignored** in the main itsUP repo and managed as indep
 
 #### 2. Run installation
 
-Install everything + systemd bringup service:
-
 ```bash
 make install
 ```
 
-This installs dependencies and installs/enables the `itsup-bringup` systemd service, which runs `itsup run && itsup apply` at boot and `itsup down --clean` at shutdown.
+Adapts to the host. Always installs the language deps and the venv. On a persistent host (macOS or Linux) it additionally installs the host integration: launchd agents on macOS (`~/Library/LaunchAgents/ai.itsup.*.plist`), systemd units on Linux (`/etc/systemd/system/itsup-*.service` + timers). Both run `itsup run && itsup apply` at load, plus nightly apply (03:00), nightly backup (05:00), and a 5-minute healthcheck. Linux hosts additionally get the public-DNS fallback (via systemd-resolved or resolvconf) and removal of conflicting `dnsmasq`. Skip the host integration entirely with `ITSUP_NO_BRINGUP=1 make install` on a dev box that only needs deps; containers and CI runners are auto-detected and skip it without the flag.
 
 If you prefer to run only the CLI bootstrap, the `itsup init` command will:
 
@@ -486,11 +484,11 @@ If you point this host's resolver at its own AdGuard (or any local DNS container
 - **dhcpcd:** `/etc/dhcpcd.conf` → `static domain_name_servers=192.168.1.30 1.1.1.1 9.9.9.9`
 - **NetworkManager:** add a secondary DNS to the active connection profile
 
-On Raspberry Pi OS (NetworkManager + resolvconf), `bin/install-bringup-service.sh` already configures this automatically by appending the fallback to `/etc/resolvconf/resolv.conf.d/tail` — the three options above are for distros where that path doesn't apply.
+On Linux deploy targets, `make install` (via `bin/install-bringup.sh`) configures the fallback automatically — it detects systemd-resolved or resolvconf and uses whichever is in use. The three options above are for distros where neither path applies.
 
 ##### Runtime logs
 
-itsUP runtime scripts write logs to `/var/log/instrukt-ai/itsup/`, following the InstruktAI fleet convention. The directory and permissions are created by `bin/install-bringup-service.sh`. Tail across the fleet with:
+itsUP runtime scripts write logs to `/var/log/instrukt-ai/itsup/`, following the InstruktAI fleet convention. The directory and permissions are created by `bin/install-bringup.sh` (run automatically by `make install` on persistent hosts). Tail across the fleet with:
 
 ```bash
 instrukt-ai-logs -f itsup

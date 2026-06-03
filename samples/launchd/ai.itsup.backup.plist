@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS equivalent of itsup-backup.timer + itsup-backup.service. Fires
+     nightly at 05:00 local time and runs the backup script. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.itsup.backup</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>cd {{ROOT}} &amp;&amp; source env.sh &amp;&amp; .venv/bin/python bin/backup.py</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>5</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>{{HOME}}</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/var/log/instrukt-ai/itsup/backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/instrukt-ai/itsup/backup.log</string>
+</dict>
+</plist>

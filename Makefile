@@ -8,11 +8,8 @@ help: ## Show this help message
 	@echo ''
 	@echo 'For runtime operations (start/stop/logs/monitor), use: itsup --help'
 
-install: ## Install dependencies and (re)install systemd bringup service
+install: ## Install dependencies (and systemd bringup on persistent Linux hosts)
 	@./bin/install.sh
-
-make-deploy: ## Build and deploy the bringup service (requires sudo)
-	@./bin/install-bringup-service.sh
 
 test-unit: ## Run unit tests (fast)
 	./bin/test.sh

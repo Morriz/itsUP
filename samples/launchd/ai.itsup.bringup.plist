@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS equivalent of itsup-bringup.service. Runs `itsup run && itsup apply`
+     once at load (boot). launchd has no native equivalent of systemd's ExecStop,
+     so containers are not torn down at macOS shutdown — run `itsup down --clean`
+     manually before shutdown if clean teardown matters. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.itsup.bringup</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>cd {{ROOT}} &amp;&amp; source env.sh &amp;&amp; itsup run &amp;&amp; itsup apply</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>{{HOME}}</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/var/log/instrukt-ai/itsup/bringup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/instrukt-ai/itsup/bringup.log</string>
+</dict>
+</plist>

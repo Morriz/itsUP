@@ -3,7 +3,7 @@ set -euo pipefail
 # Logs flow to two places: systemd journal (via stdout, view with
 # `journalctl -u pi-healthcheck.service`) and the InstruktAI fleet log path
 # (view across the fleet with `instrukt-ai-logs -f itsup`). The dir is
-# created with the right perms by bin/install-bringup-service.sh.
+# created with the right perms by bin/install-bringup.sh.
 LOG=/var/log/instrukt-ai/itsup/pi-healthcheck.log
 STAMP=/run/pi-healthcheck.fail
 NOW=$(date -Is)
