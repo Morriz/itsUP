@@ -15,8 +15,11 @@ cd "${REPO_ROOT}"
 source env.sh
 
 shutdown_cleanly() {
-    echo "[bringup-guardian] signal caught — running itsup down --clean"
-    itsup down --clean
+    # Stop containers in dependency order but DO NOT remove them — leaves them
+    # in `exited` state so Docker's restart policy brings them back sub-second
+    # on next boot (vs minutes to recreate from compose).
+    echo "[bringup-guardian] signal caught — running itsup down"
+    itsup down
     exit 0
 }
 trap shutdown_cleanly TERM INT QUIT

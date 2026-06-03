@@ -12,8 +12,11 @@ WorkingDirectory={{ROOT}}
 Environment=HOME=/home/{{USER}}
 # Start core infra then deploy all projects (apply may take time for pulls)
 ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup run && itsup apply'
-# On shutdown, tear everything down cleanly
-ExecStop=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup down --clean'
+# On shutdown, stop containers in dependency order but DO NOT remove them —
+# leaves them in `exited` state so Docker's restart policy brings them back
+# sub-second on next boot (vs minutes to recreate from compose).
+ExecStop=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup down'
+TimeoutStopSec=120
 RemainAfterExit=yes
 
 [Install]
