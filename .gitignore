@@ -16,5 +16,8 @@ __pycache__
 /projects/
 /secrets/
 
+# Per-developer TeleClaude runtime state (todos DB, session caches, etc.)
+/.teleclaude/
+
 *.local.json
 itsup.tar.gz
