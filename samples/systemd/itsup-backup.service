@@ -7,8 +7,8 @@ Requires=docker.service
 Type=oneshot
 # Runs as root so backup can read every container's bind-mounted volume
 # regardless of which UID inside the container wrote the files (e.g.
-# AdGuard writes its conf as root in-container, which appears root-owned
-# on the host — morriz can't read it).
+# containers that run as root write conf files root-owned on the host,
+# which the unprivileged itsUP user cannot read).
 User=root
 WorkingDirectory={{ROOT}}
 ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && .venv/bin/python bin/backup.py'
