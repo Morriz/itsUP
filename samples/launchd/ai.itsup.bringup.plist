@@ -1,23 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- macOS equivalent of itsup-bringup.service. Runs `itsup run && itsup apply`
-     once at load (boot). launchd has no native equivalent of systemd's ExecStop,
-     so containers are not torn down at macOS shutdown — run `itsup down --clean`
-     manually before shutdown if clean teardown matters. -->
+<!-- macOS equivalent of itsup-bringup.service. Loads the guardian wrapper,
+     which runs `itsup run && itsup apply` then waits on a signal. launchd
+     sends SIGTERM at logout/shutdown; the guardian traps it and runs
+     `itsup down --clean` for graceful container teardown — same end-state
+     as systemd's ExecStop, via launchd's actual semantics.
+
+     KeepAlive[SuccessfulExit]=false: a clean SIGTERM exit (shutdown) is NOT
+     a reason to relaunch; only a crash is. ExitTimeOut=120 gives the
+     cleanup enough time to tear down all stacks before launchd SIGKILLs. -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
     <string>ai.itsup.bringup</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>-lc</string>
-        <string>cd {{ROOT}} &amp;&amp; source env.sh &amp;&amp; itsup run &amp;&amp; itsup apply</string>
+        <string>{{ROOT}}/bin/bringup-guardian.sh</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <false/>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ExitTimeOut</key>
+    <integer>120</integer>
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
