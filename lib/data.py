@@ -272,11 +272,9 @@ def _validate_ingress_ips(traefik: TraefikConfig) -> list[str]:
         if ingress is None or not ingress.ipv4_address:
             continue
         ip = ingress.ipv4_address
-        try:
-            addr = ipaddress.IPv4Address(ip)
-        except ValueError:
-            errors.append(f"ingress.ipv4_address '{ip}' is not a valid IPv4 address")
-            continue
+        # IPv4 format is already validated by Ingress.check_ipv4_address at
+        # model construction (inside load_project); ip is guaranteed parseable.
+        addr = ipaddress.IPv4Address(ip)
         if addr not in proxynet:
             errors.append(f"ingress.ipv4_address '{ip}' is outside proxynet subnet {PROXYNET_SUBNET}")
         if ip in PROXYNET_RESERVED_IPS:

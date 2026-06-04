@@ -34,9 +34,6 @@ logger = logging.getLogger(__name__)
 # DNS honeypot for logging (used by all containers)
 DNS_HONEYPOT = "172.20.0.253"
 
-# proxynet subnet (created by the DNS stack in dns/docker-compose.yml)
-PROXYNET_SUBNET = "172.20.0.0/16"
-
 
 def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
     """Write file only if content changed. Returns True if file was written.

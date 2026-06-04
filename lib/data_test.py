@@ -286,6 +286,12 @@ class TestDataV2(unittest.TestCase):
 
         self.assertEqual(validate_project("adguard"), [])
 
+    # NOTE: these tests prove the validator FIRES for each failure mode but
+    # do not pin WHICH error message is produced — asserting the prose would
+    # violate the testing policy's substring-on-string-content ban. When
+    # validate_project gains structured errors (typed objects), upgrade these
+    # to assert error.kind == "out_of_subnet" etc.
+
     @mock.patch("lib.data.load_project")
     def test_validate_project_ipv4_address_out_of_subnet(self, mock_load_project: Mock) -> None:
         """A static IP outside the proxynet subnet is rejected."""
@@ -293,9 +299,7 @@ class TestDataV2(unittest.TestCase):
         traefik = TraefikConfig(ingress=[Ingress(service="web", domain="x.example.com", ipv4_address="10.0.0.5")])
         mock_load_project.return_value = (compose, traefik)
 
-        errors = validate_project("test-project")
-
-        self.assertTrue(any("outside proxynet subnet" in e for e in errors))
+        self.assertEqual(len(validate_project("test-project")), 1)
 
     @mock.patch("lib.data.load_project")
     def test_validate_project_ipv4_address_reserved(self, mock_load_project: Mock) -> None:
@@ -304,9 +308,7 @@ class TestDataV2(unittest.TestCase):
         traefik = TraefikConfig(ingress=[Ingress(service="web", domain="x.example.com", ipv4_address="172.20.0.253")])
         mock_load_project.return_value = (compose, traefik)
 
-        errors = validate_project("test-project")
-
-        self.assertTrue(any("reserved" in e for e in errors))
+        self.assertEqual(len(validate_project("test-project")), 1)
 
     @mock.patch("lib.data.load_project")
     def test_validate_project_ipv4_address_conflict_same_service(self, mock_load_project: Mock) -> None:
@@ -320,9 +322,7 @@ class TestDataV2(unittest.TestCase):
         )
         mock_load_project.return_value = (compose, traefik)
 
-        errors = validate_project("test-project")
-
-        self.assertTrue(any("conflicting ipv4_address" in e for e in errors))
+        self.assertEqual(len(validate_project("test-project")), 1)
 
     @mock.patch("lib.data.list_projects")
     @mock.patch("lib.data.load_project")
@@ -346,8 +346,11 @@ class TestDataV2(unittest.TestCase):
 
         results = validate_all()
 
+        # proj-b is the second project to claim the IP, so the collision
+        # detection appends an error to its result list. (See note above on
+        # why the prose itself is not asserted.)
         self.assertIn("proj-b", results)
-        self.assertTrue(any("already claimed by project 'proj-a'" in e for e in results["proj-b"]))
+        self.assertTrue(results["proj-b"])
 
     @mock.patch("lib.data.load_project")
     @mock.patch("lib.data.list_projects")
