@@ -31,6 +31,29 @@ def main() -> None:
     # Debugging: Print excluded folders
     print(f"Excluded folders: {excluded_folders}")
 
+    def _add_robust(tar: tarfile.TarFile, src: str, arcname: str) -> None:
+        """Walk src and tar each entry, skipping files that vanish mid-walk.
+
+        Containers actively writing to their volumes (notably redis with its
+        `temp-NNN.rdb` snapshot files renamed atomically to dump.rdb) routinely
+        cause `tar.add` to crash with FileNotFoundError when an enumerated entry
+        is gone by the time tar opens it. We do the walk ourselves and add each
+        entry non-recursively so one disappearing file only skips itself.
+        """
+        try:
+            tar.add(src, arcname=arcname, recursive=False)
+        except FileNotFoundError:
+            print(f"  skip (vanished): {src}")
+            return
+        if not os.path.isdir(src):
+            return
+        try:
+            entries = sorted(os.listdir(src))
+        except FileNotFoundError:
+            return
+        for entry in entries:
+            _add_robust(tar, os.path.join(src, entry), os.path.join(arcname, entry))
+
     # Create tar.gz archive
     print(f"Creating backup archive: {db_file}")
     with tarfile.open(db_file, "w:gz") as tar:
@@ -40,7 +63,7 @@ def main() -> None:
             if item_name not in excluded_folders:
                 item_path = os.path.join("upstream", item)
                 print(f"Adding to tarball: {item_path}")
-                tar.add(item_path, arcname=item)
+                _add_robust(tar, item_path, item)
 
     # Load AWS credentials from secrets
     secrets = load_secrets()
