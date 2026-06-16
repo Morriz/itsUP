@@ -20,9 +20,8 @@ Overview of the itsup codebase organization and key directories.
 │   ├── proxy.py           # Proxy stack management
 │   ├── monitor.py         # Monitor commands
 │   └── ...
-├── config/                 # Runtime configuration
-│   ├── monitor-whitelist.txt
-│   └── monitor-blacklist.txt
+├── data/                   # Persistent data (acme, crowdsec, blacklist, whitelist, dns-honeypot, dns-registry.json)
+├── monitor/                # Security monitor package (DNS-correlation, iptables)
 ├── dns/                    # DNS stack configuration
 │   └── docker-compose.yml
 ├── docs/                   # Documentation (this folder)
@@ -36,7 +35,7 @@ Overview of the itsup codebase organization and key directories.
 ├── lib/                    # Core library modules
 │   ├── data.py            # Configuration loading, templates
 │   ├── deploy.py          # Deployment logic
-│   ├── upstream.py        # Label injection, artifact generation
+│   ├── sops.py            # SOPS secret encrypt/decrypt
 │   ├── *_test.py          # Unit tests
 │   └── ...
 ├── logs/                   # Log files (gitignored)
@@ -48,7 +47,7 @@ Overview of the itsup codebase organization and key directories.
 │   ├── traefik.yml        # Traefik overrides
 │   └── {project}/
 │       ├── docker-compose.yml  # Service definitions
-│       └── ingress.yml    # Routing configuration
+│       └── itsup-project.yml   # Routing configuration
 ├── proxy/                  # Proxy stack
 │   ├── docker-compose.yml # Proxy stack services
 │   └── traefik/
@@ -87,22 +86,14 @@ Overview of the itsup codebase organization and key directories.
 
 ### `/api/` - API Server
 
-**Purpose**: Web-based management interface (FastAPI).
+**Purpose**: Headless REST/webhook API (FastAPI). No web UI.
 
-**Structure** (example, actual may vary):
+**Structure**:
 
 ```
 api/
-├── main.py               # FastAPI app entry point
-├── routes/
-│   ├── projects.py       # Project management endpoints
-│   ├── stacks.py         # Stack management endpoints
-│   └── health.py         # Health check
-├── models/
-│   └── schemas.py        # Pydantic models
-└── services/
-    ├── docker.py         # Docker operations
-    └── deploy.py         # Deployment logic
+├── main.py               # FastAPI app: routes, auth, uvicorn entry point
+└── extract-openapi.py    # Dumps the OpenAPI spec to openapi.yaml
 ```
 
 **Not Containerized**: Runs as host process for direct system access.
@@ -117,8 +108,8 @@ api/
 - `format.sh`: Formatting script (isort + black) - run before commit
 - `lint.sh`: Linting script (pylint + mypy)
 - `test.sh`: Run all unit tests (\*\_test.py)
-- `backup.py`: S3 backup script (called by cron)
-- `write_artifacts.py`: Regenerate artifacts WITHOUT deploying
+- `backup.py`: S3 backup script (run nightly via the `itsup-backup.timer` systemd timer)
+- `write_artifacts.py`: Regenerate artifacts WITHOUT deploying (label injection lives here)
 
 **Path**: Add to PATH via `source env.sh` for easy access.
 
@@ -156,24 +147,22 @@ def apply(project):
 
 **`data.py`**: Configuration loading and templates
 
-- `load_project(project)`: Load docker-compose.yml + ingress.yml
+- `load_project(project)`: Load docker-compose.yml + itsup-project.yml (falls back to legacy `ingress.yml`)
 - `get_env_with_secrets(project)`: Load secrets for deployment
-- `get_trusted_ips()`: Build Traefik trustedIPs list
+- `get_trusted_ips()`: Build Traefik trustedIPs list (takes no args; returns `[<routerIP>/32]`)
 - `get_router_ip()`: Detect router IP from itsup.yml
-- Template rendering (Jinja2)
+- `load_itsup_config()` / `load_traefik_overrides()` / `load_middleware_overrides()`
 
 **`deploy.py`**: Deployment logic
 
-- `deploy_upstream_project(project, service)`: Deploy single project
-- `deploy_all()`: Deploy all projects in parallel
-- Smart rollout with change detection (config hash)
+- Deploy single / all projects with smart rollout and change detection (config hash)
+- Manages secrets loading and docker compose invocation
 
-**`upstream.py`**: Label injection and artifact generation
+**`sops.py`**: SOPS-based secret encryption/decryption helpers.
 
-- `inject_traefik_labels(compose, ingress, project)`: Generate Traefik labels
-- `write_upstream(project)`: Generate upstream/docker-compose.yml
+**Artifact generation** (`bin/write_artifacts.py`): Traefik label injection and writing of `upstream/{project}/docker-compose.yml`. There is no `lib/upstream.py`.
 
-**Tests**: `*_test.py` files (unit tests using Python unittest).
+**Tests**: `*_test.py` files across `lib/`, `commands/`, and `bin/` (Python unittest).
 
 ### `/projects/` - Source Configurations
 
@@ -188,8 +177,8 @@ projects/
 ├── itsup.yml              # Infrastructure config (router IP, versions, backup)
 ├── traefik.yml            # Traefik overrides (merged on top of generated config)
 └── {project}/
-    ├── docker-compose.yml # Standard Docker Compose file (secrets as ${VAR})
-    └── ingress.yml        # IngressV2 schema (routing config)
+    ├── docker-compose.yml   # Standard Docker Compose file (secrets as ${VAR})
+    └── itsup-project.yml    # IngressV2 schema (routing config; legacy name: ingress.yml)
 ```
 
 **Important**:
@@ -258,7 +247,7 @@ upstream/
 
 ```
 proxy/
-├── docker-compose.yml      # Proxy stack services (Traefik, dockerproxy)
+├── docker-compose.yml      # Proxy stack services (Traefik, socket proxy)
 └── traefik/
     ├── traefik.yml         # Generated Traefik config (base + overrides)
     ├── acme.json           # Let's Encrypt certificates (600 perms)
@@ -310,7 +299,7 @@ output = template.render(router_ip='192.168.1.1', trusted_ips=[...])
 ```
 projects/{project}/
 ├── docker-compose.yml     (1) Source config with ${VAR} placeholders
-└── ingress.yml            (2) Routing config
+└── itsup-project.yml      (2) Routing config
 
                 ↓ bin/write_artifacts.py or itsup apply
 
@@ -349,7 +338,7 @@ ${VAR} Expansion           (7) Placeholders expanded in containers
 - What to deploy (services, images, networks)
 - How to route (domains, ports, protocols)
 
-**Generation** (`lib/upstream.py`):
+**Generation** (`bin/write_artifacts.py`):
 
 - Transform configuration into deployable artifacts
 - Inject Traefik labels
@@ -372,7 +361,7 @@ ${VAR} Expansion           (7) Placeholders expanded in containers
 **Avoid**:
 
 - Duplicating docker-compose.yml for each project
-- Manually writing Traefik labels (auto-generated from ingress.yml)
+- Manually writing Traefik labels (auto-generated from itsup-project.yml)
 - Hard-coding values (use itsup.yml for configuration)
 
 **Use**:
@@ -404,7 +393,7 @@ ${VAR} Expansion           (7) Placeholders expanded in containers
 
 ### Unit Tests
 
-**Location**: `lib/*_test.py`
+**Location**: `*_test.py` files co-located with the modules they test, across `lib/`, `commands/`, and `bin/`. `bin/test.sh` discovers them from the repo root (`-s .`).
 
 **Pattern**: One test file per module (e.g., `data_test.py` tests `data.py`).
 
@@ -456,7 +445,7 @@ itsup svc test-project down
 
 1. Create `projects/{project}/` directory
 2. Add `docker-compose.yml` (service definitions)
-3. Add `ingress.yml` (routing config)
+3. Add `itsup-project.yml` (routing config)
 4. Optionally add `secrets/{project}.txt` (project secrets)
 5. Encrypt secrets: `itsup encrypt {project}`
 6. Deploy: `itsup apply {project}`

@@ -20,14 +20,15 @@ logs/
 - **Source**: Traefik container writes to `/var/log/traefik/access.log` (mounted to `logs/`)
 - **Purpose**: HTTP/HTTPS request logging for CrowdSec analysis and security monitoring
 - **Special handling**: Required for CrowdSec to parse and detect threats
+- **Note**: the API server's uvicorn access logger is also configured (in `api-log.conf.yaml`) to write to `logs/access.log`, so API access lines can appear alongside Traefik's JSON entries.
 
 #### api.log (API Server)
-- **Format**: Custom format `[timestamp] LEVEL > path/to/file.py: message`
-- **Source**: Non-containerized Python FastAPI server
+- **Format**: Configured by `api-log.conf.yaml` — `%(asctime)s.%(msecs)03dZ %(levelname)-8s %(message)s`. (The CLI/library logger uses a different non-TTY format, `... LEVEL > path:line: message`, defined in `lib/logging_config.py`.)
+- **Source**: Non-containerized Python FastAPI server (uvicorn)
 - **Purpose**: API server operations, request handling, errors
 
 #### monitor.log (Security Monitor)
-- **Format**: Custom format (same as api.log)
+- **Format**: `lib/logging_config.py` non-TTY format — `%(asctime)s %(levelname)s > %(custom_pathname)s:%(lineno)d: %(message)s`
 - **Source**: Non-containerized Python security monitor process
 - **Purpose**: Container security events, threat detections, blocked connections
 
@@ -165,7 +166,7 @@ zgrep -h "192.168.1.74" logs/access.log.*.gz
 cd proxy && docker compose logs -f traefik
 cd dns && docker compose logs -f
 
-# Via itsup (planned enhancement)
+# Via itsup
 itsup proxy logs traefik
 itsup svc <project> logs <service>
 ```

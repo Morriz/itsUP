@@ -8,11 +8,12 @@ Complete reference for environment variables used in itsup infrastructure.
 
 **From `secrets/itsup.txt`**:
 
-**`ROUTER_IP`** (required)
-- **Purpose**: Router IP address for network configuration
-- **Used by**: Traefik trusted IPs, subnet detection
-- **Example**: `ROUTER_IP=192.168.1.1`
-- **Validation**: Must be valid IPv4 address
+**`TRAEFIK_ADMIN`** (required for proxy artifacts)
+- **Purpose**: Basic-auth credentials for the Traefik dashboard and admin routers
+- **Used by**: `bin/write_artifacts.py` (`write_middleware_config`, `write_dynamic_routers`) — proxy artifact generation raises `ValueError` if missing
+- **Format**: htpasswd line, e.g. generate with `htpasswd -nb admin your-password`
+- **Example**: `TRAEFIK_ADMIN=admin:$apr1$...`
+- **Note**: The router IP is NOT a secret — it comes from `routerIP` in `projects/itsup.yml` (or netifaces auto-detection), not from an environment variable. See `get_router_ip` in `lib/data.py`.
 
 **`API_SECRET_KEY`** (required for API)
 - **Purpose**: Secret key for API authentication
@@ -134,48 +135,24 @@ services:
       - ALLOWED_HOSTS=${HOST1},${HOST2}
 ```
 
-### Loading Order
+### Loading (mutually exclusive contexts)
 
-**Secrets are loaded in order** (later overrides earlier):
-1. `secrets/itsup.txt` (shared infrastructure)
-2. `secrets/{project}.txt` (project-specific)
+Secrets are **not merged across files**. `load_secrets` in `lib/data.py` loads exactly one file depending on context:
 
-**Example**:
-```bash
-# secrets/itsup.txt
-NODE_ENV=staging
-PORT=3000
+- **Infrastructure context** (DNS/proxy/API, `load_secrets()` with no project): loads **ONLY** `secrets/itsup.{enc.txt|txt}`.
+- **Project context** (`load_secrets("{project}")`, used by `itsup apply <project>` / `itsup svc`): loads **ONLY** `secrets/{project}.{enc.txt|txt}`.
 
-# secrets/my-app.txt
-NODE_ENV=production  # Overrides itsup.txt
-```
+A project does **NOT** inherit values from `secrets/itsup.txt`. If a project needs a value that also lives in the infra secrets, duplicate it into the project's own secrets file.
 
-**Result**: `NODE_ENV=production`, `PORT=3000` for my-app.
+**Per-file detection** (each file, encrypted-first):
+1. `secrets/{name}.enc.txt` (SOPS-encrypted — production)
+2. fallback to `secrets/{name}.txt` (plaintext — development, gitignored)
+
+The combined deploy environment is `{**os.environ, **secrets}` (secrets override the inherited process environment), built by `get_env_with_secrets` in `lib/data.py`.
 
 ## CLI Environment Variables
 
-**Used by `itsup` CLI**:
-
-**`ITSUP_VERBOSE`** (optional, default: false)
-- **Purpose**: Enable verbose/debug output
-- **Values**: `1`, `true`, `yes` (enable), anything else (disable)
-- **Example**: `export ITSUP_VERBOSE=1`
-- **Usage**: Same as `itsup --verbose`
-
-**`ITSUP_CONFIG_DIR`** (optional, default: ./projects)
-- **Purpose**: Override projects configuration directory
-- **Example**: `export ITSUP_CONFIG_DIR=/path/to/projects`
-- **Use case**: Testing with different configuration
-
-**`ITSUP_SECRETS_DIR`** (optional, default: ./secrets)
-- **Purpose**: Override secrets directory
-- **Example**: `export ITSUP_SECRETS_DIR=/path/to/secrets`
-- **Use case**: Multiple secret sets (dev/staging/prod)
-
-**`ITSUP_UPSTREAM_DIR`** (optional, default: ./upstream)
-- **Purpose**: Override generated artifacts directory
-- **Example**: `export ITSUP_UPSTREAM_DIR=/tmp/upstream`
-- **Use case**: Testing artifact generation
+The `itsup` CLI does **not** read configuration from environment variables for verbosity or directory overrides. Verbosity is controlled only by the `-v`/`-vv` count flags (`bin/itsup` explicitly ignores `LOG_LEVEL`). The `projects/`, `secrets/`, and `upstream/` directories are hard-coded relative to the repo root — there are no `ITSUP_CONFIG_DIR`, `ITSUP_SECRETS_DIR`, or `ITSUP_UPSTREAM_DIR` overrides.
 
 ## System Environment Variables
 
@@ -309,32 +286,25 @@ API_SECRET_KEY=$(openssl rand -hex 32)
 
 ### Required vs Optional
 
-**Required** (deployment fails if missing):
-- `ROUTER_IP` (for infrastructure)
+**Required**:
+- `TRAEFIK_ADMIN` (in `secrets/itsup.txt` — proxy artifact generation fails without it)
 - Database credentials (if project uses database)
 - External service API keys (if project uses services)
 
 **Optional** (has defaults or not needed):
 - `LOG_LEVEL` (defaults to `info`)
 - `PORT` (defaults to service-specific default)
-- `ITSUP_VERBOSE` (defaults to `false`)
 
 ### Validation Methods
 
-**At deployment**:
+**At artifact generation**: `expand_env_vars` in `lib/data.py` raises `ValueError` listing any `${VAR}` that has no matching secret when expanding config templates.
+
+`get_env_with_secrets` itself performs **no** required-var validation — it simply merges loaded secrets over the process environment:
 ```python
 # lib/data.py
-def get_env_with_secrets(project: str) -> dict:
-    """Load secrets and validate required vars"""
-    env = load_secrets(project)
-
-    # Validate required vars
-    required = ['DB_PASSWORD', 'API_KEY']
-    missing = [var for var in required if var not in env]
-    if missing:
-        raise ValueError(f"Missing required vars: {missing}")
-
-    return env
+def get_env_with_secrets(project_name: str | None = None) -> dict[str, str]:
+    secrets = load_secrets(project_name)
+    return {**os.environ, **secrets}
 ```
 
 **Manual validation**:
@@ -423,8 +393,8 @@ itsup decrypt {project}
 
 **`secrets/itsup.txt`**:
 ```bash
-# Network Configuration
-ROUTER_IP=192.168.1.1
+# Traefik dashboard / admin basic-auth (htpasswd line; REQUIRED for proxy artifacts)
+TRAEFIK_ADMIN=admin:$apr1$changeme
 
 # API Configuration
 API_SECRET_KEY=changeme

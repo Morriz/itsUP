@@ -10,7 +10,7 @@ Technical documentation for the itsUP infrastructure management system.
 
 ### Core Infrastructure
 - [DNS Stack](stacks/dns.md) - DNS honeypot and container networking
-- [Proxy Stack](stacks/proxy.md) - Traefik, dockerproxy, CrowdSec integration
+- [Proxy Stack](stacks/proxy.md) - Traefik, socket proxy, CrowdSec integration
 - [API Server](stacks/api.md) - REST API for infrastructure management
 
 ### Operations
@@ -26,7 +26,7 @@ Technical documentation for the itsUP infrastructure management system.
 
 ### Reference
 - [CLI Commands](reference/cli.md) - Complete itsup command reference
-- [Environment Variables](reference/env-vars.md) - Environment variable documentation
+- [Environment Variables](reference/environment-variables.md) - Environment variable documentation
 - [Troubleshooting](reference/troubleshooting.md) - Common issues and solutions
 
 ## Quick Links

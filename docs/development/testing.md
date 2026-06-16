@@ -4,13 +4,13 @@ Testing strategies and practices for itsup infrastructure code.
 
 ## Testing Overview
 
-**Framework**: Python `unittest` module
+**Framework**: Python `unittest` module (plus `pytest` for the functional suite)
 
-**Test Location**: `lib/*_test.py` files (co-located with modules)
+**Test Location**: `*_test.py` files co-located with the modules they test, across `lib/`, `commands/`, and `bin/`.
 
-**Run Command**: `bin/test.sh`
+**Run Command**: `bin/test.sh` (or `make test` / `make test-unit`)
 
-**Coverage**: Unit tests for core library modules (data, deploy, upstream).
+**Coverage**: Unit tests for core library modules (`lib/`), CLI commands (`commands/`), and bin scripts (`bin/`). Artifact generation / Traefik label injection lives in `bin/write_artifacts.py` (tested by `bin/write_artifacts_test.py`).
 
 ## Running Tests
 
@@ -21,7 +21,7 @@ bin/test.sh
 ```
 
 **What it does**:
-- Discovers all `*_test.py` files in `lib/` directory
+- Discovers all `*_test.py` files from the repo root (`python -m unittest discover -s . -p '*_test.py'`), so it picks up tests in `lib/`, `commands/`, and `bin/`
 - Runs all test cases
 - Reports pass/fail and any errors
 
@@ -111,31 +111,25 @@ class TestLoadProject(unittest.TestCase):
 
 ### Testing Pure Functions
 
-**Function**:
+**Function** (actual signature — takes no args; reads the router IP internally):
 ```python
 # lib/data.py
-def get_trusted_ips(router_ip: str) -> list[str]:
-    """Build trusted IPs list - Docker networks + router subnet"""
-    parts = router_ip.split(".")
-    subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
-    return ["172.0.0.0/8", subnet]
+def get_trusted_ips() -> list[str]:
+    """Build trusted IPs list for Traefik - the detected router IP as a /32"""
+    router_ip = get_router_ip()
+    return [f"{router_ip}/32"]
 ```
 
-**Test**:
+**Test** (patch `get_router_ip` rather than passing an argument):
 ```python
 # lib/data_test.py
-class TestGetTrustedIps(unittest.TestCase):
-    def test_get_trusted_ips(self):
-        """Should return Docker range + router subnet"""
-        result = get_trusted_ips("192.168.1.1")
-        expected = ["172.0.0.0/8", "192.168.1.0/24"]
-        self.assertEqual(result, expected)
+from unittest.mock import patch
 
-    def test_get_trusted_ips_different_subnet(self):
-        """Should work with different subnet"""
-        result = get_trusted_ips("10.0.0.1")
-        expected = ["172.0.0.0/8", "10.0.0.0/24"]
-        self.assertEqual(result, expected)
+class TestGetTrustedIps(unittest.TestCase):
+    @patch("lib.data.get_router_ip", return_value="192.168.1.1")
+    def test_get_trusted_ips(self, _mock):
+        """Should return the router IP as a /32"""
+        self.assertEqual(get_trusted_ips(), ["192.168.1.1/32"])
 ```
 
 ### Testing File Operations
@@ -235,8 +229,8 @@ services:
     image: nginx:latest
 """)
 
-        # Create test ingress.yml
-        ingress_path = os.path.join(self.project_dir, "ingress.yml")
+        # Create test itsup-project.yml
+        ingress_path = os.path.join(self.project_dir, "itsup-project.yml")
         with open(ingress_path, 'w') as f:
             f.write("""
 enabled: true
@@ -272,25 +266,21 @@ ingress:
 - ⚠️ Smart rollout (needs more tests)
 - ⚠️ Change detection
 
-**lib/upstream.py**: Label injection
-- ✅ `inject_traefik_labels()`
+**bin/write_artifacts.py**: Label injection / artifact generation
 - ✅ HTTP router labels
 - ✅ TCP router labels
+- (tested by `bin/write_artifacts_test.py`)
 
 **Note**: ✅ = well tested, ⚠️ = partially tested, ❌ = not tested
 
 ### Measuring Coverage
 
-**Install coverage.py**:
-```bash
-pip install coverage
-```
+`pytest-cov` is already in `requirements-test.txt`. To measure with `coverage.py`:
 
-**Run with coverage**:
 ```bash
-coverage run -m unittest discover -s lib -p "*_test.py"
+coverage run -m unittest discover -s . -p "*_test.py"
 coverage report
-coverage html  # Generate HTML report
+coverage html  # Generate HTML report (htmlcov/)
 ```
 
 **View HTML report**:
@@ -317,7 +307,7 @@ networks:
     external: true
 EOF
 
-cat > projects/test-app/ingress.yml <<EOF
+cat > projects/test-app/itsup-project.yml <<EOF
 enabled: true
 ingress:
   - service: web
@@ -338,30 +328,14 @@ itsup svc test-app down
 rm -rf projects/test-app upstream/test-app
 ```
 
-### Automated Integration Tests (Future)
+### Functional Tests
 
-**Potential structure**:
-```python
-# tests/integration/test_deployment.py
-class TestDeploymentWorkflow(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        """Setup test infrastructure"""
-        # Start DNS and Proxy
-        subprocess.run(["itsup", "dns", "up"], check=True)
-        subprocess.run(["itsup", "proxy", "up"], check=True)
+A `pytest`-based functional suite already exists under `tests/functional/` (with `conftest.py`), covering CLI commands and bin scripts: `init`, `encrypt`/`decrypt`, `status`, `diff_secrets`, `validate`, and `write_artifacts`. These exercise real SOPS/age operations and so require **SOPS and age installed**.
 
-    @classmethod
-    def tearDownClass(cls):
-        """Cleanup test infrastructure"""
-        subprocess.run(["itsup", "down"], check=True)
-
-    def test_deploy_simple_app(self):
-        """Should deploy and access simple nginx app"""
-        # Create test project
-        # Deploy
-        # Verify
-        # Cleanup
+**Run them**:
+```bash
+make test-functional          # .venv/bin/pytest tests/functional/ -v --tb=short
+make test-all                 # unit + functional
 ```
 
 ## Testing Best Practices
@@ -470,7 +444,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r requirements.txt -r requirements-test.txt
 
       - name: Run tests
         run: bin/test.sh
@@ -478,6 +452,8 @@ jobs:
       - name: Run linter
         run: bin/lint.sh
 ```
+
+> `requirements-test.txt` is required for tests and linting — it provides `pytest`, `black`, `pylint`, `mypy`, and the type stubs. `requirements.txt` (or the pinned `requirements-prod.txt`) alone is not enough to run `bin/test.sh` / `bin/lint.sh`.
 
 ## Debugging Tests
 

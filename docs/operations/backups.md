@@ -8,9 +8,11 @@ Backup strategies and procedures for itsup infrastructure.
 
 **Philosophy**:
 - **Configuration**: Version controlled in git (primary source of truth)
-- **State**: Backed up to S3 (databases, volumes, generated artifacts)
+- **State**: The bind-mounted `upstream/` tree is tarred and backed up to S3 (see [What Gets Backed Up](#what-gets-backed-up))
 - **Secrets**: Encrypted with SOPS, backed up to git
 - **Logs**: Rotated locally, not archived (see [Logging](logging.md))
+
+> **Why bind mounts, not named volumes:** `bin/backup.py` tars the on-disk `upstream/` directory. All project persistent data therefore lives under `upstream/{project}/...` as host bind mounts (e.g. `upstream/<project>/db`, `upstream/<project>/data`). Named Docker volumes would live outside `upstream/` and be invisible to this tar-based backup, so projects deliberately use bind mounts.
 
 ## What Gets Backed Up
 
@@ -23,7 +25,7 @@ projects/
 ├── traefik.yml            # Traefik overrides
 └── */
     ├── docker-compose.yml # Service definitions
-    └── ingress.yml        # Routing configuration
+    └── itsup-project.yml  # Routing configuration
 ```
 
 **secrets/** (Encrypted Secrets):
@@ -42,42 +44,34 @@ secrets/
 
 ### S3 Backups (State)
 
-**upstream/** (Generated Artifacts):
+`bin/backup.py` tars **only the `upstream/` directory** and uploads the single archive to S3. This includes every project's generated compose file AND its bind-mounted persistent data:
 ```
 upstream/
-└── */
-    └── docker-compose.yml # Generated compose files with Traefik labels
+└── {project}/
+    ├── docker-compose.yml  # Generated compose file with Traefik labels
+    └── ...                 # Bind-mounted data (db/, data/, etc.)
 ```
 
-**proxy/** (Proxy State):
-```
-proxy/
-├── traefik/
-│   ├── traefik.yml       # Generated Traefik config
-│   ├── acme.json         # Let's Encrypt certificates
-│   └── *.conf.yaml       # Dynamic configs
-└── docker-compose.yml     # Proxy stack compose
-```
+> `proxy/` (including `acme.json` and the generated `traefik.yml`) is **NOT** backed up by this script. Let's Encrypt certificates are re-issued automatically on restore.
 
-**Container Volumes** (Optional):
-```
-# Project-specific persistent data
-upstream/{project}/volumes/
-```
+Project directories can be excluded via the `backup.exclude` list (matched by directory name).
 
 **Backup Method**: `bin/backup.py` script uploads to S3
-- **Frequency**: Configurable (daily recommended)
-- **Retention**: S3 lifecycle policies
-- **Recovery**: S3 download + restore
+- **Frequency**: Nightly via the `itsup-backup.timer` systemd timer (05:00)
+- **Retention**: Newest 10 timestamped archives are kept; older ones are deleted by the script
+- **Recovery**: S3 download + extract
 
 **Configuration** (in `projects/itsup.yml`):
 ```yaml
 backup:
+  exclude: []          # project directory names to exclude
   s3:
-    bucket: my-backup-bucket
-    prefix: itsup/
-    region: us-east-1
+    host: ${AWS_S3_HOST}      # S3-compatible endpoint, from secrets
+    region: ${AWS_S3_REGION}  # from secrets
+    bucket: ${AWS_S3_BUCKET}  # from secrets
 ```
+
+**Required secrets** (`secrets/itsup.txt` or `secrets/itsup.enc.txt`): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_HOST`, `AWS_S3_REGION`, `AWS_S3_BUCKET`. The endpoint is S3-compatible (signature v4); it need not be AWS S3.
 
 ## Backup Procedures
 
@@ -98,16 +92,14 @@ bin/backup.py
 
 **Result**: Full infrastructure backup (config + state).
 
-### Automated Backup (Recommended)
+### Automated Backup
 
-**Cron job for daily S3 backup**:
+The nightly S3 backup runs via the **`itsup-backup.timer` systemd timer at 05:00**, installed by `bin/install-bringup.sh` (`make install`). No cron entry is needed on a host set up that way.
+
+If you prefer cron (or are on a host without the systemd bringup), the equivalent entry is:
 
 ```bash
-# Edit crontab
-crontab -e
-
-# Add daily backup at 3 AM
-0 3 * * * /home/youruser/srv/bin/backup.py >> /home/youruser/srv/logs/backup.log 2>&1
+0 5 * * * cd /home/youruser/srv && .venv/bin/python bin/backup.py >> /home/youruser/srv/logs/backup.log 2>&1
 ```
 
 **Git backup remains manual** (commit/push when making changes).
@@ -172,10 +164,12 @@ bin/backup.py
 
 5. **Restore state from S3** (optional but recommended):
    ```bash
-   # Download and extract backup
-   aws s3 cp s3://my-backup-bucket/itsup/latest.tar.gz /tmp/
+   # Backups are stored at the bucket root as itsup.tar.gz.<timestamp>
+   # (no latest.tar.gz, no key prefix). Pick the newest:
+   LATEST=$(aws s3 ls s3://my-backup-bucket/ | awk '/itsup.tar.gz\./{print $4}' | sort | tail -1)
+   aws s3 cp "s3://my-backup-bucket/$LATEST" /tmp/itsup-backup.tar.gz
    cd /home/youruser/srv
-   tar -xzf /tmp/latest.tar.gz
+   tar -xzf /tmp/itsup-backup.tar.gz   # extracts upstream/
    ```
 
 6. **Deploy infrastructure**:
@@ -188,7 +182,7 @@ bin/backup.py
    ```bash
    itsup proxy logs traefik     # Check Traefik is routing
    itsup svc {project} ps       # Check each project
-   curl https://{domain}/health # Test endpoints
+   curl -I https://{domain}     # Test endpoints
    ```
 
 **Total Time**: ~15-30 minutes depending on number of projects.
@@ -216,20 +210,11 @@ bin/backup.py
 
 **Scenario**: Lost Let's Encrypt certificates (`acme.json`).
 
-**Option 1 - Restore from S3**:
-```bash
-# Download latest backup
-aws s3 cp s3://my-backup-bucket/itsup/latest.tar.gz /tmp/
-tar -xzf /tmp/latest.tar.gz proxy/traefik/acme.json
+`acme.json` is **not** included in the S3 backup (only `upstream/` is). The recovery path is to let Traefik re-issue:
 
-# Restart Traefik
-itsup proxy restart traefik
-```
-
-**Option 2 - Re-issue** (if backup unavailable):
 ```bash
-# Remove existing (invalid) acme.json
-rm proxy/traefik/acme.json
+# Remove existing (invalid) acme.json if present
+rm -f proxy/traefik/acme.json
 
 # Restart Traefik (will request new certificates)
 itsup proxy restart traefik
@@ -238,7 +223,7 @@ itsup proxy restart traefik
 itsup proxy logs traefik | grep -i certificate
 ```
 
-**Note**: Let's Encrypt has rate limits (50 certs/week per domain). Use Option 1 if possible.
+**Note**: Let's Encrypt has rate limits (50 certs/week per registered domain). If you maintain your own out-of-band copy of `acme.json`, restore that instead to avoid re-issuance.
 
 ### Secrets Recovery
 
@@ -283,12 +268,13 @@ itsup proxy logs traefik | grep -i certificate
 
 2. **Verify S3 backup**:
    ```bash
-   # Download latest
-   aws s3 ls s3://my-backup-bucket/itsup/
-   aws s3 cp s3://my-backup-bucket/itsup/latest.tar.gz /tmp/
+   # List timestamped archives at the bucket root
+   aws s3 ls s3://my-backup-bucket/ | grep itsup.tar.gz.
+   LATEST=$(aws s3 ls s3://my-backup-bucket/ | awk '/itsup.tar.gz\./{print $4}' | sort | tail -1)
+   aws s3 cp "s3://my-backup-bucket/$LATEST" /tmp/itsup-backup.tar.gz
 
    # Verify archive integrity
-   tar -tzf /tmp/latest.tar.gz | head -20
+   tar -tzf /tmp/itsup-backup.tar.gz | head -20
    ```
 
 3. **Test decryption**:
@@ -304,28 +290,27 @@ itsup proxy logs traefik | grep -i certificate
 **Script**: `bin/backup.py`
 
 **What it backs up**:
-- `upstream/` directory (generated artifacts)
-- `proxy/` directory (Traefik config + certificates)
-- Optionally: container volumes
+- The `upstream/` directory only — generated compose files **and** bind-mounted project data. Nothing else (no `proxy/`, no `acme.json`).
+- Project directories named in `backup.exclude` are skipped.
 
 **Configuration** (from `projects/itsup.yml`):
 ```yaml
 backup:
+  exclude: []          # project directory names to exclude
   s3:
-    bucket: my-backup-bucket
-    prefix: itsup/               # S3 key prefix
-    region: us-east-1
-  include_volumes: false         # Backup container volumes?
-  compression: true              # Use gzip compression?
+    host: ${AWS_S3_HOST}      # S3-compatible endpoint (from secrets)
+    region: ${AWS_S3_REGION}  # from secrets
+    bucket: ${AWS_S3_BUCKET}  # from secrets
 ```
+There is no `prefix`, `include_volumes`, or `compression` key — the archive is always gzip-compressed and the `exclude` list is the only content control.
 
-**Output**:
+**Output**: a single gzip tarball per run, uploaded to the bucket root with a timestamp suffix:
 ```
-s3://my-backup-bucket/itsup/backup-2025-01-15-030000.tar.gz
-s3://my-backup-bucket/itsup/latest.tar.gz  # Symlink to latest
+s3://my-backup-bucket/itsup.tar.gz.20260115050000
 ```
+The script keeps the newest 10 such archives and deletes older ones. There is no `latest.tar.gz`.
 
-**Logging**: Logs to `logs/backup.log` (if configured) or stdout.
+**Logging**: prints progress to stdout (redirect to `logs/backup.log` in the timer/cron invocation if you want a file).
 
 ## Disaster Scenarios
 
@@ -337,7 +322,7 @@ s3://my-backup-bucket/itsup/latest.tar.gz  # Symlink to latest
 
 **RTO** (Recovery Time Objective): 30 minutes.
 
-**RPO** (Recovery Point Objective): Last backup (24 hours if daily cron).
+**RPO** (Recovery Point Objective): Last nightly backup (up to 24 hours).
 
 ### Scenario 2: Accidental Configuration Deletion
 
@@ -356,15 +341,17 @@ itsup apply {project}
 
 **RPO**: Last git commit.
 
-### Scenario 3: Corrupted Docker Volumes
+### Scenario 3: Corrupted Project Data
 
 **Impact**: Lost container data (databases, uploads, etc.).
 
-**Recovery**:
-- If S3 backup includes volumes: Extract and restore from backup
-- If not: Data loss (containers must be rebuilt, data re-created)
+**Recovery**: Project data lives under `upstream/{project}/` as bind mounts and is included in the S3 backup. Extract the relevant subtree from the latest archive:
+```bash
+tar -xzf /tmp/itsup-backup.tar.gz "upstream/{project}"
+itsup svc {project} restart
+```
 
-**Prevention**: Enable `include_volumes: true` in backup config for critical projects.
+**Note**: This is exactly why projects use bind mounts under `upstream/` rather than named Docker volumes — only `upstream/` is backed up.
 
 ### Scenario 4: Certificate Expiry
 
@@ -372,15 +359,11 @@ itsup apply {project}
 
 **Recovery**:
 ```bash
-# Traefik should auto-renew, but if it fails:
-rm proxy/traefik/acme.json
-itsup proxy restart traefik
-
-# Or restore from backup
-aws s3 cp s3://my-backup-bucket/itsup/latest.tar.gz /tmp/
-tar -xzf /tmp/latest.tar.gz proxy/traefik/acme.json
+# Traefik should auto-renew; if it fails, force re-issuance:
+rm -f proxy/traefik/acme.json
 itsup proxy restart traefik
 ```
+`acme.json` is not in the S3 backup, so re-issuance (not restore) is the recovery path.
 
 **RTO**: 10 minutes.
 
@@ -412,14 +395,16 @@ git gc --prune=now
 
 ### S3 Retention
 
-**Recommended Lifecycle Policy**:
+The script itself caps retention at the newest 10 archives. A lifecycle policy is optional and, if used, must match the real key shape (`itsup.tar.gz.` at the bucket root):
+
+**Optional Lifecycle Policy**:
 ```json
 {
   "Rules": [
     {
       "Id": "RetainDaily",
       "Status": "Enabled",
-      "Prefix": "itsup/backup-",
+      "Prefix": "itsup.tar.gz.",
       "Transitions": [
         {
           "Days": 30,
@@ -527,10 +512,11 @@ aws s3api put-bucket-encryption \
 
 **Example - Email on Failure**:
 ```bash
-# In crontab
+# If running backup.py from cron instead of the systemd timer:
 MAILTO=ops@example.com
-0 3 * * * /home/youruser/srv/bin/backup.py || echo "Backup failed!" | mail -s "BACKUP FAILURE" ops@example.com
+0 5 * * * cd /home/youruser/srv && .venv/bin/python bin/backup.py || echo "Backup failed!" | mail -s "BACKUP FAILURE" ops@example.com
 ```
+When run under the `itsup-backup.timer` systemd unit, use `journalctl -u itsup-backup` / `systemctl list-timers` to monitor instead.
 
 **S3 Monitoring**:
 - Enable S3 access logging
@@ -538,7 +524,7 @@ MAILTO=ops@example.com
 
 ## Best Practices
 
-1. **Automate backups**: Use cron for daily S3 backups
+1. **Automate backups**: nightly S3 backups via the `itsup-backup.timer` systemd timer (cron is an alternative)
 2. **Test restores**: Regular restore drills (monthly/quarterly)
 3. **Version control everything**: All configuration in git
 4. **Encrypt sensitive data**: SOPS for secrets, S3 encryption for backups

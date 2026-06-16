@@ -185,9 +185,33 @@ itsup monitor clear-iptables
 - 0 key exfiltrations since reverse DNS block
 - 0 unauthorized OpenAI API calls
 - ~5-10 new IPs blacklisted per day
-- 0 false positives (no legitimate services broken)
+- Some false positives: legitimate infra reached by direct IP without an observable
+  prior DNS lookup (e.g. GitHub `140.82.x`, Fastly `151.101.x`, GitHub Pages
+  `185.199.108.x`, Quad9 `9.9.9.10`) lands in the blacklist. Remediate by moving the
+  specific dedicated-infra IP to `data/whitelist/whitelist-outbound-ips.txt` —
+  whitelisted IPs are never blacklisted and are auto-removed from the blacklist (and
+  iptables) on the next reload. Keep shared cloud-provider ranges (AWS/GCP
+  `3/18/34/44/52/54.x`) blacklisted; those host real threats too. See
+  [Monitoring → False Positives](operations/monitoring.md#false-positives).
 
 **Status:** Exfiltration contained via undocumented side effect. Root cause unknown. Attacker silent but likely still present.
+
+## 10a. Operational Caution — OpenSnitch loopback wedge
+
+OpenSnitch intercepts new TCP SYNs via NFQUEUE — **including loopback**. If
+`opensnitchd` stalls, new loopback TCP connections wedge. That breaks
+Traefik → docker-socket-proxy over the loopback interface, so new deploys and TLS
+certificate renewals fail silently with no obvious error.
+
+**Symptom:** deploys and cert renewals stop working, nothing obviously logged.
+
+**Fix:**
+
+```bash
+sudo systemctl restart opensnitch
+```
+
+(Full root-cause write-up lives in the networking troubleshooting docs.)
 
 ---
 
@@ -270,7 +294,7 @@ Enhanced `check_direct_connections()` to:
 2. Check if destination IP has **any** DNS history in cache (indefinite) → log normally
 3. If NO DNS lookup found → **flag as hardcoded IP, add to blacklist, report compromise**
 
-**Note**: DNS cache is kept indefinitely within a session. Once an IP is seen via DNS, it's trusted forever (until monitor restart).
+**Note**: DNS mappings persist across restarts via `data/dns-registry.json`. Once an IP is seen via DNS it is trusted indefinitely; the registry survives monitor restarts. On the very first run only, the registry is bootstrapped from 48 hours of honeypot logs.
 
 This closes the detection gap and will now immediately identify which container is connecting to malicious IPs.
 

@@ -10,7 +10,7 @@ itsUP is a zero-downtime infrastructure management system built around Docker Co
 └────────────────────┬────────────────────────────────────────┘
                      │
               ┌──────▼──────┐
-              │   Router    │  Port forwards 80/443/8080/8443
+              │   Router    │  LAN forwards 80→8080, 443→8443
               │ 192.168.1.1 │
               └──────┬──────┘
                      │
@@ -39,20 +39,20 @@ itsUP is a zero-downtime infrastructure management system built around Docker Co
 - **Purpose**: Reverse proxy, TLS termination, routing
 - **Network**: Host network mode (for zero-downtime scaling)
 - **Services**:
-  - Traefik (v3.5.1) - Reverse proxy
-  - dockerproxy - Secure Docker API access
-  - CrowdSec - Threat detection and banning
+  - Traefik (v3.6.17) - Reverse proxy
+  - socket proxy - Secure Docker API access
+  - CrowdSec (v1.7.3) - Threat detection and banning
 
 ### 3. API Server
 - **Purpose**: Infrastructure management REST API
 - **Type**: Non-containerized Python FastAPI app
-- **Port**: 8888 (internal)
-- **Routing**: Exposed via Traefik at `itsup.srv.instrukt.ai`
+- **Port**: 8888 (bound to 0.0.0.0)
+- **Routing**: Exposed via Traefik (host-only ingress project; see [API Server](stacks/api.md))
 
 ### 4. Security Monitor
 - **Purpose**: Container network security monitoring
-- **Type**: Non-containerized Python service
-- **Integration**: OpenSnitch, iptables, threat intelligence
+- **Type**: Non-containerized Python service (`monitor/` package, entry point `bin/monitor.py`)
+- **Mechanism**: Correlates container outbound TCP connections against DNS-honeypot query history (persisted in `data/dns-registry.json`). A connection to an IP with no prior DNS lookup is treated as a hardcoded-IP/malware indicator: the IP is added to the blacklist and dropped via an `iptables` DROP rule inserted into the `DOCKER-USER` chain. OpenSnitch cross-referencing is optional (`--use-opensnitch`).
 
 ### 5. Upstream Projects
 - **Purpose**: User workloads (apps, databases, services)
@@ -68,10 +68,10 @@ itsUP is a zero-downtime infrastructure management system built around Docker Co
 Internet Request (example.com)
     │
     ▼
-Router (NAT/Port Forward)
+Router (LAN forwards 80→8080, 443→8443)
     │
     ▼
-Traefik (Host Network :80/:443)
+Traefik (host network, entrypoints :8080/:8443)
     │
     ├─ TLS Termination
     ├─ CrowdSec Check (block if malicious)
@@ -90,7 +90,7 @@ Response back through Traefik
 User runs: itsup apply
     │
     ▼
-Read projects/{project}/ingress.yml
+Read projects/{project}/itsup-project.yml
     │
     ▼
 Generate Traefik labels
@@ -126,15 +126,13 @@ Traefik auto-discovers new containers
 ### Port Mapping
 
 **External (Router → Host):**
-- 80 → Host :80 (HTTP)
-- 443 → Host :443 (HTTPS)
-- 8080 → Host :8080 (Traefik HTTP internal)
-- 8443 → Host :8443 (Traefik HTTPS internal)
+- 80 → Host :8080 (HTTP — Traefik `web` entrypoint)
+- 443 → Host :8443 (HTTPS — Traefik `websecure` entrypoint)
 
 **Internal (Host):**
+- :8080, :8443 - Traefik entrypoints (`web`, `websecure`)
 - :8888 - API server
-- :2375 - dockerproxy (Docker API)
-- :8080, :8443 - Traefik entrypoints
+- :2375 - socket proxy (Docker API)
 - :18080 - CrowdSec API
 
 ## Deployment Model
@@ -166,7 +164,7 @@ Multiple projects deploy simultaneously:
 ├── bin/                    # CLI scripts and utilities
 ├── commands/               # itsup subcommands
 ├── crowdsec/               # CrowdSec config
-├── data/                   # Persistent data (acme, crowdsec)
+├── data/                   # Persistent data (acme, crowdsec, blacklist, whitelist, dns-honeypot, dns-registry.json)
 ├── dns/                    # DNS stack compose file
 ├── docs/                   # Documentation (this)
 ├── lib/                    # Shared Python libraries
@@ -178,7 +176,7 @@ Multiple projects deploy simultaneously:
 │   ├── traefik.yml        # Traefik overrides
 │   └── {project}/         # Per-project configs
 │       ├── docker-compose.yml
-│       └── ingress.yml
+│       └── itsup-project.yml
 ├── secrets/                # Encrypted secrets (SOPS)
 ├── tpl/                    # Jinja2 templates
 └── upstream/               # Generated compose files (deployed)

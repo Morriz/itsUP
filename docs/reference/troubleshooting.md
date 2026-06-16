@@ -100,15 +100,40 @@ certificatesResolvers:
 
 **"Cannot connect to Docker daemon"**:
 ```bash
-# dockerproxy not running or misconfigured
-itsup proxy logs dockerproxy
+# Socket proxy (proxy_docker) not running or misconfigured
+itsup proxy logs docker
 
-# Check dockerproxy is accessible
-curl http://localhost:2375/version  # Should return JSON
+# Check the socket proxy is accessible (loopback only)
+curl http://127.0.0.1:2375/v1.44/version  # Should return JSON
 
-# Restart dockerproxy
-itsup proxy restart dockerproxy
+# Restart the socket proxy
+itsup proxy restart docker
 ```
+
+**New deploys / cert renewals silently fail (OpenSnitch loopback wedge)**:
+
+**Symptom**: New deploys get no router/cert and cert renewals silently break,
+while existing sites keep serving. `proxy_docker` and `proxy-traefik-1` show
+`unhealthy`; Traefik logs `Failed to list containers ... 127.0.0.1:2375: i/o timeout`;
+public HTTPS returns `tlsv1 unrecognized name`.
+
+**Diagnosis**: OpenSnitch's nftables NFQUEUE intercepts every new TCP SYN and
+opensnitchd issues the verdict. If that verdict pipeline stalls, new loopback
+connections hang in SYN-SENT, so Traefik can't reach the socket proxy on
+`127.0.0.1:2375`. It is the verdict path, not a firewall rule:
+```bash
+curl --max-time 6 http://127.0.0.1:2375/v1.44/version  # times out when wedged
+# lo is UP, iptables/conntrack/netns all fine
+```
+
+**Fix**:
+```bash
+sudo systemctl restart opensnitch
+```
+Restarting only the socket proxy or only Traefik is insufficient — the root fix
+is restarting opensnitchd (Traefik then recovers its stale connection on its own
+restart/health cycle). See
+[Networking → OpenSnitch loopback wedge](../networking.md#opensnitch-loopback-wedge-traefik-cant-reach-the-socket-proxy).
 
 **"Address already in use :80"**:
 ```bash
@@ -316,9 +341,9 @@ itsup apply {project}
 grep "traefik.enable" upstream/{project}/docker-compose.yml
 ```
 
-**Wrong domain in ingress.yml**:
+**Wrong domain in itsup-project.yml**:
 ```bash
-vim projects/{project}/ingress.yml
+vim projects/{project}/itsup-project.yml
 # Verify domain matches DNS/host file
 itsup apply {project}
 ```
@@ -328,7 +353,7 @@ itsup apply {project}
 # Check what port service actually uses
 docker exec {container} netstat -tlnp
 
-# Update ingress.yml to match actual port
+# Update itsup-project.yml to match actual port
 ```
 
 ## Network Issues
@@ -460,7 +485,7 @@ itsup proxy logs traefik | grep -i challenge
 **Fix by forcing renewal**:
 ```bash
 # Remove certificate (forces re-issue)
-rm proxy/traefik/acme.json
+rm data/acme/acme.json
 itsup proxy restart traefik
 
 # Watch certificate issuance
@@ -480,7 +505,7 @@ echo | openssl s_client -connect {domain}:443 2>/dev/null | openssl x509 -noout 
 
 **Force renewal**:
 ```bash
-rm proxy/traefik/acme.json
+rm data/acme/acme.json
 itsup proxy restart traefik
 ```
 
@@ -515,7 +540,7 @@ http:
 ```
 
 ```yaml
-# In ingress.yml
+# In itsup-project.yml
 ingress:
   - service: web
     middleware: [security-headers]
@@ -786,7 +811,7 @@ itsup apply {project} --verbose > debug.log 2>&1
 5. **Configuration** (redact secrets):
 ```bash
 cat projects/{project}/docker-compose.yml
-cat projects/{project}/ingress.yml
+cat projects/{project}/itsup-project.yml
 ```
 
 ### Where to Get Help

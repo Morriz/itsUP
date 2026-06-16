@@ -23,10 +23,10 @@ itsUP uses a hybrid networking approach combining Docker bridge networks and hos
    │          │      │172.20/16 │     │ (user)  │
    └──────────┘      └──────────┘     └─────────┘
         │                 │                 │
-   ┌────▼────┐      ┌─────▼──────┐    ┌────▼────┐
-   │ Traefik │      │  Upstream  │    │ App DB  │
-   │:80 :443 │◄─────┤  Services  │◄───┤  etc.   │
-   └─────────┘      └────────────┘    └─────────┘
+   ┌────▼─────┐     ┌─────▼──────┐    ┌────▼────┐
+   │ Traefik  │     │  Upstream  │    │ App DB  │
+   │:8080:8443│◄────┤  Services  │◄───┤  etc.   │
+   └──────────┘     └────────────┘    └─────────┘
 ```
 
 ## Networks
@@ -42,18 +42,19 @@ itsUP uses a hybrid networking approach combining Docker bridge networks and hos
 
 **Services**:
 - Traefik (proxy)
-- dockerproxy (Docker API access)
+- Socket proxy (`proxy_docker`, wollomatic/socket-proxy — Docker API access)
 
-**Ports exposed**:
-- :80 - HTTP entrypoint (web)
-- :443 - HTTPS entrypoint (websecure, if configured)
-- :8080 - HTTP entrypoint (web, internal)
-- :8443 - HTTPS entrypoint (web-secure, internal)
+**Entrypoints (Traefik binds, host network)**:
+- :8080 - `web` (HTTP). The LAN router port-forwards external :80 here.
+- :8443 - `web-secure` (HTTPS/TLS termination). The LAN router port-forwards external :443 here.
+- Plus any dynamic TCP/UDP entrypoints generated per project ingress (`{router}-{hostport|port}`).
+
+Traefik does NOT bind :80/:443 directly; the LAN router port-forwards 80→8080 and 443→8443.
 
 **Access**:
 - Direct access to host network interfaces
-- Can reach containers on proxynet via container names (DNS resolution)
-- Can reach local services via 127.0.0.1
+- Reaches upstream containers on proxynet by IP (or service name when resolvable)
+- Can reach local services via 127.0.0.1 (including the socket proxy on :2375)
 
 ### 2. proxynet Bridge Network
 
@@ -115,8 +116,11 @@ Containers on `proxynet` can reach each other by name:
 ```bash
 # From any container on proxynet
 curl http://my-app-service:3000
-ping traefik-web
+ping other-app-service
 ```
+
+(Traefik runs on the host network, not on proxynet, so it is not name-resolvable
+as a proxynet peer — it reaches upstreams by IP or by name from its own namespace.)
 
 **DNS flow**:
 1. Container queries DNS
@@ -145,19 +149,17 @@ Benefits:
 
 ### External (Internet → Router → Host)
 
-Router port forwards:
+Router port forwards (Traefik binds 8080/8443, not 80/443):
 ```
-80   → Host:80    (HTTP)
-443  → Host:443   (HTTPS)
-8080 → Host:8080  (Traefik HTTP internal)
-8443 → Host:8443  (Traefik HTTPS internal)
+80   → Host:8080  (HTTP  → Traefik web entrypoint)
+443  → Host:8443  (HTTPS → Traefik web-secure entrypoint)
 ```
 
 ### Internal (Host Services)
 
 ```
 :8888  - API server (itsup API)
-:2375  - dockerproxy (secured Docker API)
+:2375  - socket proxy `proxy_docker` (secured Docker API, loopback only)
 :18080 - CrowdSec API (localhost only)
 :7422  - CrowdSec AppSec (localhost only)
 ```
@@ -197,7 +199,7 @@ labels:
 ```
 
 **How it works**:
-1. Traefik watches Docker API via dockerproxy
+1. Traefik watches Docker API via the socket proxy `proxy_docker` (DOCKER_HOST=tcp://127.0.0.1:2375)
 2. Detects containers with `traefik.enable=true`
 3. Reads routing rules from labels
 4. Creates routes dynamically
@@ -205,10 +207,10 @@ labels:
 
 ### Label Generation
 
-Labels are auto-generated from `projects/{project}/ingress.yml`:
+Labels are auto-generated from `projects/{project}/itsup-project.yml`:
 
 ```yaml
-# projects/my-project/ingress.yml
+# projects/my-project/itsup-project.yml
 enabled: true
 ingress:
   - service: web
@@ -234,9 +236,9 @@ labels:
 ```
 1. Client → Router:443
    ↓
-2. Router → Host:443 (NAT)
+2. Router → Host:8443 (port-forward 443→8443)
    ↓
-3. Traefik (host network :443)
+3. Traefik (host network, web-secure entrypoint :8443)
    ├─ TLS termination
    ├─ Match router rule: Host(`example.com`)
    ├─ CrowdSec check (block if malicious)
@@ -286,11 +288,11 @@ Fast, low latency
 ```
 1. Container → itsup.srv.instrukt.ai:443
    ↓
-2. Traefik receives request (host network)
+2. Traefik receives request (host network, web-secure :8443)
    ├─ Matches router: Host(`itsup.srv.instrukt.ai`)
-   ├─ Routes to service: itsup-172-17-0-1-8888
+   ├─ Routes to service: itsup-127-0-0-1-8888
    ↓
-3. Traefik → 172.17.0.1:8888 (Docker bridge IP)
+3. Traefik → 127.0.0.1:8888 (host loopback; host-only project `host: 127.0.0.1`)
    ↓
 4. API server (listening on host :8888)
 ```
@@ -301,7 +303,7 @@ Fast, low latency
 
 - **proxynet**: Only services that need external access
 - **Project networks**: Internal-only services (databases, caches)
-- **Host network**: Only Traefik and dockerproxy
+- **Host network**: Only Traefik and the socket proxy `proxy_docker`
 
 ### Firewall Rules
 
@@ -317,23 +319,17 @@ iptables -A OUTPUT -s 172.20.0.5 -d 1.2.3.4 -j DROP
 
 ### Trusted IPs
 
-Traefik trusts specific IP ranges for forwarded headers:
+Traefik trusts only the router IP as a `/32` for forwarded headers and PROXY
+protocol. The list is generated by `lib/data.py:get_trusted_ips()`, which returns
+`["<routerIP>/32"]` (routerIP from `projects/itsup.yml`):
 
 ```yaml
 entryPoints:
   web-secure:
     forwardedHeaders:
-      trustedIPs:
-        - 127.0.0.0/32
-        - 172.0.0.0/8
-        - 10.0.0.0/8
-        - 192.168.1.0/24
+      trustedIPs: ['192.168.1.1/32']
     proxyProtocol:
-      trustedIPs:
-        - 127.0.0.0/32
-        - 172.0.0.0/8
-        - 10.0.0.0/8
-        - 192.168.1.0/24
+      trustedIPs: ['192.168.1.1/32']
 ```
 
 Prevents IP spoofing attacks.
@@ -374,7 +370,7 @@ docker network inspect proxynet
 docker network inspect proxynet | jq '.[0].Containers'
 
 # Test connectivity from container
-docker exec my-container ping traefik-web
+docker exec my-container ping other-app-service
 docker exec my-container curl http://other-service:3000
 ```
 
@@ -417,6 +413,41 @@ docker inspect my-container | jq '.[0].Config.Labels'
 # Check Traefik logs
 docker logs proxy-traefik-1 | grep my-container
 ```
+
+### OpenSnitch loopback wedge (Traefik can't reach the socket proxy)
+
+OpenSnitch intercepts every NEW TCP SYN via an nftables NFQUEUE rule
+(`tcp flags syn / fin,syn,rst,ack queue flags bypass to 0`); `opensnitchd`
+issues the allow/deny verdict. If opensnitchd's verdict pipeline stalls, NEW
+loopback TCP connections hang in SYN-SENT — even with `DefaultAction=allow` and
+on-disk allow-*-loopback rules present.
+
+Effect: Traefik (`DOCKER_HOST=tcp://127.0.0.1:2375`) can't reach the wollomatic
+socket proxy `proxy_docker`, so it stops discovering containers and requesting
+ACME certs. New deploys get no router/cert; cert renewals silently break.
+Existing sites keep serving from Traefik's in-memory cache.
+
+**Symptoms**:
+- `proxy_docker` and `proxy-traefik-1` report `unhealthy`
+- Traefik logs: `Failed to list containers ... 127.0.0.1:2375: i/o timeout`
+- Public HTTPS returns `tlsv1 unrecognized name`
+
+**Diagnose** (it is the verdict path, not a firewall rule):
+```bash
+# Times out when wedged:
+curl --max-time 6 http://127.0.0.1:2375/v1.44/version
+```
+- A throwaway loopback listener also fails to accept
+- `lo` is UP; iptables/conntrack/netns are all fine
+
+**Fix**:
+```bash
+sudo systemctl restart opensnitch
+```
+Then confirm loopback serves and `proxy_docker`/`proxy-traefik-1` go healthy.
+Restarting ONLY the socket proxy or ONLY Traefik does NOT fix it — Traefik also
+wedges on the stale connection and needs its own restart, but the root fix is
+restarting opensnitchd.
 
 ## Related Documentation
 

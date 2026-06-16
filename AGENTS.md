@@ -112,7 +112,7 @@ Commands:
     traefik.yml            # overrides merged onto template output
     example-project/
       docker-compose.yml   # services with ${VAR} secrets
-      ingress.yml          # IngressV2 routing config
+      itsup-project.yml    # IngressV2 routing config (ingress.yml = deprecated alias, support ends v3.0)
   ```
 - Secrets loading order (later overrides earlier): 1) `secrets/itsup.txt` 2) `secrets/{project}.txt` (optional).
 - Secrets remain `${VAR}` in generated files; at deploy time `itsup apply/run` loads env so compose expands.
@@ -122,8 +122,8 @@ Commands:
   # infra stacks (no project):
   subprocess.run(cmd, env=get_env_with_secrets(), check=True)
   ```
-- Templates: `tpl/proxy/traefik.yml.j2` and `tpl/proxy/docker-compose.yml.j2` produce minimal bases; merged with `projects/traefik.yml`.
-- Label injection: `ingress.yml` auto-generates Traefik labels (router rules, TLS, service ports).
+- Templates: `tpl/traefik.yml.j2` and `tpl/docker-compose.yml.j2` produce minimal bases; merged with `projects/traefik.yml`.
+- Label injection: `itsup-project.yml` auto-generates Traefik labels (router rules, TLS, service ports).
 
 ## Containerization Scope
 
