@@ -130,6 +130,13 @@ Commands:
 - Containerized: upstream project services only.
 - Not containerized: dns honeypot mgmt code, proxy/Traefik config code, API server (`bin/start-api.sh`), CLI `itsup`, monitoring scripts.
 
+## Known Failure Modes (operational)
+
+- **OpenSnitch loopback wedge → Traefik stops discovering containers.** OpenSnitch intercepts every new TCP SYN via an NFQUEUE rule (`tcp flags syn ... queue to 0`) and `opensnitchd` issues the verdict. If `opensnitchd`'s verdict pipeline stalls, **new loopback TCP connections hang in SYN-SENT** even though `DefaultAction=allow` and `allow-...-loopback` rules exist on disk. Traefik (DOCKER_HOST=`tcp://127.0.0.1:2375`) then can't reach the `wollomatic/socket-proxy` (`proxy_docker`), so it never discovers new containers or requests new ACME certs — **new deploys get no router/cert and renewals silently break; existing sites keep working from Traefik's in-memory cache.** Symptoms: `proxy_docker`/`proxy-traefik-1` show `unhealthy`; Traefik logs `Failed to list containers ... 127.0.0.1:2375: i/o timeout`; public HTTPS gives `tlsv1 unrecognized name`.
+  - Diagnose: `curl --max-time 6 http://127.0.0.1:2375/v1.44/version` (times out when wedged); a throwaway loopback listener also fails to accept. `lo` is UP, iptables/conntrack are fine — it's the OpenSnitch verdict path, not a firewall rule.
+  - Fix: `sudo systemctl restart opensnitch`, then confirm loopback serves again and Traefik rediscovers (`proxy_docker`/traefik go `healthy`). Restarting only the socket proxy or Traefik does **not** fix it.
+- **Container Security Monitor over-flags legit egress.** The DNS-correlation monitor blacklists direct-IP container egress it can't tie to a prior DNS lookup, so well-known infra (GitHub `140.82.x`, Fastly `151.101.x`, GitHub Pages `185.199.108.x`, Quad9 `9.9.9.10`) lands in `data/blacklist/blacklist-outbound-ips.txt` as false positives. Move those to `data/whitelist/whitelist-outbound-ips.txt` (whitelisted IPs are never blacklisted; whitelist edits auto-remove from blacklist and the monitor auto-reloads). **Keep cloud-provider IPs (AWS/GCP `3/18/34/44/52/54.x`) blacklisted** — those ranges also host real threats.
+
 ## Code Standards
 
 - See `@~/.claude/docs/development/coding-directives.md`
