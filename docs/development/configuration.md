@@ -93,7 +93,7 @@ networks:
 - Service definitions (images, volumes, networks)
 - Secrets as `${VAR}` placeholders
 
-**`projects/{project}/ingress.yml`**:
+**`projects/{project}/itsup-project.yml`**:
 ```yaml
 enabled: true
 ingress:
@@ -102,12 +102,20 @@ ingress:
     port: 80
     router: http
     middleware: [rate-limit]  # Optional
+egress:                        # Optional: cross-project access
+  - internal-api:app          # format: {project}:{service}
 ```
 
 **Purpose**:
-- Routing configuration (IngressV2 schema)
-- Auto-generates Traefik labels
-- Simpler than manual label management
+- Routing (`ingress`) and cross-project network access (`egress`)
+- Auto-generates Traefik labels and assigns Docker networks (see [Networking → Network Segmentation](../networking.md#4-network-segmentation-ingress--egress))
+- Simpler than manual label and network management
+
+> **Filename:** this file was named `ingress.yml` before v2.1. Both names are
+> still loaded (`itsup-project.yml` wins if both exist); `ingress.yml` is
+> deprecated and logs a warning — support ends in v3.0. Rename existing
+> projects with the bundled fixer (`lib/fixers/rename_ingress.py`, applied via
+> migration) or by hand (`git mv ingress.yml itsup-project.yml`).
 
 ### Secrets Configuration
 
@@ -128,12 +136,12 @@ API_KEY=abc123
 
 **Purpose**:
 - Environment variables for deployment
-- Loaded in order: itsup.txt → {project}.txt (later overrides earlier)
+- Loaded per-context, not merged: infrastructure ops load `itsup.{enc.txt|txt}`; a project deployment loads only its own `{project}.{enc.txt|txt}` (projects do not inherit itsup secrets)
 - Encrypted with SOPS for git storage
 
 ## Configuration Schema Reference
 
-### IngressV2 Schema (ingress.yml)
+### itsup-project.yml Schema
 
 ```yaml
 enabled: boolean                    # Enable/disable routing for this project
@@ -141,7 +149,7 @@ enabled: boolean                    # Enable/disable routing for this project
 # Optional: For host-only projects (no containers)
 host: string                        # Host IP (e.g., 192.168.1.5)
 
-# Routing rules (list)
+# Ingress: services exposed via Traefik (a row with domain/tls joins proxynet)
 ingress:
   - service: string                 # Service name from docker-compose.yml
     domain: string                  # Domain name (e.g., app.example.com)
@@ -154,7 +162,24 @@ ingress:
     # TLS configuration (for TCP passthrough)
     tls:
       passthrough: boolean          # Enable TCP TLS passthrough (default: false)
+
+# Egress: cross-project access this project needs (project-level)
+egress:
+  - string                          # format: {project}:{service}, e.g. "internal-api:app"
 ```
+
+**Network effect of these declarations** (enforced at `itsup apply` time):
+
+| Declaration | Network result |
+|-------------|----------------|
+| `ingress` row with `domain`/`tls` | service joins `proxynet` (Traefik can route to it) |
+| `egress: [B:svc]` | **all** services in this project join `B_default` and can reach project B |
+| neither | service stays on its project-local `default` network (isolated) |
+
+Egress targets are validated (`itsup validate`) and deploy order is sorted by
+egress dependencies automatically. See
+[Networking → Network Segmentation](../networking.md#4-network-segmentation-ingress--egress)
+and the agent design snippet `project/design/network-segmentation`.
 
 #### HTTP Router Example
 
@@ -410,7 +435,7 @@ http:
           - "10.0.0.0/8"
 ```
 
-**Reference in ingress.yml**:
+**Reference in itsup-project.yml**:
 ```yaml
 ingress:
   - service: admin
@@ -449,7 +474,7 @@ networks:
     driver: bridge
 ```
 
-**ingress.yml** (multiple routes):
+**itsup-project.yml** (multiple routes):
 ```yaml
 enabled: true
 ingress:
@@ -511,7 +536,7 @@ entryPoints:
         idleTimeout: 3600s
 ```
 
-**Use in ingress.yml**:
+**Use in itsup-project.yml**:
 ```yaml
 ingress:
   - service: mqtt-broker
@@ -539,7 +564,7 @@ tls:
 
 **Use in ingress**:
 ```yaml
-# Would require custom label injection (not currently supported in ingress.yml)
+# Would require custom label injection (not currently supported in itsup-project.yml)
 # Workaround: Add labels directly in docker-compose.yml
 ```
 
@@ -618,8 +643,8 @@ http:
 # Check docker-compose.yml
 docker compose -f projects/{project}/docker-compose.yml config
 
-# Check ingress.yml (Python YAML parser)
-python -c "import yaml; yaml.safe_load(open('projects/{project}/ingress.yml'))"
+# Check itsup-project.yml (Python YAML parser)
+python -c "import yaml; yaml.safe_load(open('projects/{project}/itsup-project.yml'))"
 ```
 
 **Validate Traefik config**:
@@ -656,7 +681,7 @@ fi
 **Problem**: Service not reachable via domain
 
 **Check**:
-1. Verify ingress.yml is correct: `cat projects/{project}/ingress.yml`
+1. Verify itsup-project.yml is correct: `cat projects/{project}/itsup-project.yml`
 2. Check generated labels: `grep "traefik.http.routers" upstream/{project}/docker-compose.yml`
 3. Verify service is running: `itsup svc {project} ps`
 4. Check Traefik logs: `itsup proxy logs traefik | grep {project}`

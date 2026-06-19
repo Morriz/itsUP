@@ -62,12 +62,12 @@ itsUP uses a hybrid networking approach combining Docker bridge networks and hos
 **Type**: External bridge network
 
 **Purpose**:
-- Connect upstream services to Traefik
-- DNS resolution between containers
-- Network isolation (only accessible via Traefik)
+- Connect ingress services to Traefik
+- DNS resolution between containers on proxynet
+- Shared bridge for externally-routed services only (not a default for every container)
 
 **Connected services**:
-- All upstream project services
+- Upstream services that declare an ingress route (domain/TLS) — **not** every service (see [Network Segmentation](#4-network-segmentation-ingress--egress))
 - CrowdSec (reads Traefik logs)
 - DNS honeypot (172.20.0.253)
 
@@ -106,7 +106,23 @@ networks:
 - Service mesh within a project
 - Isolation from other projects
 
-### 4. Per-Edge Egress Networks
+### 4. Network Segmentation (Ingress / Egress)
+
+itsUP does **not** put every container on a shared network. Each upstream
+service lands in exactly one of three states, derived from its project's
+`itsup-project.yml` and written into the generated compose by
+`bin/write_artifacts.py`:
+
+| State | Trigger | Networks joined | Reachability |
+|-------|---------|-----------------|--------------|
+| **Ingress** | An ingress row with `domain`/`tls` | `proxynet` + project `default` | Reachable by Traefik (external routing) |
+| **Egress** | The project declares `egress: [target:svc]` | per-edge `{consumer}--{target}--{svc}` (external) + project `default` | Can reach **only** the named target service |
+| **Isolated** (default) | Neither of the above | project `default` only | Reachable only within its own project |
+
+A service may be both ingress and egress (it joins `proxynet` **and** its
+per-edge networks).
+
+#### Per-edge egress networks
 
 **Type**: User-defined bridge networks
 **Scope**: Dedicated per `(consumer, provider, service)` triple
@@ -162,9 +178,24 @@ services:
       - app--db--redis
 ```
 
-**Deploy ordering**: Providers must start before consumers (their compose-up creates the edge
-network). `itsup run` and `itsup apply` guarantee this via topological sort.
+Notes and gotchas:
 
+- **Egress is least-privilege per edge.** A consumer declaring `egress: [B:svc]`
+  reaches only `B:svc` — not B's other services and not other consumers of B.
+  The `{project}:{service}` string is validated (the named service must exist).
+- **Validation.** `itsup validate` rejects egress to a missing project or
+  service before any deploy.
+- **Deploy ordering.** A project that declares egress to `B` joins a per-edge
+  network created by `B`, so `B` must be deployed first. `itsup apply` orders
+  projects topologically by their egress dependencies automatically; a
+  dependency cycle falls back to alphabetical order with a warning.
+- **Missing egress symptom.** A cross-project call with no matching `egress:`
+  line fails at name resolution — the DNS honeypot logs an `NXDOMAIN` for the
+  target.
+
+For the full contract (invariants, code references, failure modes) see the
+agent design snippet `project/design/network-segmentation`
+(`telec docs get project/design/network-segmentation`).
 ## DNS Resolution
 
 ### Container Name Resolution
@@ -264,10 +295,10 @@ labels:
 
 ### Label Generation
 
-Labels are auto-generated from `projects/{project}/ingress.yml`:
+Labels are auto-generated from `projects/{project}/itsup-project.yml`:
 
 ```yaml
-# projects/my-project/ingress.yml
+# projects/my-project/itsup-project.yml
 enabled: true
 ingress:
   - service: web
@@ -358,8 +389,9 @@ Fast, low latency
 
 ### Isolation
 
-- **proxynet**: Only services that need external access
-- **Project networks**: Internal-only services (databases, caches)
+- **proxynet**: Only services that declare ingress (Traefik routing); not a default
+- **Project networks**: Internal-only services (databases, caches) stay isolated per project
+- **Cross-project**: Allowed only via explicit `egress:` declarations (see [Network Segmentation](#4-network-segmentation-ingress--egress))
 - **Host network**: Only Traefik and dockerproxy
 
 ### Firewall Rules

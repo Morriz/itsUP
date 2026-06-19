@@ -9,7 +9,6 @@ import logging
 import re
 import sqlite3
 import time
-from datetime import datetime, timedelta
 from typing import Callable, Optional
 
 from .constants import OPENSNITCH_DB
@@ -92,49 +91,6 @@ class OpenSnitchIntegration:
         except Exception as e:
             logger.error(f"⚠ Error querying OpenSnitch blocks: {e}")
             return []
-
-    def correlate_query_with_block(self, query_time: datetime, query_domain: str) -> Optional[tuple[str, str, str]]:
-        """
-        Check if OpenSnitch blocked a query within time window.
-
-        Args:
-            query_time: When the query occurred
-            query_domain: Domain that was queried
-            time_window_seconds: Time window to search (seconds)
-
-        Returns:
-            Tuple of (block_time, action, process) if found, None otherwise
-        """
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            time_min = (query_time - timedelta(seconds=1)).isoformat()  # one sec back should be enough
-            time_max = (query_time + timedelta(seconds=2)).isoformat()  # two sec forward should be enough
-
-            cursor.execute(
-                """
-                SELECT time, process
-                FROM connections
-                WHERE rule = '0-deny-arpa-53'
-                AND time BETWEEN ? AND ?
-                ORDER BY time ASC
-                LIMIT 1
-            """,
-                (query_domain, time_min, time_max),
-            )
-
-            row = cursor.fetchone()
-            conn.close()
-
-            if row:
-                block_time, process = row
-                return (block_time, process)
-            return None
-
-        except Exception as e:
-            logger.error(f"Correlation error: {e}")
-            return None
 
     def monitor_blocks(
         self,

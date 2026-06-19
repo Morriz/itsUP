@@ -134,21 +134,13 @@ services:
       - ALLOWED_HOSTS=${HOST1},${HOST2}
 ```
 
-### Loading Order
+### Loading
 
-**Secrets are loaded in order** (later overrides earlier):
-1. `secrets/itsup.txt` (shared infrastructure)
-2. `secrets/{project}.txt` (project-specific)
+Secrets are loaded **per context, not merged**:
+- Infrastructure operations (proxy, DNS, API, backups) load `secrets/itsup.{enc.txt|txt}`.
+- A project deployment loads **only** that project's `secrets/{project}.{enc.txt|txt}`.
 
-**Example**:
-```bash
-# secrets/itsup.txt
-NODE_ENV=staging
-PORT=3000
-
-# secrets/my-app.txt
-NODE_ENV=production  # Overrides itsup.txt
-```
+A project does **not** inherit `itsup` infrastructure secrets — if a project needs a value, it must live in that project's own secrets file. For each file the encrypted `.enc.txt` is preferred over the plaintext `.txt`.
 
 **Result**: `NODE_ENV=production`, `PORT=3000` for my-app.
 

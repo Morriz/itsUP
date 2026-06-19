@@ -23,7 +23,7 @@ projects/
 ├── traefik.yml            # Traefik overrides
 └── */
     ├── docker-compose.yml # Service definitions
-    └── ingress.yml        # Routing configuration
+    └── itsup-project.yml        # Routing configuration
 ```
 
 **secrets/** (Encrypted Secrets):

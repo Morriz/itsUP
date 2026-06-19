@@ -3,7 +3,7 @@ set -e
 
 log_file="logs/monitor.log"
 # Kill any existing instance
-sudo pkill -f docker_monitor.py 2>/dev/null || true
+sudo pkill -f bin/monitor.py 2>/dev/null || true
 
 # Ensure log file exists
 sudo touch "$log_file"

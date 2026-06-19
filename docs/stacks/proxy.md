@@ -66,7 +66,7 @@ Loaded from `secrets/itsup.txt` (shared infrastructure secrets).
 
 ## Routing Configuration
 
-Upstream projects define routing in `projects/{project}/ingress.yml`:
+Upstream projects define routing in `projects/{project}/itsup-project.yml`:
 
 ```yaml
 enabled: true
@@ -115,7 +115,7 @@ labels:
 Some projects run on the host (not containerized) but need Traefik routing:
 
 ```yaml
-# projects/itsup/ingress.yml
+# projects/itsup/itsup-project.yml
 enabled: true
 host: 192.168.1.x  # Host IP
 ingress:
@@ -166,7 +166,7 @@ itsup proxy restart
 **Problem**: Upstream service not accessible via domain
 
 **Check**:
-1. Verify ingress.yml configuration: `cat projects/{project}/ingress.yml`
+1. Verify itsup-project.yml configuration: `cat projects/{project}/itsup-project.yml`
 2. Check generated labels: `grep -A 20 "labels:" upstream/{project}/docker-compose.yml`
 3. Verify Traefik sees the service: `itsup proxy logs traefik | grep {project}`
 4. Check service is running: `itsup svc {project} ps`
@@ -212,7 +212,7 @@ http:
         burst: 50
 ```
 
-Then reference in ingress.yml:
+Then reference in itsup-project.yml:
 ```yaml
 ingress:
   - service: api

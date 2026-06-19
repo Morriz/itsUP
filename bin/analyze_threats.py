@@ -35,7 +35,7 @@ _cancelled = False
 
 def signal_handler(sig, frame):
     """Handle Ctrl-C gracefully"""
-    itsup _cancelled
+    global _cancelled
     _cancelled = True
     print("\n\n❌ Analysis cancelled by user")
     sys.exit(130)

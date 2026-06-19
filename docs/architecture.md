@@ -56,8 +56,8 @@ itsUP is a zero-downtime infrastructure management system built around Docker Co
 
 ### 5. Upstream Projects
 - **Purpose**: User workloads (apps, databases, services)
-- **Network**: `proxynet` (connected to proxy)
-- **Deployment**: Parallel zero-downtime rollouts
+- **Network**: Segmented per declaration — `proxynet` only for services with ingress, target `{project}_default` networks for declared egress, project-local `default` otherwise (see [Networking](networking.md#4-network-segmentation-ingress--egress))
+- **Deployment**: Parallel zero-downtime rollouts, ordered by egress dependencies
 - **Discovery**: Auto-discovered by Traefik via Docker labels
 
 ## Data Flow
@@ -90,10 +90,10 @@ Response back through Traefik
 User runs: itsup apply
     │
     ▼
-Read projects/{project}/ingress.yml
+Read projects/{project}/itsup-project.yml
     │
     ▼
-Generate Traefik labels
+Generate Traefik labels + assign networks (ingress/egress segmentation)
     │
     ▼
 Write upstream/{project}/docker-compose.yml
@@ -115,13 +115,14 @@ Traefik auto-discovers new containers
    - No NAT overhead
 
 2. **proxynet Bridge** (172.20.0.0/16)
-   - Connects all upstream services
-   - DNS resolution between containers
+   - Connects only services that declare ingress (Traefik routing)
+   - DNS resolution between containers on it
    - Isolated from external access (except via Traefik)
 
-3. **Project Networks** (optional)
+3. **Project Networks** (`default`, per project)
    - Internal communication (e.g., app ↔ database)
-   - Isolated from other projects
+   - Isolated from other projects by default
+   - Cross-project reach only via explicit `egress:` declarations, which join the target project's `{project}_default` network
 
 ### Port Mapping
 
@@ -178,7 +179,7 @@ Multiple projects deploy simultaneously:
 │   ├── traefik.yml        # Traefik overrides
 │   └── {project}/         # Per-project configs
 │       ├── docker-compose.yml
-│       └── ingress.yml
+│       └── itsup-project.yml  # ingress + egress (was: ingress.yml)
 ├── secrets/                # Encrypted secrets (SOPS)
 ├── tpl/                    # Jinja2 templates
 └── upstream/               # Generated compose files (deployed)
@@ -192,6 +193,7 @@ Multiple projects deploy simultaneously:
 ### Defense in Depth
 
 1. **Network Level**:
+   - Project segmentation: services are isolated to their own project network by default; cross-project reach requires an explicit `egress:` declaration, and only ingress services join the shared `proxynet` (limits lateral movement — see [Networking → Network Segmentation](networking.md#4-network-segmentation-ingress--egress))
    - DNS honeypot detects malicious DNS queries
    - OpenSnitch monitors all container network traffic
    - iptables blocks unauthorized connections

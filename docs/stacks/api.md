@@ -26,7 +26,7 @@ The API runs as a host process for several reasons:
 ### Host-Only Configuration
 
 ```yaml
-# projects/itsup/ingress.yml
+# projects/itsup/itsup-project.yml
 enabled: true
 host: 192.168.1.x  # Router IP (dynamic)
 ingress:
@@ -259,7 +259,7 @@ itsup proxy logs traefik | grep itsup-api
 
 **Check ingress config**:
 ```bash
-cat projects/itsup/ingress.yml
+cat projects/itsup/itsup-project.yml
 # Verify domain, port, host IP correct
 ```
 

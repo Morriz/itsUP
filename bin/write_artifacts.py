@@ -132,8 +132,8 @@ def inject_traefik_labels(compose: dict, traefik_config, project_name: str) -> d
             # Service port
             labels.append(f"traefik.http.services.{router_name}.loadbalancer.server.port={ingress.port}")
 
-            # Path prefix stripping middleware (if needed)
-            # This would be added based on path_remove in IngressV2 if we add that field
+            # Path-prefix stripping middleware is not generated here; the
+            # ingress `path_remove` field is not currently wired into label output.
 
         # We DON'T do this for tcp and udp as those need other port and thus new entrypoints MUST be made in traefik.yml
         # We decided to be explicit+consistent and generate the entrypoints AND the routers (this needs `itsup apply proxy` anyway)
@@ -512,7 +512,7 @@ def write_dynamic_routers() -> None:
             "Generate with: htpasswd -nb admin your-password"
         )
 
-    # Note: plugin_registry was removed - crowdsec config moved to top-level
+    # crowdsec config lives at the top level of itsup.yml (no plugin_registry)
 
     # Build project list in V1 format for templates
     all_project_names = list_projects()
@@ -676,13 +676,6 @@ if __name__ == "__main__":
     logger.info("Generating proxy artifacts...")
     write_proxy_artifacts()
 
-    # Generate upstream configs
-    logger.info("Generating upstream configs...")
-    if not write_upstreams():
-        logger.error("Failed to generate some upstream configs")
-        sys.exit(1)
-
-    logger.info("✅ All artifacts generated successfully")
     # Generate upstream configs
     logger.info("Generating upstream configs...")
     if not write_upstreams():

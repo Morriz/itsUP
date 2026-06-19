@@ -106,42 +106,6 @@ def get_env_with_secrets(project_name: str | None = None) -> dict[str, str]:
     return {**os.environ, **secrets}
 
 
-def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
-    """Recursively expand ${VAR} in data structure
-
-    Raises:
-        ValueError: If a referenced variable is not found in secrets
-    """
-    if isinstance(data, dict):
-        return {k: expand_env_vars(v, secrets) for k, v in data.items()}
-    if isinstance(data, list):
-        return [expand_env_vars(item, secrets) for item in data]
-    if isinstance(data, str):
-        # Expand ${VAR} and $VAR syntax
-        # Pattern matches: ${VAR_NAME} or $VAR_NAME
-        # Variable names must start with letter/underscore, followed by alphanumeric/underscore
-        missing_vars = []
-
-        def replacer(match: re.Match[str]) -> str:
-            var_name = match.group(1) or match.group(2)
-            if var_name not in secrets:
-                missing_vars.append(var_name)
-                return match.group(0)  # Keep original for error message
-            return secrets[var_name]
-
-        pattern = r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)"
-        result = re.sub(pattern, replacer, data)
-
-        if missing_vars:
-            raise ValueError(
-                f"Missing required secrets: {', '.join(missing_vars)}\n"
-                f"  Add to secrets/itsup.txt or secrets/<project>.txt"
-            )
-
-        return result
-    return data
-
-
 def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     """
     Load project from projects/{name}/
@@ -477,11 +441,6 @@ def update_itsup_yml_router_ip(ip: str) -> None:
 def get_trusted_ips() -> list[str]:
     """Build trusted IPs list for Traefik - Docker networks + router subnet"""
     router_ip = get_router_ip()
-    # Extract network (e.g., 192.168.1.1 -> 192.168.1.0/24)
-    # parts = router_ip.split(".")
-    # subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
-    # 172.0.0.0/8 (Docker), router subnet
-    # return [subnet]
     return [f"{router_ip}/32"]
 
 

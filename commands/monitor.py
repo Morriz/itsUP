@@ -79,7 +79,7 @@ def stop():
     logger.info("Stopping container security monitor...")
 
     try:
-        subprocess.run(["sudo", "pkill", "-f", "docker_monitor.py"], check=True)
+        subprocess.run(["sudo", "pkill", "-f", "bin/monitor.py"], check=True)
         logger.info("Monitor stopped")
     except subprocess.CalledProcessError as e:
         if e.returncode == 1:

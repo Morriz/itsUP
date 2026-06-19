@@ -81,9 +81,9 @@ Read `README.md` first for architecture, components, and workflows.
     traefik.yml            # overrides merged onto template output
     example-project/
       docker-compose.yml   # services with ${VAR} secrets
-      ingress.yml          # IngressV2 routing config
+      itsup-project.yml    # ingress + egress config (legacy name: ingress.yml, deprecated)
   ```
-- Secrets loading order (later overrides earlier): 1) `secrets/itsup.txt` 2) `secrets/{project}.txt` (optional).
+- Secrets are loaded per-context, NOT merged: infra ops (proxy/dns/api/backup) load `secrets/itsup.{enc.txt|txt}`; a project deploy loads only `secrets/{project}.{enc.txt|txt}` (a project does not inherit itsup secrets). Encrypted `.enc.txt` is preferred over plaintext `.txt`.
 - Secrets remain `${VAR}` in generated files; at deploy time `itsup apply/run` loads env so compose expands.
 - Always start compose via `get_env_with_secrets(project)` from `lib.data`:
   ```python
@@ -92,7 +92,7 @@ Read `README.md` first for architecture, components, and workflows.
   subprocess.run(cmd, env=get_env_with_secrets(), check=True)
   ```
 - Templates: `tpl/proxy/traefik.yml.j2` and `tpl/proxy/docker-compose.yml.j2` produce minimal bases; merged with `projects/traefik.yml`.
-- Label injection: `ingress.yml` auto-generates Traefik labels (router rules, TLS, service ports).
+- Label injection + network assignment: `itsup-project.yml` auto-generates Traefik labels (router rules, TLS, service ports) and segments Docker networks via `ingress`/`egress` (see `docs/networking.md` and snippet `project/design/network-segmentation`).
 
 ## Containerization Scope
 

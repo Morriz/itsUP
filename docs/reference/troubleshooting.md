@@ -316,9 +316,9 @@ itsup apply {project}
 grep "traefik.enable" upstream/{project}/docker-compose.yml
 ```
 
-**Wrong domain in ingress.yml**:
+**Wrong domain in itsup-project.yml**:
 ```bash
-vim projects/{project}/ingress.yml
+vim projects/{project}/itsup-project.yml
 # Verify domain matches DNS/host file
 itsup apply {project}
 ```
@@ -328,7 +328,7 @@ itsup apply {project}
 # Check what port service actually uses
 docker exec {container} netstat -tlnp
 
-# Update ingress.yml to match actual port
+# Update itsup-project.yml to match actual port
 ```
 
 ## Network Issues
@@ -515,7 +515,7 @@ http:
 ```
 
 ```yaml
-# In ingress.yml
+# In itsup-project.yml
 ingress:
   - service: web
     middleware: [security-headers]
@@ -786,7 +786,7 @@ itsup apply {project} --verbose > debug.log 2>&1
 5. **Configuration** (redact secrets):
 ```bash
 cat projects/{project}/docker-compose.yml
-cat projects/{project}/ingress.yml
+cat projects/{project}/itsup-project.yml
 ```
 
 ### Where to Get Help

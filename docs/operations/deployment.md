@@ -24,7 +24,7 @@ User Change → itsup apply → Config Hash → Changed? → Generate Artifacts 
 ### Change Detection
 
 **How it works**:
-1. Calculate MD5 hash of project configuration (`docker-compose.yml` + `ingress.yml`)
+1. Calculate MD5 hash of project configuration (`docker-compose.yml` + `itsup-project.yml`)
 2. Compare with hash stored in running container labels
 3. If different: Deploy
 4. If same: Skip
@@ -137,9 +137,9 @@ itsup apply {project}
 
 ### Changing Routing Configuration
 
-**1. Edit ingress.yml**:
+**1. Edit itsup-project.yml**:
 ```bash
-vim projects/{project}/ingress.yml
+vim projects/{project}/itsup-project.yml
 ```
 
 **Example - Add new route**:
@@ -305,8 +305,8 @@ networks:
     external: true
 EOF
 
-# Create ingress.yml
-cat > projects/my-app/ingress.yml <<EOF
+# Create itsup-project.yml
+cat > projects/my-app/itsup-project.yml <<EOF
 enabled: true
 ingress:
   - service: web
@@ -368,7 +368,7 @@ services:
       - proxynet
 ```
 
-**Update ingress.yml**:
+**Update itsup-project.yml**:
 ```yaml
 ingress:
   - service: web
@@ -684,7 +684,7 @@ docker compose rm -f web-blue
 **Use Traefik weights** for gradual rollout:
 
 ```yaml
-# ingress.yml with custom labels
+# itsup-project.yml with custom labels
 labels:
   - traefik.http.services.web-v1.loadbalancer.server.port=3000
   - traefik.http.services.web-v1.loadbalancer.weight=90

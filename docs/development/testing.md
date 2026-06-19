@@ -235,8 +235,8 @@ services:
     image: nginx:latest
 """)
 
-        # Create test ingress.yml
-        ingress_path = os.path.join(self.project_dir, "ingress.yml")
+        # Create test itsup-project.yml
+        ingress_path = os.path.join(self.project_dir, "itsup-project.yml")
         with open(ingress_path, 'w') as f:
             f.write("""
 enabled: true
@@ -317,7 +317,7 @@ networks:
     external: true
 EOF
 
-cat > projects/test-app/ingress.yml <<EOF
+cat > projects/test-app/itsup-project.yml <<EOF
 enabled: true
 ingress:
   - service: web

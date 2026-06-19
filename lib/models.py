@@ -96,8 +96,6 @@ class Ingress(BaseModel):
     """The type of router to use for the service"""
     tls: TLS | None = None
     """TLS settings that will be used instead of 'domain'"""
-    expose: bool = False
-    """Expose the service to any other internal service"""
     ipv4_address: str | None = None
     """Static IPv4 address to pin the service on the proxynet network.
     Written verbatim into the generated upstream docker-compose networks block.

@@ -177,7 +177,7 @@ itsup apply [PROJECT]
 - If no `PROJECT`: Deploy all projects in parallel
 
 **Smart Rollout**:
-- Calculates config hash (docker-compose.yml + ingress.yml)
+- Calculates config hash (docker-compose.yml + itsup-project.yml)
 - Compares with stored hash
 - Only deploys if changed
 
@@ -244,7 +244,7 @@ itsup validate [PROJECT]
 - `PROJECT` (optional): Project name (validate specific project)
 
 **What it does**:
-- Validates YAML syntax (docker-compose.yml, ingress.yml)
+- Validates YAML syntax (docker-compose.yml, itsup-project.yml)
 - Checks for required fields
 - Verifies network configuration
 - Validates secrets placeholders
@@ -258,7 +258,7 @@ itsup validate my-app       # Validate single project
 **Output**:
 ```
 ✓ my-app: Valid
-✗ other-app: Missing required field 'domain' in ingress.yml
+✗ other-app: Missing required field 'domain' in itsup-project.yml
 ```
 
 ## Monitor Commands
@@ -418,7 +418,7 @@ itsup list [OPTIONS]
 ```
 
 **Options**:
-- `--enabled-only`: Show only enabled projects (ingress.yml has `enabled: true`)
+- `--enabled-only`: Show only enabled projects (itsup-project.yml has `enabled: true`)
 - `--format`: Output format (text, json, yaml)
 
 **Examples**:

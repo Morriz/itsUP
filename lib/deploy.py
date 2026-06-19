@@ -309,7 +309,7 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
     - Services WITHOUT volumes are stateless (safe for rollout)
     - Services WITH volumes are stateful (normal restart)
 
-    If project has enabled: false in ingress.yml, stops the project instead.
+    If project has enabled: false in itsup-project.yml, stops the project instead.
 
     Args:
         project: Project name

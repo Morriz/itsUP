@@ -34,7 +34,35 @@ Read `README.md` first for architecture, components, and workflows.
 - `itsup run` (orchestrated startup dns→proxy→api→monitor, monitor report-only).
 - `itsup down` (orchestrated shutdown monitor→api→ALL projects→proxy→dns); `itsup down --clean` also removes stopped itsUP containers.
 
-## All itsup commands
+## Stack Commands
+
+- DNS stack (`dns/docker-compose.yml`): `itsup dns up|down|restart|logs`.
+- Proxy stack (`proxy/docker-compose.yml`): `itsup proxy up [traefik] | down | restart | logs [traefik]`.
+- Monitor: `itsup monitor start [--report-only|--use-opensnitch] | stop | logs | cleanup | report`.
+
+## Project Service Ops
+
+- Pattern: `itsup svc <project> <cmd> [service]`
+  - `up` (all or specific service), `down`, `restart`, `logs -f [svc]`, `exec <svc> sh`.
+- Tab completion covers projects, compose commands, services.
+
+## Make (dev tools only; runtime uses itsup)
+
+- `make help | install | test | lint | format | clean`.
+- `git config core.hooksPath bin/hooks` to enable post-merge hook that auto-installs dependencies when `requirements*.txt` changes.
+
+## Artifact Generation
+
+- `itsup apply` (all or single project).
+- `bin/write_artifacts.py` (regen proxy & upstream configs without deploy).
+
+## Utilities
+
+- `bin/backup.py` (backup `upstream/` to S3)
+- `bin/requirements-update.sh` (update Python deps)
+- CLI: `itsup --help | --version | --verbose`
+
+### All itsup commands
 
 ```
 Usage: itsup [OPTIONS] COMMAND [ARGS]...
@@ -69,34 +97,6 @@ Commands:
   validate      ✅ Validate project configurations [PROJECT]
 ```
 
-## Stack Commands
-
-- DNS stack (`dns/docker-compose.yml`): `itsup dns up|down|restart|logs`.
-- Proxy stack (`proxy/docker-compose.yml`): `itsup proxy up [traefik] | down | restart | logs [traefik]`.
-- Monitor: `itsup monitor start [--report-only|--use-opensnitch] | stop | logs | cleanup | report`.
-
-## Project Service Ops
-
-- Pattern: `itsup svc <project> <cmd> [service]`
-  - `up` (all or specific service), `down`, `restart`, `logs -f [svc]`, `exec <svc> sh`.
-- Tab completion covers projects, compose commands, services.
-
-## Make (dev tools only; runtime uses itsup)
-
-- `make help | install | test | lint | format | clean`.
-- `git config core.hooksPath bin/hooks` to enable post-merge hook that auto-installs dependencies when `requirements*.txt` changes.
-
-## Artifact Generation
-
-- `itsup apply` (all or single project).
-- `bin/write_artifacts.py` (regen proxy & upstream configs without deploy).
-
-## Utilities
-
-- `bin/backup.py` (backup `upstream/` to S3)
-- `bin/requirements-update.sh` (update Python deps)
-- CLI: `itsup --help | --version | --verbose`
-
 ## Testing (always test after changes!)
 
 - `bin/test.sh` (all Python unit tests `*_test.py`)
@@ -112,9 +112,9 @@ Commands:
     traefik.yml            # overrides merged onto template output
     example-project/
       docker-compose.yml   # services with ${VAR} secrets
-      ingress.yml          # IngressV2 routing config
+      itsup-project.yml    # ingress + egress config (legacy name: ingress.yml, deprecated)
   ```
-- Secrets loading order (later overrides earlier): 1) `secrets/itsup.txt` 2) `secrets/{project}.txt` (optional).
+- Secrets are loaded per-context, NOT merged: infra ops (proxy/dns/api/backup) load `secrets/itsup.{enc.txt|txt}`; a project deploy loads only `secrets/{project}.{enc.txt|txt}` (a project does not inherit itsup secrets). Encrypted `.enc.txt` is preferred over plaintext `.txt`.
 - Secrets remain `${VAR}` in generated files; at deploy time `itsup apply/run` loads env so compose expands.
 - Always start compose via `get_env_with_secrets(project)` from `lib.data`:
   ```python
@@ -123,7 +123,7 @@ Commands:
   subprocess.run(cmd, env=get_env_with_secrets(), check=True)
   ```
 - Templates: `tpl/proxy/traefik.yml.j2` and `tpl/proxy/docker-compose.yml.j2` produce minimal bases; merged with `projects/traefik.yml`.
-- Label injection: `ingress.yml` auto-generates Traefik labels (router rules, TLS, service ports).
+- Label injection + network assignment: `itsup-project.yml` auto-generates Traefik labels (router rules, TLS, service ports) and segments Docker networks via `ingress`/`egress` (see `docs/networking.md` and snippet `project/design/network-segmentation`).
 
 ## Containerization Scope
 

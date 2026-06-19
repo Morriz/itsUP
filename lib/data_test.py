@@ -9,7 +9,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from lib.data import (
     build_reverse_egress_graph,
     edge_network_name,
-    expand_env_vars,
     list_projects,
     list_projects_topo,
     load_secrets,
@@ -21,40 +20,6 @@ from lib.models import Ingress, TraefikConfig
 
 class TestDataV2(unittest.TestCase):
     """Tests for V2 API functions"""
-
-    def test_expand_env_vars_dict(self) -> None:
-        """Test environment variable expansion in a dictionary."""
-        secrets = {"API_KEY": "secret123", "DB_HOST": "localhost"}
-        data = {"api_key": "${API_KEY}", "database": {"host": "$DB_HOST", "port": 5432}}
-        result = expand_env_vars(data, secrets)
-        self.assertEqual(result["api_key"], "secret123")
-        self.assertEqual(result["database"]["host"], "localhost")
-        self.assertEqual(result["database"]["port"], 5432)
-
-    def test_expand_env_vars_list(self) -> None:
-        """Test environment variable expansion in a list."""
-        secrets = {"ENV": "production", "VERSION": "v1.0"}
-        data = ["${ENV}", "$VERSION", "static"]
-        result = expand_env_vars(data, secrets)
-        self.assertEqual(result, ["production", "v1.0", "static"])
-
-    def test_expand_env_vars_missing_var(self) -> None:
-        """Test that missing variables raise an error."""
-        secrets = {"PRESENT": "value"}
-        data = "${PRESENT} and ${MISSING}"
-        # Missing var raises ValueError
-        with self.assertRaises(ValueError) as ctx:
-            expand_env_vars(data, secrets)
-        self.assertIn("MISSING", str(ctx.exception))
-
-    def test_expand_env_vars_invalid_name(self) -> None:
-        """Test that invalid variable names are not expanded."""
-        secrets = {"VALID_VAR": "value"}
-        # Invalid: starts with number, contains special chars
-        data = "${123INVALID} ${VALID-NAME} ${VALID_VAR}"
-        result = expand_env_vars(data, secrets)
-        # Only VALID_VAR should be expanded
-        self.assertEqual(result, "${123INVALID} ${VALID-NAME} value")
 
     @mock.patch("lib.data.load_encrypted_env")
     @mock.patch("lib.data.Path")
