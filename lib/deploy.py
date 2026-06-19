@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from bin.write_artifacts import write_proxy_artifacts, write_upstream
-from lib.data import get_env_with_secrets
+from lib.data import edge_network_name, get_env_with_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +328,24 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
     # Regenerate artifacts
     logger.info(f"Regenerating {project} config...")
     write_upstream(project)
+
+    # Fail-closed: verify declared egress edge networks exist before deploying a consumer.
+    # Edge networks are created by the provider's compose-up; if absent, the consumer
+    # will fail at runtime with an opaque Docker error.
+    for egress_spec in traefik_config.egress:
+        if not egress_spec or ":" not in egress_spec:
+            continue
+        provider, svc = egress_spec.split(":", 1)
+        net = edge_network_name(project, provider, svc)
+        result = subprocess.run(
+            ["docker", "network", "inspect", net],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Edge network '{net}' does not exist. " f"Run 'itsup apply {provider}' first to create it."
+            )
 
     # If project is disabled, stop it instead of deploying
     if not traefik_config.enabled:

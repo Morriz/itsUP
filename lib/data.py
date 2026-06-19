@@ -1,5 +1,6 @@
 """Data loading from projects/ and secrets/"""
 
+import hashlib
 import ipaddress
 import logging
 import os
@@ -217,12 +218,44 @@ def list_projects() -> list[str]:
     ]
 
 
+def edge_network_name(consumer: str, provider: str, service: str) -> str:
+    """Deterministic, Docker-safe name for a per-edge egress network.
+
+    Consumer joins this as external; provider declares and creates it.
+    Falls back to a hash-based name when the natural name exceeds 64 chars.
+    """
+    raw = f"{consumer}--{provider}--{service}"
+    if len(raw) <= 64:
+        return raw
+    return f"egress-{hashlib.sha256(raw.encode()).hexdigest()[:12]}"
+
+
+def build_reverse_egress_graph() -> dict[str, list[tuple[str, str]]]:
+    """Return a mapping from each provider project to its (consumer, service) pairs.
+
+    Scans all projects' egress declarations and inverts the graph so that
+    provider projects can enumerate which edge networks they need to create.
+    """
+    graph: dict[str, list[tuple[str, str]]] = {}
+    for proj in list_projects():
+        try:
+            _, traefik = load_project(proj)
+        except Exception:  # pylint: disable=broad-exception-caught
+            continue
+        for egress_spec in traefik.egress:
+            if not egress_spec or ":" not in egress_spec:
+                continue
+            provider, service = egress_spec.split(":", 1)
+            graph.setdefault(provider, []).append((proj, service))
+    return graph
+
+
 def list_projects_topo() -> list[str]:
     """List projects in dependency order based on egress declarations.
 
-    Project P with `egress: [Q:service, ...]` joins Q's `{Q}_default` network
-    as external, so Q must be deployed first or the `docker compose up` for P
-    fails with `network {Q}_default declared as external, but could not be found`.
+    Project P with `egress: [Q:service, ...]` joins a per-edge network created
+    by Q, so Q must be deployed first or the `docker compose up` for P fails
+    with the edge network declared as external but not found.
     Kahn's algorithm with alphabetical tie-breaking gives a deterministic order.
     A dependency cycle (invalid config) falls back to alphabetical with a
     warning rather than crashing — validate_all surfaces the actual config bug.

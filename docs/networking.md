@@ -106,6 +106,65 @@ networks:
 - Service mesh within a project
 - Isolation from other projects
 
+### 4. Per-Edge Egress Networks
+
+**Type**: User-defined bridge networks
+**Scope**: Dedicated per `(consumer, provider, service)` triple
+
+When a project declares `egress: [provider:service]` in its `itsup-project.yml`, itsUP
+creates a dedicated network shared only between the consumer and the specific named provider
+service.
+
+**Naming**: `{consumer}--{provider}--{service}` (falls back to `egress-{hash}` when > 64 chars)
+
+**Ownership**:
+- **Provider** — declares and creates the network in its `upstream/` compose; attaches only
+  the named service to it. Other provider services are **not** attached.
+- **Consumer** — declares the network as `external: true`; all consumer services join it.
+
+**Isolation guarantees**:
+- A consumer reaches **only** the declared provider service — not other services in the provider.
+- Two consumers targeting the same provider service are on **separate** edge networks and have
+  **no reachability to each other**.
+- The provider's `{project}_default` network is never joined by consumers.
+
+**Example** — `app` consuming `db:redis`:
+
+`projects/app/itsup-project.yml`:
+```yaml
+egress:
+  - db:redis
+```
+
+Generated `upstream/db/docker-compose.yml` (provider side):
+```yaml
+networks:
+  app--db--redis:
+    name: app--db--redis   # explicit name bypasses Docker Compose project prefix
+services:
+  redis:
+    networks:
+      - default
+      - app--db--redis     # only redis, not postgres
+  postgres:
+    networks:
+      - default            # not on the edge network
+```
+
+Generated `upstream/app/docker-compose.yml` (consumer side):
+```yaml
+networks:
+  app--db--redis:
+    external: true         # created by the provider
+services:
+  web:
+    networks:
+      - app--db--redis
+```
+
+**Deploy ordering**: Providers must start before consumers (their compose-up creates the edge
+network). `itsup run` and `itsup apply` guarantee this via topological sort.
+
 ## DNS Resolution
 
 ### Container Name Resolution

@@ -7,6 +7,8 @@ from unittest.mock import Mock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import (
+    build_reverse_egress_graph,
+    edge_network_name,
     expand_env_vars,
     list_projects,
     list_projects_topo,
@@ -411,6 +413,120 @@ class TestDataV2(unittest.TestCase):
         )
 
         self.assertEqual(list_projects_topo(), ["a", "b"])
+
+
+class TestEdgeNetworkName(unittest.TestCase):
+    """Tests for edge_network_name()"""
+
+    def test_short_names_use_natural_format(self) -> None:
+        """Names within 64 chars use the human-readable {consumer}--{provider}--{service} format."""
+        result = edge_network_name("app", "db", "redis")
+        self.assertEqual(result, "app--db--redis")
+        self.assertLessEqual(len(result), 64)
+
+    def test_long_names_fall_back_to_hash(self) -> None:
+        """Names exceeding 64 chars fall back to a deterministic hash-based name."""
+        long_consumer = "very-long-consumer-project-name-exceeding-limits"
+        long_provider = "very-long-provider-project-name-exceeding-limits"
+        result = edge_network_name(long_consumer, long_provider, "service")
+        self.assertLessEqual(len(result), 64)
+        self.assertTrue(result.startswith("egress-"))
+
+    def test_hash_fallback_is_deterministic(self) -> None:
+        """The hash fallback always produces the same name for the same inputs."""
+        long_consumer = "very-long-consumer-project-name-exceeding-limits"
+        long_provider = "very-long-provider-project-name-exceeding-limits"
+        a = edge_network_name(long_consumer, long_provider, "service")
+        b = edge_network_name(long_consumer, long_provider, "service")
+        self.assertEqual(a, b)
+
+    def test_different_services_produce_different_names(self) -> None:
+        """Different services on the same consumer/provider pair get distinct names."""
+        name1 = edge_network_name("app", "db", "redis")
+        name2 = edge_network_name("app", "db", "postgres")
+        self.assertNotEqual(name1, name2)
+
+    def test_different_consumers_produce_different_names(self) -> None:
+        """Different consumers targeting the same provider service get distinct names."""
+        name1 = edge_network_name("consumer-a", "db", "redis")
+        name2 = edge_network_name("consumer-b", "db", "redis")
+        self.assertNotEqual(name1, name2)
+
+
+class TestBuildReverseEgressGraph(unittest.TestCase):
+    """Tests for build_reverse_egress_graph()"""
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_empty_when_no_egress(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """Returns empty graph when no projects declare egress."""
+        mock_list_projects.return_value = ["a", "b"]
+        mock_load_project.return_value = ({}, TraefikConfig(egress=[]))
+
+        self.assertEqual(build_reverse_egress_graph(), {})
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_single_consumer(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """One consumer declaring egress maps the provider to that consumer."""
+        mock_list_projects.return_value = ["consumer", "provider"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["provider:redis"] if name == "consumer" else []),
+        )
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertEqual(graph["provider"], [("consumer", "redis")])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_multiple_consumers_same_provider(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """Multiple consumers targeting the same provider service both appear in the graph."""
+        mock_list_projects.return_value = ["consumer-a", "consumer-b", "provider"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["provider:redis"] if name in ("consumer-a", "consumer-b") else []),
+        )
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertIn(("consumer-a", "redis"), graph["provider"])
+        self.assertIn(("consumer-b", "redis"), graph["provider"])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_multiple_services_same_provider(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """A consumer declaring egress to two services of the same provider both get recorded."""
+        mock_list_projects.return_value = ["consumer", "provider"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["provider:redis", "provider:postgres"] if name == "consumer" else []),
+        )
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertIn(("consumer", "redis"), graph["provider"])
+        self.assertIn(("consumer", "postgres"), graph["provider"])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_load_error_skipped(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """Projects that fail to load are skipped without raising."""
+        mock_list_projects.return_value = ["bad", "good", "provider"]
+        mock_load_project.side_effect = [
+            Exception("broken"),
+            ({}, TraefikConfig(egress=["provider:redis"])),
+            ({}, TraefikConfig(egress=[])),
+        ]
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertEqual(graph["provider"], [("good", "redis")])
 
 
 if __name__ == "__main__":
