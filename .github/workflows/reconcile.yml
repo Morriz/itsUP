@@ -1,0 +1,46 @@
+name: Reconcile
+
+# Reusable workflow: pull the config repos on the host and apply the full stack.
+# Called from the `projects` and `secrets` repos on push to main. Holds the
+# VPN + SSH plumbing in one place so neither config repo carries its own copy.
+
+on:
+  workflow_call:
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out itsUP (public) for the committed VPN client config, so the
+      # caller repo does not need to ship client.ovpn itself.
+      - name: Checkout itsUP (VPN config)
+        uses: actions/checkout@v6
+        with:
+          repository: Morriz/itsUP
+
+      - name: Install OpenVPN
+        run: |
+          sudo apt update
+          sudo apt install -y openvpn openvpn-systemd-resolved
+
+      - name: Connect to VPN
+        uses: Morriz/github-openvpn-connect-action@v3
+        with:
+          config_file: .github/workflows/client.ovpn
+          host: ${{ secrets.API_HOST }}
+          ca: '${{ secrets.OVPN_CA }}'
+          cert: '${{ secrets.OVPN_CERT }}'
+          client_key: '${{ secrets.OVPN_USER_KEY }}'
+          client_pass: '${{ secrets.OVPN_USER_PASS }}'
+          tls_auth_key: '${{ secrets.OVPN_TLS_AUTH_KEY }}'
+
+      - name: Trigger reconcile via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: '${{ secrets.SSH_PRIVATE_KEY }}'
+          passphrase: '${{ secrets.SSH_PASSPHRASE }}'
+          script: |
+            curl -v -X POST 'https://${{ secrets.API_HOST }}/reconcile' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+            exit

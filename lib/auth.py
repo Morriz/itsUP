@@ -1,5 +1,3 @@
-from typing import Any
-
 from fastapi import Depends, HTTPException
 from fastapi.security import (
     APIKeyHeader,
@@ -22,10 +20,11 @@ _API_KEY = _secrets["API_KEY"]
 
 
 def verify_apikey(
-    apikey_query: str = Depends(query_scheme),
-    apikey_header: str = Depends(header_scheme),
-    apikey_bearer: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    apikey_query: str | None = Depends(query_scheme),
+    apikey_header: str | None = Depends(header_scheme),
+    apikey_bearer: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> None:
-    apikey: Any = apikey_query or apikey_header or apikey_bearer.credentials
-    if not apikey == _API_KEY:
+    bearer = apikey_bearer.credentials if apikey_bearer else None
+    apikey = apikey_query or apikey_header or bearer
+    if apikey != _API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")

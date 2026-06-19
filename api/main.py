@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from lib.auth import verify_apikey
 from lib.data import list_projects
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack
+from lib.reconcile import reconcile
 
 dotenv.load_dotenv()
 
@@ -91,6 +92,20 @@ def get_hook_handler(
 ) -> None:
     """Handle requests to update the upstream"""
     _handle_hook(project, background_tasks, service)
+
+
+@app.post("/reconcile", response_model=None)
+def reconcile_handler(
+    background_tasks: BackgroundTasks,
+    _: None = Depends(verify_apikey),
+) -> None:
+    """Reconcile the full stack from the projects/secrets config repos.
+
+    Triggered by a webhook when either config repo receives a commit: pulls both
+    repos then runs `itsup apply`. Convergent and single-flight — overlapping
+    triggers coalesce into one trailing run.
+    """
+    background_tasks.add_task(reconcile)
 
 
 @app.get("/projects", response_model=List[str])

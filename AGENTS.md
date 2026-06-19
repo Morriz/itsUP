@@ -4,6 +4,7 @@ Read `README.md` first for architecture, components, and workflows.
 
 ## Critical Rules
 
+- **❗ Rule #1: `itsup apply` runs ONLY on the container host** — the machine whose own IP equals `SSH_HOST` in `.env`. Apply executes from inside the repo *on* that host; it has no remote target. Never run it on any other machine (e.g. a dev laptop) — it would spin up the entire stack locally.
 - Always operate from repo root; never stay `cd`'d in subdirs. Use `(cd dir && command)` with relative paths.
 - This repo itself is **not** containerized (Python CLI/API/monitoring/dns/proxy code). Only upstream project services are containerized. Do not containerize itsUP code.
 - Never modify/move OpenSnitch DB `/var/lib/opensnitch/opensnitch.sqlite3`; read-only SELECTs only. No mv/cp/rm; handle via whitelist/iptables instead.
