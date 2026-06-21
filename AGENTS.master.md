@@ -65,7 +65,7 @@ Read `README.md` first for architecture, components, and workflows.
 
 ### All itsup commands
 
-<!-- @exec: itsup -h -->
+<!-- @exec: bin/itsup -h -->
 
 ## Testing (always test after changes!)
 
