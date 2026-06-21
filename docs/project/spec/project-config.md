@@ -1,0 +1,104 @@
+---
+id: 'project/spec/project-config'
+type: 'spec'
+scope: 'project'
+description: 'The per-project declarative configuration contract — itsup-project.yml (TraefikConfig/Ingress/Egress/TLS + enums) and the docker-compose.yml it accompanies, including validation rules and the two project types (container vs external host).'
+generated_by: 'telec-init'
+generated_at: '2026-06-11 00:00:00+00:00'
+---
+
+# Project Config — Spec
+
+## What it is
+
+A project lives in `projects/{project}/` and is described by two files:
+
+- **`docker-compose.yml`** — a standard Compose file (services, images, volumes,
+  env with `${VAR}` placeholders). itsUP loads it as a **raw mapping**
+  (`yaml.safe_load`, `lib/data.py:168`), not through a model — any valid Compose
+  is accepted; itsUP only injects networks/labels/DNS at generation time.
+- **`itsup-project.yml`** (legacy name `ingress.yml`, deprecated — see
+  `project/design/network-segmentation`) — the itsUP routing + segmentation
+  contract, parsed into the `TraefikConfig` model (`lib/data.py:199`).
+
+A project is one of two **types**, decided by file presence
+(`lib/data.py:load_project`):
+
+- **Container project** — has `docker-compose.yml`; services are generated into
+  `upstream/{project}/` and deployed.
+- **External-host passthrough** — no `docker-compose.yml`; `itsup-project.yml`
+  sets `host:` and Traefik routes to that host:port. No containers deployed.
+
+`itsup validate [project]` checks every project; `validate_all()`
+(`lib/data.py:365`) is the fail-closed gate run before any artifact write/deploy.
+
+## Canonical fields
+
+### `TraefikConfig` (root of itsup-project.yml) — `lib/models.py:180-191`
+
+| Field | Type | Default | Meaning |
+|-------|------|---------|---------|
+| `enabled` | bool | `true` | When `false`, deploy **stops** the project instead of running it (`lib/deploy.py:333`). |
+| `host` | str \| null | `null` | External host IP/hostname for container-less passthrough projects. |
+| `ingress` | `Ingress[]` | `[]` | Services exposed via Traefik. |
+| `egress` | `str[]` | `[]` | Cross-project access, each `"{project}:{service}"`. See `project/design/network-segmentation`. |
+
+### `Ingress` row — `lib/models.py:72-108`
+
+| Field | Type | Default | Meaning |
+|-------|------|---------|---------|
+| `service` | str \| null | `null` | Compose service name (container projects). |
+| `domain` | str \| null | `null` | Public domain; omitted ⇒ not publicly routed. Drives TLS termination. |
+| `hostport` | int \| null | `null` | Host port to expose; triggers a dedicated Traefik entrypoint. |
+| `passthrough` | bool | `false` | Forward TLS as-is (no termination). |
+| `path_prefix` | str \| null | `null` | Route under a path prefix. |
+| `path_remove` | bool | `false` | **Declared but not wired into label generation** (see caveats). |
+| `port` | int | `8080` | Backend service port. |
+| `protocol` | `Protocol` | `tcp` | `tcp` \| `udp`. |
+| `proxyprotocol` | `ProxyProtocol` \| null | `v2` | PROXY-protocol version; explicit `null` disables. |
+| `router` | `Router` | `http` | `http` \| `tcp` \| `udp`. Only `http` produces docker labels; `tcp`/`udp` produce dynamic-file routers (see `project/design/artifact-generation`). |
+| `tls` | `TLS` \| null | `null` | `{main, sans[]}`; used instead of `domain`. |
+| `ipv4_address` | str \| null | `null` | Static IP pinned on proxynet; must lie in `172.20.0.0/16`. |
+| `dns` | str[] \| null | `null` | Explicit DNS servers; written verbatim, replacing the honeypot default. |
+
+`TLS` (`lib/models.py:63-69`): `main: str`, `sans: str[]`.
+Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|udp`.
+
+### Validation rules
+
+- **Ingress→service existence** — every `ingress.service` must exist in the
+  project's compose services (`lib/data.py:350-354`).
+- **External host** — a container-less project must set `host`
+  (`lib/data.py:343-345`).
+- **Static IP** (`_validate_ingress_ips`, `lib/data.py:265`) — `ipv4_address`
+  must be valid IPv4, inside `172.20.0.0/16`, not a reserved IP
+  (`172.20.0.1` gateway / `172.20.0.253` honeypot), and consistent per service;
+  cross-project IP collisions are caught in `validate_all` (`lib/data.py:376-381`).
+- **Egress targets** (`_validate_egress_targets`, `lib/data.py:290`) — `"a:b"`
+  format; target project must exist; target service must exist in that project.
+- **Model validators** (`lib/models.py`) — `passthrough` on port 80 is allowed
+  only for `/.well-known/acme-challenge/`; `ipv4_address` must parse as IPv4.
+
+## Allowed values
+
+- `Protocol`: `tcp`, `udp`.
+- `ProxyProtocol`: `v1` (=1), `v2` (=2), or `null` (disabled).
+- `Router`: `http`, `tcp`, `udp`.
+
+## Known caveats
+
+- **`Ingress.path_remove` is inert.** Declared in the `Ingress` model but not
+  wired into label output; path-prefix stripping middleware is not generated.
+- **`Service`/`Project` models are legacy V1.** `lib/models.py:128-174` defines
+  them, but the V2 path reads `docker-compose.yml` as a raw dict and never
+  instantiates them. `Service.stateless` is therefore dead — the deploy path
+  infers statelessness from volume absence (see
+  `project/design/deployment-orchestration`).
+- **`ingress.yml` filename** is deprecated (grace to v3.0); both names load,
+  `itsup-project.yml` wins.
+
+## See Also
+
+- docs/development/configuration.md
+- docs/project/design/network-segmentation.md
+- docs/project/design/artifact-generation.md

@@ -8,42 +8,33 @@ Comprehensive guide to configuring itsup infrastructure and projects.
 
 **`projects/itsup.yml`**:
 ```yaml
-schemaVersion: "2.1.0"
+# Router configuration
+router_ip: 192.168.1.1
 
-# Traefik dashboard domain (REQUIRED — consumed by write_dynamic_routers)
-traefikDomain: traefik.example.com
-
-# Router IP — set explicitly, or leave blank for netifaces auto-detection
-# (auto-detected value is written back here on first run)
-routerIP: 192.168.1.1
-
-# Backup configuration (s3 values come from secrets as ${VAR})
-backup:
-  exclude: []            # project names to exclude from backup
-  s3:
-    host: ${AWS_S3_HOST}
-    region: ${AWS_S3_REGION}
-    bucket: ${AWS_S3_BUCKET}
-
-# CrowdSec bouncer (read by write_middleware_config)
-crowdsec:
-  enabled: true
-  apikey: '${CROWDSEC_APIKEY}'
-  collections:
-    - crowdsecurity/traefik
-
-# Component version pinning (consumed by the proxy compose template)
+# Version pinning
 versions:
-  traefik: v3.5.4
-  crowdsec: v1.7.3
+  traefik: v3.5.1
+  crowdsec: latest
+
+# Backup configuration
+backup:
+  s3:
+    bucket: my-backup-bucket
+    prefix: itsup/
+    region: us-east-1
+  include_volumes: false
+  compression: true
+
+# Monitoring
+monitoring:
+  enabled: true
+  opensnitch: true
 ```
 
 **Purpose**:
 - Global infrastructure settings
 - Shared across all projects
-- Secrets as `${VAR}` placeholders (left unexpanded; resolved at runtime)
-
-**Note**: The actual keys read by the code are `schemaVersion`, `traefikDomain`, `routerIP`, `backup`, `crowdsec`, and `versions`. There is no `router_ip` (snake_case), `monitoring`, `dns`, `include_volumes`, or `compression` key.
+- Secrets as `${VAR}` placeholders (expanded from `secrets/itsup.txt`)
 
 ### Traefik Overrides
 
@@ -85,7 +76,7 @@ services:
     volumes:
       - ./html:/usr/share/nginx/html:ro
     networks:
-      - traefik
+      - proxynet
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
@@ -93,7 +84,7 @@ services:
       retries: 3
 
 networks:
-  traefik:
+  proxynet:
     external: true
 ```
 
@@ -101,8 +92,6 @@ networks:
 - Standard Docker Compose file
 - Service definitions (images, volumes, networks)
 - Secrets as `${VAR}` placeholders
-
-**Note on networks**: The sample uses an external `traefik` network. The generator (`write_upstream`) auto-injects the `proxynet` external network onto any service that has an ingress rule, so projects do not strictly need to declare `proxynet` themselves — services with ingress are attached to it during artifact generation.
 
 **`projects/{project}/itsup-project.yml`**:
 ```yaml
@@ -112,13 +101,21 @@ ingress:
     domain: example.com
     port: 80
     router: http
+    middleware: [rate-limit]  # Optional
+egress:                        # Optional: cross-project access
+  - internal-api:app          # format: {project}:{service}
 ```
 
 **Purpose**:
-- Routing configuration (parsed into `TraefikConfig`/`Ingress` in `lib/models.py`)
-- Auto-generates Traefik labels
-- Simpler than manual label management
-- Legacy name `ingress.yml` is still read with a deprecation warning (support ends in v3.0); rename to `itsup-project.yml`.
+- Routing (`ingress`) and cross-project network access (`egress`)
+- Auto-generates Traefik labels and assigns Docker networks (see [Networking → Network Segmentation](../networking.md#4-network-segmentation-ingress--egress))
+- Simpler than manual label and network management
+
+> **Filename:** this file was named `ingress.yml` before v2.1. Both names are
+> still loaded (`itsup-project.yml` wins if both exist); `ingress.yml` is
+> deprecated and logs a warning — support ends in v3.0. Rename existing
+> projects with the bundled fixer (`lib/fixers/rename_ingress.py`, applied via
+> migration) or by hand (`git mv ingress.yml itsup-project.yml`).
 
 ### Secrets Configuration
 
@@ -139,42 +136,50 @@ API_KEY=abc123
 
 **Purpose**:
 - Environment variables for deployment
-- **Mutually exclusive contexts** (not merged): infrastructure deploys load ONLY `secrets/itsup.{enc.txt|txt}`; a project deploy loads ONLY `secrets/{project}.{enc.txt|txt}`. A project does NOT inherit `itsup.txt`. Per file, the encrypted `.enc.txt` is tried first, then plaintext `.txt`.
+- Loaded per-context, not merged: infrastructure ops load `itsup.{enc.txt|txt}`; a project deployment loads only its own `{project}.{enc.txt|txt}` (projects do not inherit itsup secrets)
 - Encrypted with SOPS for git storage
 
 ## Configuration Schema Reference
 
-### Ingress Schema (itsup-project.yml)
-
-The file is parsed into `TraefikConfig`, whose `ingress` list holds `Ingress` rows (`lib/models.py`). Project-level keys:
+### itsup-project.yml Schema
 
 ```yaml
-enabled: boolean                    # default true. false => apply STOPS the project's containers
-host: string | null                 # External host IP/hostname (ingress-only projects, no containers)
-ingress: [Ingress]                  # list of ingress rows (see below)
-egress: [string]                    # "project:service" targets this project may reach
+enabled: boolean                    # Enable/disable routing for this project
+
+# Optional: For host-only projects (no containers)
+host: string                        # Host IP (e.g., 192.168.1.5)
+
+# Ingress: services exposed via Traefik (a row with domain/tls joins proxynet)
+ingress:
+  - service: string                 # Service name from docker-compose.yml
+    domain: string                  # Domain name (e.g., app.example.com)
+    port: integer                   # Service port
+    router: "http" | "tcp"          # Router type
+
+    # Optional fields
+    middleware: [string]            # List of Traefik middleware names
+
+    # TLS configuration (for TCP passthrough)
+    tls:
+      passthrough: boolean          # Enable TCP TLS passthrough (default: false)
+
+# Egress: cross-project access this project needs (project-level)
+egress:
+  - string                          # format: {project}:{service}, e.g. "internal-api:app"
 ```
 
-Each `Ingress` row (real fields — there is no `middleware` field, and `passthrough` is top-level, not under `tls`):
+**Network effect of these declarations** (enforced at `itsup apply` time):
 
-```yaml
-- service: string | null            # service name in docker-compose.yml (container projects)
-  domain: string | null             # public domain; TLS terminated for this domain. Omit => not publicly exposed
-  port: integer                     # service port (default 8080)
-  hostport: integer | null          # host port to expose (drives TCP/UDP entrypoint generation)
-  router: "http" | "tcp" | "udp"    # router type (default http)
-  protocol: "tcp" | "udp"           # port protocol (default tcp)
-  passthrough: boolean              # forward traffic without terminating TLS (default false)
-  proxyprotocol: 1 | 2 | null       # PROXY protocol version the service expects (default 2; null disables)
-  path_prefix: string | null        # expose under a path prefix (adds PathPrefix to the rule)
-  path_remove: boolean              # strip the path prefix before forwarding (default false)
-  expose: boolean                   # expose to other internal services (default false)
-  ipv4_address: string | null       # pin a static IP on proxynet (must be within 172.20.0.0/16)
-  dns: [string] | null              # explicit dns: block for the service (replaces default honeypot injection)
-  tls:                              # alternative to `domain`: a main + SANs cert
-    main: string
-    sans: [string]
-```
+| Declaration | Network result |
+|-------------|----------------|
+| `ingress` row with `domain`/`tls` | service joins `proxynet` (Traefik can route to it) |
+| `egress: [B:svc]` | **all** services in this project join `B_default` and can reach project B |
+| neither | service stays on its project-local `default` network (isolated) |
+
+Egress targets are validated (`itsup validate`) and deploy order is sorted by
+egress dependencies automatically. See
+[Networking → Network Segmentation](../networking.md#4-network-segmentation-ingress--egress)
+and the agent design snippet `project/design/network-segmentation`.
 
 #### HTTP Router Example
 
@@ -185,21 +190,42 @@ ingress:
     domain: my-app.example.com
     port: 3000
     router: http
+    middleware: [rate-limit, auth]
 ```
 
-**Generates** (router name is suffixed with the port: `{project}-{service}-{port}`):
+**Generates**:
 ```yaml
 labels:
   - traefik.enable=true
-  - traefik.http.routers.project-web-3000.entrypoints=web-secure
-  - traefik.http.routers.project-web-3000.rule=Host(`my-app.example.com`)
-  - traefik.http.routers.project-web-3000.service=project-web-3000
-  - traefik.http.routers.project-web-3000.tls=true
-  - traefik.http.routers.project-web-3000.tls.certresolver=letsencrypt
-  - traefik.http.services.project-web-3000.loadbalancer.server.port=3000
+  - traefik.http.routers.project-web.rule=Host(`my-app.example.com`)
+  - traefik.http.routers.project-web.entrypoints=web,web-secure
+  - traefik.http.routers.project-web.tls.certresolver=letsencrypt
+  - traefik.http.routers.project-web.middlewares=rate-limit,auth
+  - traefik.http.services.project-web.loadbalancer.server.port=3000
 ```
 
-**Note on TCP/UDP**: TCP/UDP routing is NOT emitted as compose labels (that path is intentionally disabled in `inject_traefik_labels`). TCP/UDP routers are rendered into the dynamic config files (`proxy/traefik/dynamic/routers-tcp.yml` / `routers-udp.yml`) from `tpl/routers-tcp.yml.j2` / `routers-udp.yml.j2`, and any new entrypoints are generated into `proxy/traefik/traefik.yml`. Use `router: tcp` (or `udp`) with `hostport`/`passthrough` and run `itsup apply proxy`.
+#### TCP Router Example (TLS Passthrough)
+
+```yaml
+enabled: true
+ingress:
+  - service: secure-app
+    domain: secure.example.com
+    port: 8123
+    router: tcp
+    tls:
+      passthrough: true
+```
+
+**Generates**:
+```yaml
+labels:
+  - traefik.enable=true
+  - traefik.tcp.routers.project-secure-app.rule=HostSNI(`secure.example.com`)
+  - traefik.tcp.routers.project-secure-app.entrypoints=tcp
+  - traefik.tcp.routers.project-secure-app.tls.passthrough=true
+  - traefik.tcp.services.project-secure-app.loadbalancer.server.port=8123
+```
 
 #### Host-Only Project Example
 
@@ -220,37 +246,36 @@ ingress:
 
 ### itsup.yml Schema
 
-These are the keys actually read by the code (`lib/data.py`, `bin/write_artifacts.py`):
-
 ```yaml
-schemaVersion: string               # Config schema version (e.g., "2.1.0")
+# Network configuration
+router_ip: string                   # Router IP address (e.g., 192.168.1.1)
+                                    # Used to determine trusted subnet
 
-traefikDomain: string               # REQUIRED. Traefik dashboard domain (write_dynamic_routers)
-
-routerIP: string                    # Router IP; blank => netifaces auto-detect, written back here.
-                                    # Used to build Traefik trusted IPs.
-
-# Backup configuration (bin/backup.py reads exclude; s3 values come from secrets)
-backup:
-  exclude: [string]                 # project names to exclude from backup
-  s3:
-    host: string                    # ${AWS_S3_HOST}
-    region: string                  # ${AWS_S3_REGION}
-    bucket: string                  # ${AWS_S3_BUCKET}
-
-# CrowdSec (write_middleware_config)
-crowdsec:
-  enabled: boolean
-  apikey: string                    # ${CROWDSEC_APIKEY}
-  collections: [string]
-
-# Component version pinning (proxy compose template)
+# Version pinning
 versions:
-  traefik: string                   # Traefik image tag (e.g., v3.5.4)
-  crowdsec: string                  # CrowdSec image tag
-```
+  traefik: string                   # Traefik image tag (e.g., v3.5.1)
+  crowdsec: string                  # CrowdSec image tag (optional)
 
-There is no `router_ip` (snake_case), `monitoring`, `dns`, `backup.prefix`, `include_volumes`, or `compression` key — those were never read by the code.
+# Backup configuration
+backup:
+  s3:
+    bucket: string                  # S3 bucket name
+    prefix: string                  # Key prefix (e.g., itsup/)
+    region: string                  # AWS region
+  include_volumes: boolean          # Backup container volumes?
+  compression: boolean              # Use gzip compression?
+
+# Monitoring
+monitoring:
+  enabled: boolean                  # Enable container security monitor
+  opensnitch: boolean               # Enable OpenSnitch integration
+  report_only: boolean              # Detection only, no blocking
+
+# Optional: DNS configuration
+dns:
+  honeypot: boolean                 # Enable DNS honeypot
+  upstream: [string]                # Upstream DNS servers
+```
 
 ## Configuration Patterns
 
@@ -410,13 +435,14 @@ http:
           - "10.0.0.0/8"
 ```
 
-**Applying middleware**: there is no `middleware` field on an ingress row. Middlewares are defined in `projects/middlewares.yml` (merged into `proxy/traefik/dynamic/middlewares.yml`) and attached to a router either through Traefik's dynamic config or via explicit `traefik.http.routers.*.middlewares=...` labels added in the service's `labels:` list in `docker-compose.yml`:
+**Reference in itsup-project.yml**:
 ```yaml
-# in projects/{project}/docker-compose.yml
-services:
-  admin:
-    labels:
-      - traefik.http.routers.project-admin-8080.middlewares=auth@file,ip-whitelist@file
+ingress:
+  - service: admin
+    domain: admin.example.com
+    port: 8080
+    router: http
+    middleware: [auth, ip-whitelist, security-headers]
 ```
 
 ### Multi-Service Projects
@@ -461,6 +487,7 @@ ingress:
     domain: api.example.com
     port: 3000
     router: http
+    middleware: [rate-limit]
 ```
 
 **Result**: Two domains, one project.
@@ -509,14 +536,14 @@ entryPoints:
         idleTimeout: 3600s
 ```
 
-**Use in itsup-project.yml**: there is no `entrypoint` field on an ingress row. For TCP/UDP routers, the entrypoint is generated automatically from `hostport` (see `write_traefik_config`). Declare the host port and the generator creates the matching entrypoint:
+**Use in itsup-project.yml**:
 ```yaml
 ingress:
   - service: mqtt-broker
     domain: mqtt.example.com
     port: 1883
-    hostport: 1883
     router: tcp
+    entrypoint: mqtt  # Custom entrypoint
 ```
 
 ### TLS Configuration
@@ -624,7 +651,7 @@ python -c "import yaml; yaml.safe_load(open('projects/{project}/itsup-project.ym
 ```bash
 # Dry-run Traefik with config
 docker run --rm -v $PWD/proxy/traefik:/etc/traefik:ro \
-  traefik:v3.6.17 traefik --configFile=/etc/traefik/traefik.yml --dryRun
+  traefik:v3.5.1 traefik --configFile=/etc/traefik/traefik.yml --dryRun
 ```
 
 ### Automated Validation
@@ -677,7 +704,7 @@ fi
 ## Configuration Examples
 
 See `samples/` directory for complete examples:
-- `samples/projects/itsup.yml`: Infrastructure config template
-- `samples/projects/traefik.yml`: Traefik overrides template
-- `samples/projects/example-project/`: Complete project example (`docker-compose.yml` + `itsup-project.yml`)
+- `samples/itsup.yml`: Infrastructure config template
+- `samples/traefik.yml`: Traefik overrides template
+- `samples/example-project/`: Complete project example
 - `samples/secrets/itsup.txt`: Secrets file template

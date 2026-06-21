@@ -23,28 +23,32 @@ User Change → itsup apply → Config Hash → Changed? → Generate Artifacts 
 
 ### Change Detection
 
-**How it works** (per service, see `lib/deploy.py::service_needs_update`):
-1. Run `docker compose config --hash <service>` on the **generated** `upstream/<project>/docker-compose.yml`
-2. Read the running container's `com.docker.compose.config-hash` label
-3. If they differ (or no container is running): the service needs an update
-4. If they match: skip the rollout for that service
-
-This hash is computed by Docker over the rendered compose service definition — it is NOT an MD5 over the source `docker-compose.yml` / `itsup-project.yml` files.
+**How it works**:
+1. Calculate MD5 hash of project configuration (`docker-compose.yml` + `itsup-project.yml`)
+2. Compare with hash stored in running container labels
+3. If different: Deploy
+4. If same: Skip
 
 **Benefits**:
 - Avoids unnecessary container restarts
-- Faster operations (no-op for unchanged services)
+- Faster operations (no-op for unchanged projects)
 - Clear feedback (shows which projects deployed)
 
 ### Smart Rollout
 
-**Strategy**: stateless services get a zero-downtime rollout via the `docker rollout` plugin; stateful services restart normally.
+**Strategy**: Docker Compose `up` with scale-based blue-green deployment.
 
-- **Stateless detection is automatic** (`lib/deploy.py::deploy_upstream_project`): a service with no `volumes` is treated as stateless; `traefik` is always treated as stateless even though it has volumes.
-- **Stateless rollout** (`docker rollout <service>`): scale up new instances, wait for health, drop old instances. Skipped if the service is unchanged or wasn't already running (first-time deploy).
-- **Stateful services**: recreated in place via `docker compose up -d`.
+**For multi-container services**:
+1. Start new container(s) with updated config
+2. Wait for health checks to pass
+3. Stop old container(s)
+4. Remove old container(s)
 
-**Zero-downtime**: Traefik automatically routes to healthy containers during a stateless rollout.
+**For single-container services**:
+1. Stop old container
+2. Start new container with updated config
+
+**Zero-downtime**: Traefik automatically routes to healthy containers.
 
 ## Deployment Commands
 
@@ -56,7 +60,7 @@ itsup run
 
 **What it does**:
 1. Start DNS stack (creates `proxynet` network)
-2. Start Proxy stack (Traefik + socket proxy)
+2. Start Proxy stack (Traefik + dockerproxy)
 3. Start API (host process)
 4. Start Monitor (host process)
 
@@ -69,15 +73,14 @@ itsup apply
 ```
 
 **What it does**:
-1. `validate_all()` runs first; if ANY project is invalid (or two projects collide on a static IP), the whole apply aborts before touching anything (fail-closed)
-2. Deploy targets in order: `dns`, then `proxy`, then all projects in **topological egress-dependency order**, **sequentially** (not in parallel)
-3. For each project: regenerate `upstream/{project}/docker-compose.yml`, then deploy with smart rollout (per-service change detection)
-4. A project with `enabled: false` in its `itsup-project.yml` is **stopped** (its containers are brought down) instead of deployed
-5. Report results (deployed, failed)
+1. Load all projects from `projects/` directory
+2. Calculate config hash for each
+3. For changed projects (in parallel):
+   - Regenerate `upstream/{project}/docker-compose.yml`
+   - Run `docker compose up -d`
+4. Report results (deployed, skipped, failed)
 
 **Use case**: Deploy all changes after configuration updates.
-
-**Targets**: `itsup apply dns` and `itsup apply proxy` deploy the infrastructure stacks; `itsup apply <project>` deploys a single project.
 
 **Output example**:
 ```
@@ -416,7 +419,7 @@ services:
 itsup apply {project}
 ```
 
-**Important**: A project deploy loads ONLY `secrets/{project}.{enc.txt|txt}` — it does NOT also load `secrets/itsup.txt`. The two contexts are mutually exclusive (infra deploys load only `itsup`). If a project needs an infra value, duplicate it into the project's own secrets file.
+**Important**: Secrets are loaded from `secrets/itsup.txt` + `secrets/{project}.txt` at deployment time.
 
 ### Scenario 5: Scale Service (Multiple Replicas)
 
@@ -441,31 +444,6 @@ docker compose -f upstream/{project}/docker-compose.yml up -d --scale web=3
 ```
 
 **Result**: Traefik automatically load-balances across all replicas.
-
-## Deploying a containerized third-party app (gotchas)
-
-itsUP generates `upstream/<project>/docker-compose.yml` from your `projects/<project>/` source and runs it from `upstream/<project>/`. Relative bind mounts (`./sites`, `./db`, `./logs`) therefore resolve **under `upstream/<project>/`**, which is exactly what `bin/backup.py` tarballs to S3. Use bind mounts (not named volumes) so app data is captured by backups. This introduces gotchas for third-party images:
-
-1. **Non-root images can't write bind-mount dirs.** Docker creates a missing bind-mount source directory as `root`. Images that run as a non-root uid (e.g. Frappe = uid 1000) then get permission-denied writing into it. Pre-create and chown before the first `itsup apply`:
-   ```bash
-   sudo mkdir -p upstream/<project>/sites upstream/<project>/logs
-   sudo chown -R 1000:1000 upstream/<project>/sites upstream/<project>/logs
-   ```
-
-2. **A bind mount masks image-seeded files.** Mounting an empty host dir over a path the image ships files into (e.g. Frappe's `sites/common_site_config.json`) hides those files and the app fails. Seed them from an idempotent one-shot, e.g. the configurator guards:
-   ```bash
-   [ -f sites/common_site_config.json ] || echo '{}' > sites/common_site_config.json
-   ```
-
-3. **One-shot init containers must be idempotent.** `itsup apply` re-runs the whole compose on every apply. A one-shot that does an unconditional `bench new-site` exits 1 on the second apply ("Site already exists"), which makes `apply` report the whole project failed even though it is healthy. Guard it:
-   ```bash
-   if [ -d "sites/<site>" ]; then echo "exists, skipping"; else bench new-site ...; fi
-   ```
-   Audit every `restart: "no"` service for re-apply safety.
-
-4. **Multi-domain serving.** Set `FRAPPE_SITE_NAME_HEADER=frontend` on the frontend service so one site resolves behind any Traefik domain (the host header from Traefik won't match the site name otherwise).
-
-5. **Reference implementation:** `projects/erpnext/docker-compose.yml` + `projects/erpnext/itsup-project.yml` — a complete Frappe/ERPNext stack (db, 2× redis, configurator, create-site, backend, websocket, queue workers, scheduler, frontend) with all four patterns applied. Its services declare `networks: [default]`; `write_upstream` auto-injects `proxynet` only for the ingress-bearing service (`erpnext-frontend`).
 
 ## Troubleshooting Deployments
 
@@ -706,7 +684,7 @@ docker compose rm -f web-blue
 **Use Traefik weights** for gradual rollout:
 
 ```yaml
-# docker-compose.yml service `labels:` (custom Traefik weights are not an itsup-project.yml field)
+# itsup-project.yml with custom labels
 labels:
   - traefik.http.services.web-v1.loadbalancer.server.port=3000
   - traefik.http.services.web-v1.loadbalancer.weight=90

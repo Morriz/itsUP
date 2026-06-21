@@ -23,10 +23,10 @@ itsUP uses a hybrid networking approach combining Docker bridge networks and hos
    │          │      │172.20/16 │     │ (user)  │
    └──────────┘      └──────────┘     └─────────┘
         │                 │                 │
-   ┌────▼─────┐     ┌─────▼──────┐    ┌────▼────┐
-   │ Traefik  │     │  Upstream  │    │ App DB  │
-   │:8080:8443│◄────┤  Services  │◄───┤  etc.   │
-   └──────────┘     └────────────┘    └─────────┘
+   ┌────▼────┐      ┌─────▼──────┐    ┌────▼────┐
+   │ Traefik │      │  Upstream  │    │ App DB  │
+   │:80 :443 │◄─────┤  Services  │◄───┤  etc.   │
+   └─────────┘      └────────────┘    └─────────┘
 ```
 
 ## Networks
@@ -42,19 +42,18 @@ itsUP uses a hybrid networking approach combining Docker bridge networks and hos
 
 **Services**:
 - Traefik (proxy)
-- Socket proxy (`proxy_docker`, wollomatic/socket-proxy — Docker API access)
+- dockerproxy (Docker API access)
 
-**Entrypoints (Traefik binds, host network)**:
-- :8080 - `web` (HTTP). The LAN router port-forwards external :80 here.
-- :8443 - `web-secure` (HTTPS/TLS termination). The LAN router port-forwards external :443 here.
-- Plus any dynamic TCP/UDP entrypoints generated per project ingress (`{router}-{hostport|port}`).
-
-Traefik does NOT bind :80/:443 directly; the LAN router port-forwards 80→8080 and 443→8443.
+**Ports exposed**:
+- :80 - HTTP entrypoint (web)
+- :443 - HTTPS entrypoint (websecure, if configured)
+- :8080 - HTTP entrypoint (web, internal)
+- :8443 - HTTPS entrypoint (web-secure, internal)
 
 **Access**:
 - Direct access to host network interfaces
-- Reaches upstream containers on proxynet by IP (or service name when resolvable)
-- Can reach local services via 127.0.0.1 (including the socket proxy on :2375)
+- Can reach containers on proxynet via container names (DNS resolution)
+- Can reach local services via 127.0.0.1
 
 ### 2. proxynet Bridge Network
 
@@ -63,12 +62,12 @@ Traefik does NOT bind :80/:443 directly; the LAN router port-forwards 80→8080 
 **Type**: External bridge network
 
 **Purpose**:
-- Connect upstream services to Traefik
-- DNS resolution between containers
-- Network isolation (only accessible via Traefik)
+- Connect ingress services to Traefik
+- DNS resolution between containers on proxynet
+- Shared bridge for externally-routed services only (not a default for every container)
 
 **Connected services**:
-- All upstream project services
+- Upstream services that declare an ingress route (domain/TLS) — **not** every service (see [Network Segmentation](#4-network-segmentation-ingress--egress))
 - CrowdSec (reads Traefik logs)
 - DNS honeypot (172.20.0.253)
 
@@ -107,6 +106,96 @@ networks:
 - Service mesh within a project
 - Isolation from other projects
 
+### 4. Network Segmentation (Ingress / Egress)
+
+itsUP does **not** put every container on a shared network. Each upstream
+service lands in exactly one of three states, derived from its project's
+`itsup-project.yml` and written into the generated compose by
+`bin/write_artifacts.py`:
+
+| State | Trigger | Networks joined | Reachability |
+|-------|---------|-----------------|--------------|
+| **Ingress** | An ingress row with `domain`/`tls` | `proxynet` + project `default` | Reachable by Traefik (external routing) |
+| **Egress** | The project declares `egress: [target:svc]` | per-edge `{consumer}--{target}--{svc}` (external) + project `default` | Can reach **only** the named target service |
+| **Isolated** (default) | Neither of the above | project `default` only | Reachable only within its own project |
+
+A service may be both ingress and egress (it joins `proxynet` **and** its
+per-edge networks).
+
+#### Per-edge egress networks
+
+**Type**: User-defined bridge networks
+**Scope**: Dedicated per `(consumer, provider, service)` triple
+
+When a project declares `egress: [provider:service]` in its `itsup-project.yml`, itsUP
+creates a dedicated network shared only between the consumer and the specific named provider
+service.
+
+**Naming**: `{consumer}--{provider}--{service}` (falls back to `egress-{hash}` when > 64 chars)
+
+**Ownership**:
+- **Provider** — declares and creates the network in its `upstream/` compose; attaches only
+  the named service to it. Other provider services are **not** attached.
+- **Consumer** — declares the network as `external: true`; all consumer services join it.
+
+**Isolation guarantees**:
+- A consumer reaches **only** the declared provider service — not other services in the provider.
+- Two consumers targeting the same provider service are on **separate** edge networks and have
+  **no reachability to each other**.
+- The provider's `{project}_default` network is never joined by consumers.
+
+**Example** — `app` consuming `db:redis`:
+
+`projects/app/itsup-project.yml`:
+```yaml
+egress:
+  - db:redis
+```
+
+Generated `upstream/db/docker-compose.yml` (provider side):
+```yaml
+networks:
+  app--db--redis:
+    name: app--db--redis   # explicit name bypasses Docker Compose project prefix
+services:
+  redis:
+    networks:
+      - default
+      - app--db--redis     # only redis, not postgres
+  postgres:
+    networks:
+      - default            # not on the edge network
+```
+
+Generated `upstream/app/docker-compose.yml` (consumer side):
+```yaml
+networks:
+  app--db--redis:
+    external: true         # created by the provider
+services:
+  web:
+    networks:
+      - app--db--redis
+```
+
+Notes and gotchas:
+
+- **Egress is least-privilege per edge.** A consumer declaring `egress: [B:svc]`
+  reaches only `B:svc` — not B's other services and not other consumers of B.
+  The `{project}:{service}` string is validated (the named service must exist).
+- **Validation.** `itsup validate` rejects egress to a missing project or
+  service before any deploy.
+- **Deploy ordering.** A project that declares egress to `B` joins a per-edge
+  network created by `B`, so `B` must be deployed first. `itsup apply` orders
+  projects topologically by their egress dependencies automatically; a
+  dependency cycle falls back to alphabetical order with a warning.
+- **Missing egress symptom.** A cross-project call with no matching `egress:`
+  line fails at name resolution — the DNS honeypot logs an `NXDOMAIN` for the
+  target.
+
+For the full contract (invariants, code references, failure modes) see the
+agent design snippet `project/design/network-segmentation`
+(`telec docs get project/design/network-segmentation`).
 ## DNS Resolution
 
 ### Container Name Resolution
@@ -116,11 +205,8 @@ Containers on `proxynet` can reach each other by name:
 ```bash
 # From any container on proxynet
 curl http://my-app-service:3000
-ping other-app-service
+ping traefik-web
 ```
-
-(Traefik runs on the host network, not on proxynet, so it is not name-resolvable
-as a proxynet peer — it reaches upstreams by IP or by name from its own namespace.)
 
 **DNS flow**:
 1. Container queries DNS
@@ -149,17 +235,19 @@ Benefits:
 
 ### External (Internet → Router → Host)
 
-Router port forwards (Traefik binds 8080/8443, not 80/443):
+Router port forwards:
 ```
-80   → Host:8080  (HTTP  → Traefik web entrypoint)
-443  → Host:8443  (HTTPS → Traefik web-secure entrypoint)
+80   → Host:80    (HTTP)
+443  → Host:443   (HTTPS)
+8080 → Host:8080  (Traefik HTTP internal)
+8443 → Host:8443  (Traefik HTTPS internal)
 ```
 
 ### Internal (Host Services)
 
 ```
 :8888  - API server (itsup API)
-:2375  - socket proxy `proxy_docker` (secured Docker API, loopback only)
+:2375  - dockerproxy (secured Docker API)
 :18080 - CrowdSec API (localhost only)
 :7422  - CrowdSec AppSec (localhost only)
 ```
@@ -199,7 +287,7 @@ labels:
 ```
 
 **How it works**:
-1. Traefik watches Docker API via the socket proxy `proxy_docker` (DOCKER_HOST=tcp://127.0.0.1:2375)
+1. Traefik watches Docker API via dockerproxy
 2. Detects containers with `traefik.enable=true`
 3. Reads routing rules from labels
 4. Creates routes dynamically
@@ -236,9 +324,9 @@ labels:
 ```
 1. Client → Router:443
    ↓
-2. Router → Host:8443 (port-forward 443→8443)
+2. Router → Host:443 (NAT)
    ↓
-3. Traefik (host network, web-secure entrypoint :8443)
+3. Traefik (host network :443)
    ├─ TLS termination
    ├─ Match router rule: Host(`example.com`)
    ├─ CrowdSec check (block if malicious)
@@ -288,11 +376,11 @@ Fast, low latency
 ```
 1. Container → itsup.srv.instrukt.ai:443
    ↓
-2. Traefik receives request (host network, web-secure :8443)
+2. Traefik receives request (host network)
    ├─ Matches router: Host(`itsup.srv.instrukt.ai`)
-   ├─ Routes to service: itsup-127-0-0-1-8888
+   ├─ Routes to service: itsup-172-17-0-1-8888
    ↓
-3. Traefik → 127.0.0.1:8888 (host loopback; host-only project `host: 127.0.0.1`)
+3. Traefik → 172.17.0.1:8888 (Docker bridge IP)
    ↓
 4. API server (listening on host :8888)
 ```
@@ -301,9 +389,10 @@ Fast, low latency
 
 ### Isolation
 
-- **proxynet**: Only services that need external access
-- **Project networks**: Internal-only services (databases, caches)
-- **Host network**: Only Traefik and the socket proxy `proxy_docker`
+- **proxynet**: Only services that declare ingress (Traefik routing); not a default
+- **Project networks**: Internal-only services (databases, caches) stay isolated per project
+- **Cross-project**: Allowed only via explicit `egress:` declarations (see [Network Segmentation](#4-network-segmentation-ingress--egress))
+- **Host network**: Only Traefik and dockerproxy
 
 ### Firewall Rules
 
@@ -319,17 +408,23 @@ iptables -A OUTPUT -s 172.20.0.5 -d 1.2.3.4 -j DROP
 
 ### Trusted IPs
 
-Traefik trusts only the router IP as a `/32` for forwarded headers and PROXY
-protocol. The list is generated by `lib/data.py:get_trusted_ips()`, which returns
-`["<routerIP>/32"]` (routerIP from `projects/itsup.yml`):
+Traefik trusts specific IP ranges for forwarded headers:
 
 ```yaml
 entryPoints:
   web-secure:
     forwardedHeaders:
-      trustedIPs: ['192.168.1.1/32']
+      trustedIPs:
+        - 127.0.0.0/32
+        - 172.0.0.0/8
+        - 10.0.0.0/8
+        - 192.168.1.0/24
     proxyProtocol:
-      trustedIPs: ['192.168.1.1/32']
+      trustedIPs:
+        - 127.0.0.0/32
+        - 172.0.0.0/8
+        - 10.0.0.0/8
+        - 192.168.1.0/24
 ```
 
 Prevents IP spoofing attacks.
@@ -370,7 +465,7 @@ docker network inspect proxynet
 docker network inspect proxynet | jq '.[0].Containers'
 
 # Test connectivity from container
-docker exec my-container ping other-app-service
+docker exec my-container ping traefik-web
 docker exec my-container curl http://other-service:3000
 ```
 
@@ -413,41 +508,6 @@ docker inspect my-container | jq '.[0].Config.Labels'
 # Check Traefik logs
 docker logs proxy-traefik-1 | grep my-container
 ```
-
-### OpenSnitch loopback wedge (Traefik can't reach the socket proxy)
-
-OpenSnitch intercepts every NEW TCP SYN via an nftables NFQUEUE rule
-(`tcp flags syn / fin,syn,rst,ack queue flags bypass to 0`); `opensnitchd`
-issues the allow/deny verdict. If opensnitchd's verdict pipeline stalls, NEW
-loopback TCP connections hang in SYN-SENT — even with `DefaultAction=allow` and
-on-disk allow-*-loopback rules present.
-
-Effect: Traefik (`DOCKER_HOST=tcp://127.0.0.1:2375`) can't reach the wollomatic
-socket proxy `proxy_docker`, so it stops discovering containers and requesting
-ACME certs. New deploys get no router/cert; cert renewals silently break.
-Existing sites keep serving from Traefik's in-memory cache.
-
-**Symptoms**:
-- `proxy_docker` and `proxy-traefik-1` report `unhealthy`
-- Traefik logs: `Failed to list containers ... 127.0.0.1:2375: i/o timeout`
-- Public HTTPS returns `tlsv1 unrecognized name`
-
-**Diagnose** (it is the verdict path, not a firewall rule):
-```bash
-# Times out when wedged:
-curl --max-time 6 http://127.0.0.1:2375/v1.44/version
-```
-- A throwaway loopback listener also fails to accept
-- `lo` is UP; iptables/conntrack/netns are all fine
-
-**Fix**:
-```bash
-sudo systemctl restart opensnitch
-```
-Then confirm loopback serves and `proxy_docker`/`proxy-traefik-1` go healthy.
-Restarting ONLY the socket proxy or ONLY Traefik does NOT fix it — Traefik also
-wedges on the stale connection and needs its own restart, but the root fix is
-restarting opensnitchd.
 
 ## Related Documentation
 

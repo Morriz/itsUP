@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 
 from lib.data import (
+    build_reverse_egress_graph,
+    edge_network_name,
     get_trusted_ips,
     list_projects,
     load_itsup_config,
@@ -33,9 +35,6 @@ logger = logging.getLogger(__name__)
 
 # DNS honeypot for logging (used by all containers)
 DNS_HONEYPOT = "172.20.0.253"
-
-# proxynet subnet (created by the DNS stack in dns/docker-compose.yml)
-PROXYNET_SUBNET = "172.20.0.0/16"
 
 
 def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
@@ -133,8 +132,8 @@ def inject_traefik_labels(compose: dict, traefik_config, project_name: str) -> d
             # Service port
             labels.append(f"traefik.http.services.{router_name}.loadbalancer.server.port={ingress.port}")
 
-            # Path prefix stripping middleware (if needed)
-            # This would be added based on path_remove in IngressV2 if we add that field
+            # Path-prefix stripping middleware is not generated here; the
+            # ingress `path_remove` field is not currently wired into label output.
 
         # We DON'T do this for tcp and udp as those need other port and thus new entrypoints MUST be made in traefik.yml
         # We decided to be explicit+consistent and generate the entrypoints AND the routers (this needs `itsup apply proxy` anyway)
@@ -158,7 +157,7 @@ def inject_traefik_labels(compose: dict, traefik_config, project_name: str) -> d
     return compose
 
 
-def write_upstream(project_name: str) -> None:
+def write_upstream(project_name: str, reverse_graph: dict[str, list[tuple[str, str]]] | None = None) -> None:
     """Generate upstream/{project}/docker-compose.yml with Traefik labels injected"""
     logger.info(f"Generating upstream config for {project_name}")
 
@@ -196,6 +195,11 @@ def write_upstream(project_name: str) -> None:
         if ing.dns:
             dns_overrides[ing.service] = ing.dns
 
+    # Snapshot which services declared explicit networks before Phase 1 normalises them.
+    # Phase 2b uses this to preserve default-network sibling reachability for provider services
+    # that did not opt out of the implicit default network.
+    _explicit_networks = {svc for svc, cfg in services.items() if "networks" in cfg}
+
     # Phase 1: Configure service networks and DNS
     for service_name, service_config in services.items():
         # Initialize networks if not present
@@ -223,26 +227,54 @@ def write_upstream(project_name: str) -> None:
         if "dns" not in service_config:
             service_config["dns"] = [DNS_HONEYPOT, "127.0.0.11"]
 
-    # Phase 2: Add egress target networks (project-level egress)
-    # All services in this project get access to declared egress targets
+    # Phase 2: Add per-edge consumer networks.
+    # Each egress declaration gets a dedicated edge network shared only between
+    # this project and the specific provider service — no {target}_default join,
+    # no co-consumer reachability, no access to other provider services.
     for egress_spec in traefik.egress:
-        # Parse target service (format: project:service)
-        # Example: "ai-chatbot:redis" -> project="ai-chatbot"
         if ":" not in egress_spec:
             logger.warning(f"Invalid egress format: {egress_spec} (expected: project:service)")
             continue
 
-        target_project, _ = egress_spec.split(":", 1)
-        target_network = f"{target_project}_default"
+        target_project, target_service = egress_spec.split(":", 1)
+        edge_net = edge_network_name(project_name, target_project, target_service)
 
-        # Add external network declaration
-        if target_network not in compose["networks"]:
-            compose["networks"][target_network] = {"external": True}
+        if edge_net not in compose["networks"]:
+            compose["networks"][edge_net] = {"external": True}
 
-        # Add target network to all services (project-level egress)
         for service_name, service_config in services.items():
-            if target_network not in service_config["networks"]:
-                service_config["networks"].append(target_network)
+            if edge_net not in service_config["networks"]:
+                service_config["networks"].append(edge_net)
+
+    # Phase 2b: Provider side — create edge networks for each declared consumer.
+    # Only the named provider service is attached; the consumer joins as external.
+    if reverse_graph is None:
+        reverse_graph = build_reverse_egress_graph()
+
+    for consumer, svc_name in reverse_graph.get(project_name, []):
+        edge_net = edge_network_name(consumer, project_name, svc_name)
+
+        # Resolve the actual service key (consumer may use short or prefixed name)
+        actual_key = svc_name if svc_name in services else f"{project_name}-{svc_name}"
+        if actual_key not in services:
+            logger.warning(
+                f"Edge net {edge_net}: service '{svc_name}' not found in provider {project_name}; skipping"
+            )
+            continue
+
+        if edge_net not in compose["networks"]:
+            # Not external — this project creates the network with an explicit Docker name
+            # so the consumer can reference it as external without the compose project prefix.
+            compose["networks"][edge_net] = {"name": edge_net}
+
+        svc_nets = services[actual_key].get("networks", [])
+        if edge_net not in svc_nets:
+            svc_nets.append(edge_net)
+            # Preserve sibling reachability: services that didn't opt out of the implicit
+            # default network need it listed explicitly once the networks key is set.
+            if actual_key not in _explicit_networks and "default" not in svc_nets:
+                svc_nets.append("default")
+            services[actual_key]["networks"] = svc_nets
 
     # Phase 3: Pin static proxynet IPs.
     # docker compose requires the whole networks block in mapping form once any
@@ -286,10 +318,13 @@ def write_upstreams() -> bool:
         logger.warning("No projects found in projects/ directory")
         return True
 
+    # Build the reverse graph once so each provider knows its consumers.
+    reverse_graph = build_reverse_egress_graph()
+
     failed_projects = []
     for project_name in projects:
         try:
-            write_upstream(project_name)
+            write_upstream(project_name, reverse_graph)
         except Exception as e:
             logger.error(f"Failed to generate upstream for {project_name}: {e}")
             failed_projects.append(project_name)
@@ -477,7 +512,7 @@ def write_dynamic_routers() -> None:
             "Generate with: htpasswd -nb admin your-password"
         )
 
-    # Note: plugin_registry was removed - crowdsec config moved to top-level
+    # crowdsec config lives at the top level of itsup.yml (no plugin_registry)
 
     # Build project list in V1 format for templates
     all_project_names = list_projects()
@@ -641,13 +676,6 @@ if __name__ == "__main__":
     logger.info("Generating proxy artifacts...")
     write_proxy_artifacts()
 
-    # Generate upstream configs
-    logger.info("Generating upstream configs...")
-    if not write_upstreams():
-        logger.error("Failed to generate some upstream configs")
-        sys.exit(1)
-
-    logger.info("✅ All artifacts generated successfully")
     # Generate upstream configs
     logger.info("Generating upstream configs...")
     if not write_upstreams():

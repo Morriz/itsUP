@@ -1,5 +1,6 @@
 """Data loading from projects/ and secrets/"""
 
+import hashlib
 import ipaddress
 import logging
 import os
@@ -105,42 +106,6 @@ def get_env_with_secrets(project_name: str | None = None) -> dict[str, str]:
     return {**os.environ, **secrets}
 
 
-def expand_env_vars(data: Any, secrets: dict[str, str]) -> Any:
-    """Recursively expand ${VAR} in data structure
-
-    Raises:
-        ValueError: If a referenced variable is not found in secrets
-    """
-    if isinstance(data, dict):
-        return {k: expand_env_vars(v, secrets) for k, v in data.items()}
-    if isinstance(data, list):
-        return [expand_env_vars(item, secrets) for item in data]
-    if isinstance(data, str):
-        # Expand ${VAR} and $VAR syntax
-        # Pattern matches: ${VAR_NAME} or $VAR_NAME
-        # Variable names must start with letter/underscore, followed by alphanumeric/underscore
-        missing_vars = []
-
-        def replacer(match: re.Match[str]) -> str:
-            var_name = match.group(1) or match.group(2)
-            if var_name not in secrets:
-                missing_vars.append(var_name)
-                return match.group(0)  # Keep original for error message
-            return secrets[var_name]
-
-        pattern = r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)"
-        result = re.sub(pattern, replacer, data)
-
-        if missing_vars:
-            raise ValueError(
-                f"Missing required secrets: {', '.join(missing_vars)}\n"
-                f"  Add to secrets/itsup.txt or secrets/<project>.txt"
-            )
-
-        return result
-    return data
-
-
 def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     """
     Load project from projects/{name}/
@@ -217,12 +182,44 @@ def list_projects() -> list[str]:
     ]
 
 
+def edge_network_name(consumer: str, provider: str, service: str) -> str:
+    """Deterministic, Docker-safe name for a per-edge egress network.
+
+    Consumer joins this as external; provider declares and creates it.
+    Falls back to a hash-based name when the natural name exceeds 64 chars.
+    """
+    raw = f"{consumer}--{provider}--{service}"
+    if len(raw) <= 64:
+        return raw
+    return f"egress-{hashlib.sha256(raw.encode()).hexdigest()[:12]}"
+
+
+def build_reverse_egress_graph() -> dict[str, list[tuple[str, str]]]:
+    """Return a mapping from each provider project to its (consumer, service) pairs.
+
+    Scans all projects' egress declarations and inverts the graph so that
+    provider projects can enumerate which edge networks they need to create.
+    """
+    graph: dict[str, list[tuple[str, str]]] = {}
+    for proj in list_projects():
+        try:
+            _, traefik = load_project(proj)
+        except Exception:  # pylint: disable=broad-exception-caught
+            continue
+        for egress_spec in traefik.egress:
+            if not egress_spec or ":" not in egress_spec:
+                continue
+            provider, service = egress_spec.split(":", 1)
+            graph.setdefault(provider, []).append((proj, service))
+    return graph
+
+
 def list_projects_topo() -> list[str]:
     """List projects in dependency order based on egress declarations.
 
-    Project P with `egress: [Q:service, ...]` joins Q's `{Q}_default` network
-    as external, so Q must be deployed first or the `docker compose up` for P
-    fails with `network {Q}_default declared as external, but could not be found`.
+    Project P with `egress: [Q:service, ...]` joins a per-edge network created
+    by Q, so Q must be deployed first or the `docker compose up` for P fails
+    with the edge network declared as external but not found.
     Kahn's algorithm with alphabetical tie-breaking gives a deterministic order.
     A dependency cycle (invalid config) falls back to alphabetical with a
     warning rather than crashing — validate_all surfaces the actual config bug.
@@ -272,11 +269,9 @@ def _validate_ingress_ips(traefik: TraefikConfig) -> list[str]:
         if ingress is None or not ingress.ipv4_address:
             continue
         ip = ingress.ipv4_address
-        try:
-            addr = ipaddress.IPv4Address(ip)
-        except ValueError:
-            errors.append(f"ingress.ipv4_address '{ip}' is not a valid IPv4 address")
-            continue
+        # IPv4 format is already validated by Ingress.check_ipv4_address at
+        # model construction (inside load_project); ip is guaranteed parseable.
+        addr = ipaddress.IPv4Address(ip)
         if addr not in proxynet:
             errors.append(f"ingress.ipv4_address '{ip}' is outside proxynet subnet {PROXYNET_SUBNET}")
         if ip in PROXYNET_RESERVED_IPS:
@@ -446,11 +441,6 @@ def update_itsup_yml_router_ip(ip: str) -> None:
 def get_trusted_ips() -> list[str]:
     """Build trusted IPs list for Traefik - Docker networks + router subnet"""
     router_ip = get_router_ip()
-    # Extract network (e.g., 192.168.1.1 -> 192.168.1.0/24)
-    # parts = router_ip.split(".")
-    # subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
-    # 172.0.0.0/8 (Docker), router subnet
-    # return [subnet]
     return [f"{router_ip}/32"]
 
 

@@ -9,16 +9,15 @@ itsup [OPTIONS] COMMAND [ARGS]
 ```
 
 **Options**:
-- `-h`, `--help`: Show help message and exit
-- `-V`, `--version`: Show version and exit
-- `-v`, `--verbose`: Verbosity count — `-v` = DEBUG, `-vv` = TRACE (the CLI ignores the `LOG_LEVEL` env var)
+- `--help`: Show help message and exit
+- `--version`: Show version and exit
+- `--verbose`, `-v`: Enable DEBUG logging (shows detailed operations)
 
 **Examples**:
 ```bash
 itsup --help              # Show all commands
-itsup -V                  # Show version
-itsup -v apply            # Deploy with DEBUG output
-itsup -vv apply           # Deploy with TRACE output
+itsup --version           # Show version
+itsup --verbose apply     # Deploy with debug output
 ```
 
 ## Infrastructure Commands
@@ -34,7 +33,7 @@ itsup run
 
 **What it does**:
 1. Start DNS stack (creates proxynet network)
-2. Start Proxy stack (Traefik + socket proxy)
+2. Start Proxy stack (Traefik + dockerproxy)
 3. Start API (host process)
 4. Start Monitor in report-only mode (host process)
 
@@ -141,7 +140,7 @@ itsup dns logs            # Tail all DNS logs
 itsup proxy COMMAND [SERVICE]
 ```
 
-**Services**: `traefik`, `socket proxy`, `crowdsec` (if enabled)
+**Services**: `traefik`, `dockerproxy`, `crowdsec` (if enabled)
 
 **Commands**:
 - `up [service]`: Start proxy stack or specific service
@@ -174,23 +173,19 @@ itsup apply [PROJECT]
 - `PROJECT` (optional): Project name (deploy specific project)
 
 **What it does**:
-- Runs `validate_all()` first and **refuses to deploy if any project is invalid** (global fail-closed gate — one bad project or a cross-project IP collision blocks the whole apply)
-- If no `PROJECT`: Deploys `dns`, then `proxy`, then all projects in **topological egress-dependency order** (`list_projects_topo`), **sequentially**
-- If `PROJECT` specified: Deploys that single target — valid targets are `dns`, `proxy`, or any project name
-- A project with `enabled: false` in its `itsup-project.yml` is **stopped** (containers brought down) rather than deployed
+- If `PROJECT` specified: Deploy single project
+- If no `PROJECT`: Deploy all projects in parallel
 
 **Smart Rollout**:
-- Change detection runs `docker compose config --hash <service>` on the **generated** `upstream/<project>/docker-compose.yml` and compares to the running container's `com.docker.compose.config-hash` label (per-service; computed by Docker, not an MD5 over source files)
-- Stateless services (those without volumes; plus `traefik`) get a zero-downtime rollout via the `docker rollout` plugin; stateful services restart normally via `docker compose up -d`
-- Rollout is skipped when the service is unchanged or was not already running (first-time deploy)
+- Calculates config hash (docker-compose.yml + itsup-project.yml)
+- Compares with stored hash
+- Only deploys if changed
 
 **Examples**:
 ```bash
-itsup apply                   # Deploy dns + proxy + all projects (sequential, topo order)
-itsup apply dns               # Deploy DNS stack
-itsup apply proxy             # Deploy proxy stack
+itsup apply                   # Deploy all projects (in parallel)
 itsup apply my-app            # Deploy single project
-itsup -v apply                # Deploy with DEBUG output
+itsup apply --verbose         # Deploy with debug output
 ```
 
 **Output**:
@@ -249,16 +244,21 @@ itsup validate [PROJECT]
 - `PROJECT` (optional): Project name (validate specific project)
 
 **What it does**:
-- Loads each project's `docker-compose.yml` + `itsup-project.yml`
-- Validates that ingress rows reference services that exist in compose
-- Validates static `ipv4_address` declarations (within the proxynet subnet, not reserved, no conflicts) and detects cross-project IP collisions
-- Validates `egress` targets point at an existing `project:service`
-- For host-only projects (no compose), requires a `host` field
+- Validates YAML syntax (docker-compose.yml, itsup-project.yml)
+- Checks for required fields
+- Verifies network configuration
+- Validates secrets placeholders
 
 **Examples**:
 ```bash
 itsup validate              # Validate all projects
 itsup validate my-app       # Validate single project
+```
+
+**Output**:
+```
+✓ my-app: Valid
+✗ other-app: Missing required field 'domain' in itsup-project.yml
 ```
 
 ## Monitor Commands
@@ -342,10 +342,19 @@ Generate threat intelligence report.
 
 **Usage**:
 ```bash
-itsup monitor report
+itsup monitor report [OPTIONS]
 ```
 
-**What it does**: Runs `bin/analyze_threats.py` to analyze threat actors and print a report. (No format/output options.)
+**Options**:
+- `--format`: Report format (text, json, html)
+- `--output`: Output file (default: stdout)
+
+**Examples**:
+```bash
+itsup monitor report                        # Text report to stdout
+itsup monitor report --format json          # JSON report
+itsup monitor report --output report.html   # HTML report to file
+```
 
 ## Secret Management
 
@@ -355,24 +364,21 @@ Encrypt secrets file.
 
 **Usage**:
 ```bash
-itsup encrypt [NAME] [--delete] [--force]
+itsup encrypt PROJECT
 ```
 
-**Arguments / options**:
-- `NAME` (optional): Secret name (`itsup` for shared secrets, or a project name). If omitted, operates over the secrets set.
-- `--delete`: Delete plaintext `.txt` files after encryption
-- `--force`: Force re-encryption even if content is unchanged
+**Arguments**:
+- `PROJECT`: Project name (or "itsup" for shared secrets)
 
 **What it does**:
-1. Reads `secrets/{name}.txt` (plaintext)
+1. Reads `secrets/{project}.txt` (plaintext)
 2. Encrypts with SOPS
-3. Writes `secrets/{name}.enc.txt` (encrypted)
+3. Writes `secrets/{project}.enc.txt` (encrypted)
 
 **Examples**:
 ```bash
-itsup encrypt itsup            # Encrypt shared secrets
-itsup encrypt my-app           # Encrypt project secrets
-itsup encrypt my-app --delete  # Encrypt then remove plaintext
+itsup encrypt itsup        # Encrypt shared secrets
+itsup encrypt my-app       # Encrypt project secrets
 ```
 
 ### `itsup decrypt`
@@ -381,16 +387,16 @@ Decrypt secrets file.
 
 **Usage**:
 ```bash
-itsup decrypt [NAME]
+itsup decrypt PROJECT
 ```
 
 **Arguments**:
-- `NAME` (optional): Secret name (`itsup` for shared secrets, or a project name).
+- `PROJECT`: Project name (or "itsup" for shared secrets)
 
 **What it does**:
-1. Reads `secrets/{name}.enc.txt` (encrypted)
+1. Reads `secrets/{project}.enc.txt` (encrypted)
 2. Decrypts with SOPS
-3. Writes `secrets/{name}.txt` (plaintext)
+3. Writes `secrets/{project}.txt` (plaintext)
 
 **Examples**:
 ```bash
@@ -400,108 +406,54 @@ itsup decrypt my-app       # Decrypt project secrets
 
 **Note**: Plaintext `.txt` files are gitignored (safe to decrypt).
 
-### `itsup diff-secrets`
-
-Show meaningful diffs of encrypted secrets (decrypts via SOPS for comparison).
-
-**Usage**:
-```bash
-itsup diff-secrets [FILE1] [FILE2] [--summary]
-```
-
-- `--summary`: Show a summary instead of the full diff.
-
-### `itsup edit-secret`
-
-Edit an encrypted secret seamlessly (decrypt → edit → re-encrypt).
-
-**Usage**:
-```bash
-itsup edit-secret NAME
-```
-
-- `NAME` (required): Secret name to edit.
-
-### `itsup sops-key`
-
-Generate or rotate the SOPS (age) encryption key.
-
-**Usage**:
-```bash
-itsup sops-key [--rotate]
-```
-
-- `--rotate`: Rotate the existing key and re-encrypt all secrets.
-
 ## Utility Commands
+
+### `itsup list`
+
+List all projects.
+
+**Usage**:
+```bash
+itsup list [OPTIONS]
+```
+
+**Options**:
+- `--enabled-only`: Show only enabled projects (itsup-project.yml has `enabled: true`)
+- `--format`: Output format (text, json, yaml)
+
+**Examples**:
+```bash
+itsup list                    # List all projects
+itsup list --enabled-only     # List only enabled projects
+itsup list --format json      # JSON output
+```
 
 ### `itsup status`
 
-Show git status for the `projects/` and `secrets/` repos.
+Show infrastructure status.
 
 **Usage**:
 ```bash
 itsup status
 ```
 
-**What it does**: Reports uncommitted changes in the `projects` and `secrets` git repositories (it does NOT report DNS/proxy/API/monitor runtime state).
+**What it shows**:
+- DNS stack status
+- Proxy stack status
+- API status
+- Monitor status
+- Project counts (total, enabled, running)
 
-### `itsup commit`
-
-Commit and push changes to the `projects` and `secrets` repos.
-
-**Usage**:
+**Example**:
 ```bash
-itsup commit [--force]
+itsup status
+# Output:
+# DNS:     ✓ Running
+# Proxy:   ✓ Running (Traefik v3.5.1)
+# API:     ✓ Running (http://localhost:8080)
+# Monitor: ✓ Running (protection mode)
+# Projects: 15 total, 12 enabled, 10 running
 ```
-
-- The commit message is **auto-generated** (no message argument).
-- Auto-encrypts plaintext secrets before committing; detects SOPS key rotation.
-- `--force` / `-f`: Skip encryption prompts and commit as-is (push uses `--force-with-lease`).
-
-### `itsup pull`
-
-Pull changes from the `projects` and `secrets` repos (via `git pull --rebase`).
-
-**Usage**:
-```bash
-itsup pull [--apply]
-```
-
-- `--apply` / `-a`: Run `itsup apply` after a successful pull.
-
-### `itsup create`
-
-Scaffold a new project under `projects/`.
-
-**Usage**:
-```bash
-itsup create NAME
-```
-
-### `itsup migrate`
-
-Migrate configuration schema to the latest version.
-
-**Usage**:
-```bash
-itsup migrate [--dry-run] [--list]
-```
-
-- `--dry-run`: Show what would change without making changes.
-- `--list`: Show which fixers would run.
-
-### `itsup logs`
-
-Follow log files with smart formatting.
-
-**Usage**:
-```bash
-itsup logs [NAMES...] [-n LINES]
-```
-
-- `NAMES`: One or more log names (tab-completed from available logs).
-- `-n`, `--lines`: Number of initial lines to show (default: 100).
 
 ## Shell Completion
 
@@ -545,16 +497,52 @@ itsup svc my-app up <TAB> # Shows: service names
 
 ## Environment Variables
 
-The `itsup` CLI does not read configuration from environment variables. Verbosity is set only via the `-v`/`-vv` count flags; directory locations (`projects/`, `secrets/`, `upstream/`) are fixed relative to the repo root. See [Environment Variables Reference](./environment-variables.md) for the secrets/config variables consumed at deploy time.
+### Used by CLI
+
+**`ITSUP_VERBOSE`**: Enable verbose output (same as `--verbose`)
+```bash
+export ITSUP_VERBOSE=1
+itsup apply  # Will show debug output
+```
+
+**`ITSUP_CONFIG_DIR`**: Override config directory (default: `./projects`)
+```bash
+export ITSUP_CONFIG_DIR=/path/to/projects
+itsup apply
+```
+
+**`ITSUP_SECRETS_DIR`**: Override secrets directory (default: `./secrets`)
+```bash
+export ITSUP_SECRETS_DIR=/path/to/secrets
+itsup decrypt itsup
+```
 
 ## Exit Codes
 
-- **0**: Success
-- **1**: Failure (validation failed, target not found, command/deploy error, or a non-zero exit propagated from a child `docker`/`git` process)
+**0**: Success
 
+**1**: General error (invalid arguments, command failed)
+
+**2**: Configuration error (invalid YAML, missing files)
+
+**3**: Deployment error (docker compose failed)
+
+**130**: User interrupt (Ctrl+C)
+
+**Example**:
 ```bash
 itsup apply my-app
-echo $?  # 0 = success, non-zero = failure
+echo $?  # 0 = success, non-zero = error
+```
+
+## Command Aliases (Future)
+
+**Potential aliases for convenience**:
+```bash
+itsup a       # itsup apply
+itsup s       # itsup status
+itsup l       # itsup list
+itsup v       # itsup validate
 ```
 
 ## Advanced Usage

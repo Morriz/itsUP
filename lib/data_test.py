@@ -7,7 +7,8 @@ from unittest.mock import Mock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import (
-    expand_env_vars,
+    build_reverse_egress_graph,
+    edge_network_name,
     list_projects,
     list_projects_topo,
     load_secrets,
@@ -19,40 +20,6 @@ from lib.models import Ingress, TraefikConfig
 
 class TestDataV2(unittest.TestCase):
     """Tests for V2 API functions"""
-
-    def test_expand_env_vars_dict(self) -> None:
-        """Test environment variable expansion in a dictionary."""
-        secrets = {"API_KEY": "secret123", "DB_HOST": "localhost"}
-        data = {"api_key": "${API_KEY}", "database": {"host": "$DB_HOST", "port": 5432}}
-        result = expand_env_vars(data, secrets)
-        self.assertEqual(result["api_key"], "secret123")
-        self.assertEqual(result["database"]["host"], "localhost")
-        self.assertEqual(result["database"]["port"], 5432)
-
-    def test_expand_env_vars_list(self) -> None:
-        """Test environment variable expansion in a list."""
-        secrets = {"ENV": "production", "VERSION": "v1.0"}
-        data = ["${ENV}", "$VERSION", "static"]
-        result = expand_env_vars(data, secrets)
-        self.assertEqual(result, ["production", "v1.0", "static"])
-
-    def test_expand_env_vars_missing_var(self) -> None:
-        """Test that missing variables raise an error."""
-        secrets = {"PRESENT": "value"}
-        data = "${PRESENT} and ${MISSING}"
-        # Missing var raises ValueError
-        with self.assertRaises(ValueError) as ctx:
-            expand_env_vars(data, secrets)
-        self.assertIn("MISSING", str(ctx.exception))
-
-    def test_expand_env_vars_invalid_name(self) -> None:
-        """Test that invalid variable names are not expanded."""
-        secrets = {"VALID_VAR": "value"}
-        # Invalid: starts with number, contains special chars
-        data = "${123INVALID} ${VALID-NAME} ${VALID_VAR}"
-        result = expand_env_vars(data, secrets)
-        # Only VALID_VAR should be expanded
-        self.assertEqual(result, "${123INVALID} ${VALID-NAME} value")
 
     @mock.patch("lib.data.load_encrypted_env")
     @mock.patch("lib.data.Path")
@@ -286,6 +253,12 @@ class TestDataV2(unittest.TestCase):
 
         self.assertEqual(validate_project("adguard"), [])
 
+    # NOTE: these tests prove the validator FIRES for each failure mode but
+    # do not pin WHICH error message is produced — asserting the prose would
+    # violate the testing policy's substring-on-string-content ban. When
+    # validate_project gains structured errors (typed objects), upgrade these
+    # to assert error.kind == "out_of_subnet" etc.
+
     @mock.patch("lib.data.load_project")
     def test_validate_project_ipv4_address_out_of_subnet(self, mock_load_project: Mock) -> None:
         """A static IP outside the proxynet subnet is rejected."""
@@ -293,9 +266,7 @@ class TestDataV2(unittest.TestCase):
         traefik = TraefikConfig(ingress=[Ingress(service="web", domain="x.example.com", ipv4_address="10.0.0.5")])
         mock_load_project.return_value = (compose, traefik)
 
-        errors = validate_project("test-project")
-
-        self.assertTrue(any("outside proxynet subnet" in e for e in errors))
+        self.assertEqual(len(validate_project("test-project")), 1)
 
     @mock.patch("lib.data.load_project")
     def test_validate_project_ipv4_address_reserved(self, mock_load_project: Mock) -> None:
@@ -304,9 +275,7 @@ class TestDataV2(unittest.TestCase):
         traefik = TraefikConfig(ingress=[Ingress(service="web", domain="x.example.com", ipv4_address="172.20.0.253")])
         mock_load_project.return_value = (compose, traefik)
 
-        errors = validate_project("test-project")
-
-        self.assertTrue(any("reserved" in e for e in errors))
+        self.assertEqual(len(validate_project("test-project")), 1)
 
     @mock.patch("lib.data.load_project")
     def test_validate_project_ipv4_address_conflict_same_service(self, mock_load_project: Mock) -> None:
@@ -320,9 +289,7 @@ class TestDataV2(unittest.TestCase):
         )
         mock_load_project.return_value = (compose, traefik)
 
-        errors = validate_project("test-project")
-
-        self.assertTrue(any("conflicting ipv4_address" in e for e in errors))
+        self.assertEqual(len(validate_project("test-project")), 1)
 
     @mock.patch("lib.data.list_projects")
     @mock.patch("lib.data.load_project")
@@ -346,8 +313,11 @@ class TestDataV2(unittest.TestCase):
 
         results = validate_all()
 
+        # proj-b is the second project to claim the IP, so the collision
+        # detection appends an error to its result list. (See note above on
+        # why the prose itself is not asserted.)
         self.assertIn("proj-b", results)
-        self.assertTrue(any("already claimed by project 'proj-a'" in e for e in results["proj-b"]))
+        self.assertTrue(results["proj-b"])
 
     @mock.patch("lib.data.load_project")
     @mock.patch("lib.data.list_projects")
@@ -408,6 +378,120 @@ class TestDataV2(unittest.TestCase):
         )
 
         self.assertEqual(list_projects_topo(), ["a", "b"])
+
+
+class TestEdgeNetworkName(unittest.TestCase):
+    """Tests for edge_network_name()"""
+
+    def test_short_names_use_natural_format(self) -> None:
+        """Names within 64 chars use the human-readable {consumer}--{provider}--{service} format."""
+        result = edge_network_name("app", "db", "redis")
+        self.assertEqual(result, "app--db--redis")
+        self.assertLessEqual(len(result), 64)
+
+    def test_long_names_fall_back_to_hash(self) -> None:
+        """Names exceeding 64 chars fall back to a deterministic hash-based name."""
+        long_consumer = "very-long-consumer-project-name-exceeding-limits"
+        long_provider = "very-long-provider-project-name-exceeding-limits"
+        result = edge_network_name(long_consumer, long_provider, "service")
+        self.assertLessEqual(len(result), 64)
+        self.assertTrue(result.startswith("egress-"))
+
+    def test_hash_fallback_is_deterministic(self) -> None:
+        """The hash fallback always produces the same name for the same inputs."""
+        long_consumer = "very-long-consumer-project-name-exceeding-limits"
+        long_provider = "very-long-provider-project-name-exceeding-limits"
+        a = edge_network_name(long_consumer, long_provider, "service")
+        b = edge_network_name(long_consumer, long_provider, "service")
+        self.assertEqual(a, b)
+
+    def test_different_services_produce_different_names(self) -> None:
+        """Different services on the same consumer/provider pair get distinct names."""
+        name1 = edge_network_name("app", "db", "redis")
+        name2 = edge_network_name("app", "db", "postgres")
+        self.assertNotEqual(name1, name2)
+
+    def test_different_consumers_produce_different_names(self) -> None:
+        """Different consumers targeting the same provider service get distinct names."""
+        name1 = edge_network_name("consumer-a", "db", "redis")
+        name2 = edge_network_name("consumer-b", "db", "redis")
+        self.assertNotEqual(name1, name2)
+
+
+class TestBuildReverseEgressGraph(unittest.TestCase):
+    """Tests for build_reverse_egress_graph()"""
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_empty_when_no_egress(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """Returns empty graph when no projects declare egress."""
+        mock_list_projects.return_value = ["a", "b"]
+        mock_load_project.return_value = ({}, TraefikConfig(egress=[]))
+
+        self.assertEqual(build_reverse_egress_graph(), {})
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_single_consumer(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """One consumer declaring egress maps the provider to that consumer."""
+        mock_list_projects.return_value = ["consumer", "provider"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["provider:redis"] if name == "consumer" else []),
+        )
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertEqual(graph["provider"], [("consumer", "redis")])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_multiple_consumers_same_provider(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """Multiple consumers targeting the same provider service both appear in the graph."""
+        mock_list_projects.return_value = ["consumer-a", "consumer-b", "provider"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["provider:redis"] if name in ("consumer-a", "consumer-b") else []),
+        )
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertIn(("consumer-a", "redis"), graph["provider"])
+        self.assertIn(("consumer-b", "redis"), graph["provider"])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_multiple_services_same_provider(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """A consumer declaring egress to two services of the same provider both get recorded."""
+        mock_list_projects.return_value = ["consumer", "provider"]
+        mock_load_project.side_effect = lambda name: (
+            {},
+            TraefikConfig(egress=["provider:redis", "provider:postgres"] if name == "consumer" else []),
+        )
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertIn(("consumer", "redis"), graph["provider"])
+        self.assertIn(("consumer", "postgres"), graph["provider"])
+
+    @mock.patch("lib.data.load_project")
+    @mock.patch("lib.data.list_projects")
+    def test_load_error_skipped(self, mock_list_projects: Mock, mock_load_project: Mock) -> None:
+        """Projects that fail to load are skipped without raising."""
+        mock_list_projects.return_value = ["bad", "good", "provider"]
+        mock_load_project.side_effect = [
+            Exception("broken"),
+            ({}, TraefikConfig(egress=["provider:redis"])),
+            ({}, TraefikConfig(egress=[])),
+        ]
+
+        graph = build_reverse_egress_graph()
+
+        self.assertIn("provider", graph)
+        self.assertEqual(graph["provider"], [("good", "redis")])
 
 
 if __name__ == "__main__":

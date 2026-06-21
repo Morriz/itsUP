@@ -163,11 +163,14 @@ install_systemd_units() {
 # ── launchd (macOS) ────────────────────────────────────────────────────────
 
 install_launchd_agents() {
+  # No healthcheck agent on macOS: bin/pi-healthcheck.sh is Linux-only
+  # (reads /proc, calls systemctl, hardcodes su -l <user>) and would die
+  # every 5 min under set -euo pipefail. Add a Darwin-capable check before
+  # reintroducing an ai.itsup.healthcheck.plist.
   local agents=(
     "ai.itsup.bringup"
     "ai.itsup.apply"
     "ai.itsup.backup"
-    "ai.itsup.healthcheck"
   )
 
   mkdir -p "${SERVICE_DIR}"
@@ -190,7 +193,6 @@ install_launchd_agents() {
   echo "✓ ai.itsup.bringup loaded (runs at load)"
   echo "✓ ai.itsup.apply loaded (03:00 nightly apply)"
   echo "✓ ai.itsup.backup loaded (05:00 nightly backup)"
-  echo "✓ ai.itsup.healthcheck loaded (every 5 minutes)"
 }
 
 # ── Dispatch ───────────────────────────────────────────────────────────────

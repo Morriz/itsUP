@@ -65,38 +65,7 @@ Read `README.md` first for architecture, components, and workflows.
 
 ### All itsup commands
 
-```
-Usage: itsup [OPTIONS] COMMAND [ARGS]...
-
-  itsUP - Infrastructure management CLI
-
-Options:
-  -V, --version  Show the version and exit.
-  -v, --verbose  Verbosity: -v (DEBUG), -vv (TRACE)
-  -h, --help     Show this message and exit.
-
-Commands:
-  apply         ⚙️ Apply configurations with smart zero-downtime rollout...
-  commit        💾 Commit and push changes to "projects" and "secrets" repos
-  create        Create a new project scaffold
-  decrypt       🔓 Decrypt secrets for editing [NAME]
-  diff-secrets  🔍 Show meaningful diffs of encrypted secrets
-  dns           📡 DNS stack management
-  down          🛑 Stop ALL containers: DNS, proxy, AND all upstream projects
-  edit-secret   ✏️ Edit encrypted secret seamlessly NAME
-  encrypt       🔒 Encrypt secrets with SOPS [NAME]
-  init          🎬 Initialize "projects" and "secrets" repos from samples
-  logs          📜 Follow log files with smart formatting
-  migrate       🔄 Migrate configuration schema to latest version
-  monitor       🛡️ Container security monitor management
-  proxy         🔀 Proxy stack management
-  pull          Pull changes from "projects" and "secrets" repos
-  run           🚀 Run itsUP stack: dns, proxy and monitor (needs sudo)
-  sops-key      🔑 Generate or rotate SOPS encryption key
-  status        📊 Show git status for "projects" and "secrets" repos
-  svc           🔧 Service operations PROJECT COMMAND...
-  validate      ✅ Validate project configurations [PROJECT]
-```
+<!-- @exec: bin/itsup -h -->
 
 ## Testing (always test after changes!)
 

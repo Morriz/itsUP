@@ -9,6 +9,7 @@ from unittest.mock import Mock, call
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from bin.write_artifacts import inject_traefik_labels, write_upstream, write_upstreams
+from lib.data import edge_network_name
 from lib.models import Ingress, TraefikConfig
 
 
@@ -27,7 +28,7 @@ class TestWriteArtifacts(unittest.TestCase):
         self.assertNotIn("labels", result["services"]["web"])
 
     def test_inject_traefik_labels_http(self) -> None:
-        """Test injecting Traefik labels for HTTP router."""
+        """HTTP router label injection uses port-qualified router names for uniqueness."""
         compose = {"services": {"web": {"image": "nginx"}}}
         ingress = Ingress(service="web", domain="example.com", port=80, router="http")
         traefik = TraefikConfig(enabled=True, ingress=[ingress])
@@ -36,13 +37,13 @@ class TestWriteArtifacts(unittest.TestCase):
 
         labels = result["services"]["web"]["labels"]
         self.assertIn("traefik.enable=true", labels)
-        self.assertIn("traefik.http.routers.myproject-web.entrypoints=web-secure", labels)
-        self.assertIn("traefik.http.routers.myproject-web.rule=Host(`example.com`)", labels)
-        self.assertIn("traefik.http.routers.myproject-web.tls=true", labels)
-        self.assertIn("traefik.http.services.myproject-web.loadbalancer.server.port=80", labels)
+        self.assertIn("traefik.http.routers.myproject-web-80.entrypoints=web-secure", labels)
+        self.assertIn("traefik.http.routers.myproject-web-80.rule=Host(`example.com`)", labels)
+        self.assertIn("traefik.http.routers.myproject-web-80.tls=true", labels)
+        self.assertIn("traefik.http.services.myproject-web-80.loadbalancer.server.port=80", labels)
 
     def test_inject_traefik_labels_http_with_path(self) -> None:
-        """Test injecting Traefik labels for HTTP router with path prefix."""
+        """HTTP router with path prefix uses port-qualified router name."""
         compose = {"services": {"api": {"image": "api"}}}
         ingress = Ingress(service="api", domain="example.com", port=8080, router="http", path_prefix="/api")
         traefik = TraefikConfig(enabled=True, ingress=[ingress])
@@ -50,10 +51,10 @@ class TestWriteArtifacts(unittest.TestCase):
         result = inject_traefik_labels(compose, traefik, "myproject")
 
         labels = result["services"]["api"]["labels"]
-        self.assertIn("traefik.http.routers.myproject-api.rule=Host(`example.com`) && PathPrefix(`/api`)", labels)
+        self.assertIn("traefik.http.routers.myproject-api-8080.rule=Host(`example.com`) && PathPrefix(`/api`)", labels)
 
     def test_inject_traefik_labels_tcp(self) -> None:
-        """Test injecting Traefik labels for TCP router."""
+        """TCP router: only traefik.enable=true injected; routing config lives in Traefik dynamic config."""
         compose = {"services": {"db": {"image": "postgres"}}}
         ingress = Ingress(service="db", port=5432, router="tcp", hostport=5432)
         traefik = TraefikConfig(enabled=True, ingress=[ingress])
@@ -62,13 +63,11 @@ class TestWriteArtifacts(unittest.TestCase):
 
         labels = result["services"]["db"]["labels"]
         self.assertIn("traefik.enable=true", labels)
-        self.assertIn("traefik.tcp.routers.myproject-db.entrypoints=tcp-5432", labels)
-        self.assertIn("traefik.tcp.routers.myproject-db.rule=HostSNI(`*`)", labels)
-        self.assertIn("traefik.tcp.routers.myproject-db.tls=true", labels)
-        self.assertIn("traefik.tcp.services.myproject-db.loadbalancer.server.port=5432", labels)
+        # TCP routing config lives in dynamic config files, not in compose labels
+        self.assertFalse(any("traefik.tcp.routers" in lbl for lbl in labels))
 
     def test_inject_traefik_labels_tcp_passthrough(self) -> None:
-        """Test injecting Traefik labels for TCP router with passthrough."""
+        """TCP passthrough: only traefik.enable=true injected; routing config is in dynamic config."""
         compose = {"services": {"mqtt": {"image": "mqtt"}}}
         ingress = Ingress(service="mqtt", port=8883, router="tcp", passthrough=True, hostport=8883)
         traefik = TraefikConfig(enabled=True, ingress=[ingress])
@@ -76,12 +75,11 @@ class TestWriteArtifacts(unittest.TestCase):
         result = inject_traefik_labels(compose, traefik, "myproject")
 
         labels = result["services"]["mqtt"]["labels"]
-        self.assertIn("traefik.tcp.routers.myproject-mqtt.tls.passthrough=true", labels)
-        # Should not have regular tls=true when passthrough is enabled
-        self.assertNotIn("traefik.tcp.routers.myproject-mqtt.tls=true", labels)
+        self.assertIn("traefik.enable=true", labels)
+        self.assertFalse(any("traefik.tcp.routers" in lbl for lbl in labels))
 
     def test_inject_traefik_labels_udp(self) -> None:
-        """Test injecting Traefik labels for UDP router."""
+        """UDP router: only traefik.enable=true injected; routing config lives in Traefik dynamic config."""
         compose = {"services": {"dns": {"image": "dns"}}}
         ingress = Ingress(service="dns", port=53, router="udp", hostport=53)
         traefik = TraefikConfig(enabled=True, ingress=[ingress])
@@ -90,8 +88,22 @@ class TestWriteArtifacts(unittest.TestCase):
 
         labels = result["services"]["dns"]["labels"]
         self.assertIn("traefik.enable=true", labels)
-        self.assertIn("traefik.udp.routers.myproject-dns.entrypoints=udp-53", labels)
-        self.assertIn("traefik.udp.services.myproject-dns.loadbalancer.server.port=53", labels)
+        self.assertFalse(any("traefik.udp.routers" in lbl for lbl in labels))
+
+    def test_inject_traefik_labels_multiple_ingress(self) -> None:
+        """Multiple ingress rules on one service get distinct port-qualified router names."""
+        compose = {"services": {"web": {"image": "nginx"}}}
+        ingress1 = Ingress(service="web", domain="example.com", port=80, router="http")
+        ingress2 = Ingress(service="web", domain="api.example.com", port=8080, router="http", path_prefix="/api")
+        traefik = TraefikConfig(enabled=True, ingress=[ingress1, ingress2])
+
+        result = inject_traefik_labels(compose, traefik, "myproject")
+
+        labels = result["services"]["web"]["labels"]
+        self.assertIn("traefik.http.routers.myproject-web-80.rule=Host(`example.com`)", labels)
+        self.assertIn(
+            "traefik.http.routers.myproject-web-8080.rule=Host(`api.example.com`) && PathPrefix(`/api`)", labels
+        )
 
     def test_inject_traefik_labels_convert_dict_to_list(self) -> None:
         """Test that dict labels are converted to list format."""
@@ -121,48 +133,49 @@ class TestWriteArtifacts(unittest.TestCase):
             self.assertNotIn("labels", result["services"]["web"])
 
     @mock.patch("bin.write_artifacts.load_project")
-    @mock.patch("bin.write_artifacts.Path")
-    @mock.patch("builtins.open", new_callable=mock.mock_open)
-    @mock.patch("bin.write_artifacts.yaml")
-    def test_write_upstream(self, mock_yaml: Mock, mock_open: Mock, mock_path: Mock, mock_load_project: Mock) -> None:
-        """Test writing upstream docker-compose.yml."""
-        # Setup mocks
+    def test_write_upstream_generates_compose_file(self, mock_load_project: Mock) -> None:
+        """write_upstream writes a docker-compose.yml to the upstream directory."""
+        import yaml
+        from pathlib import Path
+
         compose = {"services": {"web": {"image": "nginx"}}}
         ingress = Ingress(service="web", domain="example.com", port=80, router="http")
-        traefik = TraefikConfig(enabled=True, ingress=[ingress])
+        traefik = TraefikConfig(enabled=True, ingress=[ingress], egress=[])
         mock_load_project.return_value = (compose, traefik)
 
-        # Mock Path
-        mock_upstream_dir = Mock()
-        mock_path.return_value = mock_upstream_dir
+        write_upstream("test-project")
 
-        # Call function
-        write_upstream("myproject")
+        compose_file = Path("upstream/test-project/docker-compose.yml")
+        self.assertTrue(compose_file.exists())
+        with open(compose_file, encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+        self.assertIn("web", result["services"])
 
-        # Verify directory creation
-        mock_upstream_dir.mkdir.assert_called_once_with(parents=True, exist_ok=True)
-
-        # Verify file writing
-        mock_open.assert_called_once()
-        mock_yaml.dump.assert_called_once()
-
+    @mock.patch("bin.write_artifacts.build_reverse_egress_graph")
     @mock.patch("bin.write_artifacts.list_projects")
     @mock.patch("bin.write_artifacts.write_upstream")
-    def test_write_upstreams_success(self, mock_write_upstream: Mock, mock_list_projects: Mock) -> None:
-        """Test writing all upstream configs successfully."""
+    def test_write_upstreams_success(
+        self, mock_write_upstream: Mock, mock_list_projects: Mock, mock_build_graph: Mock
+    ) -> None:
+        """Test writing all upstream configs successfully; each project receives the reverse graph."""
         mock_list_projects.return_value = ["project1", "project2"]
+        mock_build_graph.return_value = {}
 
         result = write_upstreams()
 
         self.assertTrue(result)
         self.assertEqual(mock_write_upstream.call_count, 2)
-        mock_write_upstream.assert_has_calls([call("project1"), call("project2")])
+        mock_write_upstream.assert_has_calls([call("project1", {}), call("project2", {})])
 
+    @mock.patch("bin.write_artifacts.build_reverse_egress_graph")
     @mock.patch("bin.write_artifacts.list_projects")
     @mock.patch("bin.write_artifacts.write_upstream")
-    def test_write_upstreams_failure(self, mock_write_upstream: Mock, mock_list_projects: Mock) -> None:
+    def test_write_upstreams_failure(
+        self, mock_write_upstream: Mock, mock_list_projects: Mock, mock_build_graph: Mock
+    ) -> None:
         """Test writing upstream configs with failures."""
         mock_list_projects.return_value = ["project1", "project2"]
+        mock_build_graph.return_value = {}
         mock_write_upstream.side_effect = [None, Exception("Failed to process")]
 
         result = write_upstreams()
@@ -178,21 +191,6 @@ class TestWriteArtifacts(unittest.TestCase):
         result = write_upstreams()
 
         self.assertTrue(result)  # Returns True when no projects to process
-
-    def test_inject_traefik_labels_multiple_ingress(self) -> None:
-        """Test injecting multiple ingress rules for the same service."""
-        compose = {"services": {"web": {"image": "nginx"}}}
-        ingress1 = Ingress(service="web", domain="example.com", port=80, router="http")
-        ingress2 = Ingress(service="web", domain="api.example.com", port=8080, router="http", path_prefix="/api")
-        traefik = TraefikConfig(enabled=True, ingress=[ingress1, ingress2])
-
-        result = inject_traefik_labels(compose, traefik, "myproject")
-
-        labels = result["services"]["web"]["labels"]
-        # Should have labels for both ingress rules
-        self.assertIn("traefik.http.routers.myproject-web.rule=Host(`example.com`)", labels)
-        # Note: The current implementation may overwrite labels. This test documents current behavior.
-        # In a real scenario, you might need to generate unique router names for multiple ingress rules.
 
     @mock.patch("bin.write_artifacts.load_project")
     def test_write_upstream_network_assignment_with_ingress(self, mock_load_project: Mock) -> None:
@@ -227,7 +225,7 @@ class TestWriteArtifacts(unittest.TestCase):
 
     @mock.patch("bin.write_artifacts.load_project")
     def test_write_upstream_network_assignment_with_egress(self, mock_load_project: Mock) -> None:
-        """Test that projects with egress get target project networks added."""
+        """Consumer gets a per-edge network, not the provider's shared _default network."""
         compose = {
             "services": {
                 "app": {"image": "app"},
@@ -236,9 +234,8 @@ class TestWriteArtifacts(unittest.TestCase):
         traefik = TraefikConfig(enabled=True, ingress=[], egress=["target-project:redis"])
         mock_load_project.return_value = (compose, traefik)
 
-        write_upstream("test-project")
+        write_upstream("test-project", {})
 
-        # Read generated file
         from pathlib import Path
         import yaml
 
@@ -246,15 +243,17 @@ class TestWriteArtifacts(unittest.TestCase):
         with open(compose_file, encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
-        # Service should have target project network
-        self.assertIn("target-project_default", result["services"]["app"]["networks"])
-        # External network should be declared
-        self.assertIn("target-project_default", result["networks"])
-        self.assertEqual(result["networks"]["target-project_default"], {"external": True})
+        edge_net = edge_network_name("test-project", "target-project", "redis")
+        # Consumer gets the per-edge network, declared external
+        self.assertIn(edge_net, result["services"]["app"]["networks"])
+        self.assertIn(edge_net, result["networks"])
+        self.assertEqual(result["networks"][edge_net], {"external": True})
+        # The provider's shared default network is NOT joined
+        self.assertNotIn("target-project_default", result.get("networks", {}))
 
     @mock.patch("bin.write_artifacts.load_project")
     def test_write_upstream_network_assignment_with_both(self, mock_load_project: Mock) -> None:
-        """Test that services with both ingress and egress get both networks."""
+        """Services with both ingress and egress get proxynet and the per-edge network."""
         compose = {
             "services": {
                 "api": {"image": "api"},
@@ -264,9 +263,8 @@ class TestWriteArtifacts(unittest.TestCase):
         traefik = TraefikConfig(enabled=True, ingress=[ingress], egress=["db-project:postgres"])
         mock_load_project.return_value = (compose, traefik)
 
-        write_upstream("test-project")
+        write_upstream("test-project", {})
 
-        # Read generated file
         from pathlib import Path
         import yaml
 
@@ -274,10 +272,12 @@ class TestWriteArtifacts(unittest.TestCase):
         with open(compose_file, encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
-        # Service should have both proxynet and target network
+        edge_net = edge_network_name("test-project", "db-project", "postgres")
+        # Service gets both proxynet (for Traefik) and the per-edge network (for egress)
         self.assertIn("proxynet", result["services"]["api"]["networks"])
-        self.assertIn("db-project_default", result["services"]["api"]["networks"])
-        self.assertIn("default", result["services"]["api"]["networks"])
+        self.assertIn(edge_net, result["services"]["api"]["networks"])
+        # The provider's shared default network is NOT joined
+        self.assertNotIn("db-project_default", result.get("networks", {}))
 
     @mock.patch("bin.write_artifacts.load_project")
     def test_write_upstream_ipv4_address_mapping_form(self, mock_load_project: Mock) -> None:
@@ -337,6 +337,141 @@ class TestWriteArtifacts(unittest.TestCase):
 
         self.assertIsInstance(result["services"]["web"]["networks"], list)
         self.assertIn("proxynet", result["services"]["web"]["networks"])
+
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_provider_creates_edge_network(self, mock_load_project: Mock) -> None:
+        """Provider creates named edge networks and attaches only the declared service."""
+        import yaml
+        from pathlib import Path
+
+        compose = {
+            "services": {
+                "redis": {"image": "redis"},
+                "postgres": {"image": "postgres"},
+            }
+        }
+        traefik = TraefikConfig(enabled=True, ingress=[], egress=[])
+        mock_load_project.return_value = (compose, traefik)
+
+        # Consumer-a declared egress to this provider's redis service
+        reverse_graph = {"provider": [("consumer-a", "redis")]}
+        write_upstream("provider", reverse_graph)
+
+        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        edge_net = edge_network_name("consumer-a", "provider", "redis")
+        # Provider declares the network with an explicit Docker name (not external)
+        self.assertIn(edge_net, result["networks"])
+        self.assertEqual(result["networks"][edge_net], {"name": edge_net})
+        # Only the declared service is attached to the edge network
+        self.assertIn(edge_net, result["services"]["redis"]["networks"])
+        self.assertNotIn(edge_net, result["services"]["postgres"]["networks"])
+
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_co_consumer_isolation(self, mock_load_project: Mock) -> None:
+        """Two consumers egressing to the same service get separate, disjoint edge networks."""
+        import yaml
+        from pathlib import Path
+
+        compose = {"services": {"redis": {"image": "redis"}}}
+        traefik = TraefikConfig(enabled=True, ingress=[], egress=[])
+        mock_load_project.return_value = (compose, traefik)
+
+        reverse_graph = {"provider": [("consumer-a", "redis"), ("consumer-b", "redis")]}
+        write_upstream("provider", reverse_graph)
+
+        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        edge_a = edge_network_name("consumer-a", "provider", "redis")
+        edge_b = edge_network_name("consumer-b", "provider", "redis")
+        # Both edge networks are distinct
+        self.assertNotEqual(edge_a, edge_b)
+        # Both are declared on the provider
+        self.assertIn(edge_a, result["networks"])
+        self.assertIn(edge_b, result["networks"])
+        # Both consumers' networks are explicitly named (not external — provider creates them)
+        self.assertEqual(result["networks"][edge_a], {"name": edge_a})
+        self.assertEqual(result["networks"][edge_b], {"name": edge_b})
+
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_least_privilege_provider(self, mock_load_project: Mock) -> None:
+        """Consumer's edge network only attaches the named service — not other provider services."""
+        import yaml
+        from pathlib import Path
+
+        compose = {
+            "services": {
+                "redis": {"image": "redis"},
+                "other-svc": {"image": "other"},
+            }
+        }
+        traefik = TraefikConfig(enabled=True, ingress=[], egress=[])
+        mock_load_project.return_value = (compose, traefik)
+
+        reverse_graph = {"provider": [("consumer-a", "redis")]}
+        write_upstream("provider", reverse_graph)
+
+        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        edge_net = edge_network_name("consumer-a", "provider", "redis")
+        # redis is on the edge network — consumer can reach it
+        self.assertIn(edge_net, result["services"]["redis"]["networks"])
+        # other-svc is NOT on the edge network — consumer cannot reach it
+        self.assertNotIn(edge_net, result["services"]["other-svc"]["networks"])
+
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_provider_service_preserves_default_network(self, mock_load_project: Mock) -> None:
+        """Provider service attached to an edge network also retains the implicit default network."""
+        import yaml
+        from pathlib import Path
+
+        compose = {
+            "services": {
+                "redis": {"image": "redis"},
+                "postgres": {"image": "postgres"},
+            }
+        }
+        traefik = TraefikConfig(enabled=True, ingress=[], egress=[])
+        mock_load_project.return_value = (compose, traefik)
+
+        reverse_graph = {"provider": [("consumer-a", "redis")]}
+        write_upstream("provider", reverse_graph)
+
+        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        edge_net = edge_network_name("consumer-a", "provider", "redis")
+        # redis gets the edge net AND the default net (sibling reachability preserved)
+        self.assertIn(edge_net, result["services"]["redis"]["networks"])
+        self.assertIn("default", result["services"]["redis"]["networks"])
+        # postgres is unaffected — no edge net, no forced default
+        self.assertNotIn(edge_net, result["services"]["postgres"]["networks"])
+
+    @mock.patch("bin.write_artifacts.load_project")
+    def test_write_upstream_consumer_not_on_provider_default(self, mock_load_project: Mock) -> None:
+        """Consumer joins edge network only; the provider's _default network is never added."""
+        import yaml
+        from pathlib import Path
+
+        compose = {"services": {"app": {"image": "app"}}}
+        traefik = TraefikConfig(enabled=True, ingress=[], egress=["db:postgres", "db:redis"])
+        mock_load_project.return_value = (compose, traefik)
+
+        write_upstream("consumer", {})
+
+        with open(Path("upstream/consumer/docker-compose.yml"), encoding="utf-8") as f:
+            result = yaml.safe_load(f)
+
+        edge_postgres = edge_network_name("consumer", "db", "postgres")
+        edge_redis = edge_network_name("consumer", "db", "redis")
+        # Consumer gets separate edge nets per service
+        self.assertIn(edge_postgres, result["services"]["app"]["networks"])
+        self.assertIn(edge_redis, result["services"]["app"]["networks"])
+        # Provider's shared default network is never joined
+        self.assertNotIn("db_default", result.get("networks", {}))
 
 
 if __name__ == "__main__":

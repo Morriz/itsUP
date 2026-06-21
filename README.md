@@ -40,6 +40,8 @@ Still interested? Then read on...
     - [3. Configure your installation](#3-configure-your-installation)
     - [4. Encrypt and commit secrets](#4-encrypt-and-commit-secrets)
     - [5. Deploy](#5-deploy)
+      - [Host DNS fallback (reboot resilience)](#host-dns-fallback-reboot-resilience)
+      - [Runtime logs](#runtime-logs)
     - [6. Monitor](#6-monitor)
   - [Configure services](#configure-services)
     - [Scenario 1: Adding an upstream service that will be deployed and managed](#scenario-1-adding-an-upstream-service-that-will-be-deployed-and-managed)
@@ -112,7 +114,7 @@ For a complete documentation index, see [docs/README.md](docs/README.md).
 
 ### Single source of truth
 
-The `projects/` directory is used for all the infra and workloads it creates and manages, to ensure a predictable and reliable automated workflow. Each project has its own `docker-compose.yml` and `ingress.yml` files, while infrastructure configuration lives in `projects/itsup.yml` and `projects/traefik.yml`.
+The `projects/` directory is used for all the infra and workloads it creates and manages, to ensure a predictable and reliable automated workflow. Each project has its own `docker-compose.yml` and `itsup-project.yml` files, while infrastructure configuration lives in `projects/itsup.yml` and `projects/traefik.yml`.
 This project-based structure provides both flexibility and reliability, and we strive to mirror standard docker compose functionality, which means no concessions are necessary from a docker compose enthusiast's perspective.
 
 ### Managed proxy setup
@@ -136,7 +138,7 @@ itsUP generates and manages `proxy/docker-compose.yml` which operates Traefik in
 
 ### Managed service deployments & updates
 
-itsUP generates and manages `upstream/{project}/docker-compose.yml` files to deploy container workloads based on your project configurations in `projects/{project}/`. Each project has a `docker-compose.yml` (service definitions) and `ingress.yml` (routing configuration).
+itsUP generates and manages `upstream/{project}/docker-compose.yml` files to deploy container workloads based on your project configurations in `projects/{project}/`. Each project has a `docker-compose.yml` (service definitions) and `itsup-project.yml` (ingress routing + egress network segmentation).
 This centralizes and abstracts away the plethora of custom docker compose setups that are mostly uniform in their approach anyway, so controlling their artifacts from a project-based structure makes a lot of sense.
 
 ### <sup>\*</sup>Zero downtime?
@@ -328,6 +330,7 @@ make clean             # Remove generated artifacts
 **For runtime operations** (run/dns/proxy/svc/monitor), use `itsup` commands instead. The Makefile is intentionally minimal to avoid command sprawl.
 
 **Background automation**
+
 - `itsup-bringup.service` (enabled): runs `itsup run && itsup apply` at boot; `itsup down --clean` on shutdown.
 - `itsup-apply.timer` (enabled): runs `itsup apply` nightly at 03:00 (systemd timer).
 - `itsup-backup.timer` (enabled): runs `bin/backup.py` nightly at 05:00 (systemd timer).
@@ -508,7 +511,7 @@ make logs
 
 ### Configure services
 
-Project and service configuration uses a project-based structure in the `projects/` directory. Each project has its own subdirectory with `docker-compose.yml` and `ingress.yml` files.
+Project and service configuration uses a project-based structure in the `projects/` directory. Each project has its own subdirectory with `docker-compose.yml` and `itsup-project.yml` files.
 
 #### Scenario 1: Adding an upstream service that will be deployed and managed
 
@@ -529,7 +532,7 @@ networks:
     external: true
 ```
 
-**projects/whoami/ingress.yml:**
+**projects/whoami/itsup-project.yml:**
 
 ```yaml
 enabled: true
@@ -546,7 +549,7 @@ Run `itsup apply whoami` to generate artifacts and deploy the service.
 
 Create a project with `passthrough: true` in the ingress configuration.
 
-**projects/home-assistant/ingress.yml:**
+**projects/home-assistant/itsup-project.yml:**
 
 ```yaml
 enabled: true
@@ -618,7 +621,7 @@ networks:
     external: true
 ```
 
-**projects/minio/ingress.yml:**
+**projects/minio/itsup-project.yml:**
 
 ```yaml
 enabled: true
@@ -644,7 +647,7 @@ MINIO_ROOT_PASSWORD=secret123
 
 For services running on the host (not in Docker), create a minimal ingress-only configuration.
 
-**projects/itsup/ingress.yml:**
+**projects/itsup/itsup-project.yml:**
 
 ```yaml
 enabled: true
@@ -671,11 +674,11 @@ Each project directory follows this pattern:
 projects/
 └── {project-name}/
     ├── docker-compose.yml   # Standard Docker Compose file
-    ├── ingress.yml          # Routing configuration (IngressV2 schema)
+    ├── itsup-project.yml    # Ingress routing + egress segmentation config
     └── secrets.txt          # (Optional) Project-specific secrets
 ```
 
-**IngressV2 schema:**
+**itsup-project.yml schema:**
 
 ```yaml
 enabled: true # Enable/disable routing for this project
@@ -689,7 +692,19 @@ ingress:
     hostport: 8080 # (Optional) Expose on host port
     ipv4_address: 172.20.0.50 # (Optional) Pin a static IP on proxynet (must be within 172.20.0.0/16)
     dns: [127.0.0.11, 1.1.1.1] # (Optional) Override the generated dns: block verbatim for this service
+egress: # (Optional) Cross-project access — joins the target project's network
+  - internal-api:app # format: {project}:{service}
 ```
+
+By default a service is isolated to its own project network. It joins the
+shared `proxynet` only if it declares an `ingress` route, and it can reach
+another project only if this project declares matching `egress`. See
+[docs/networking.md](docs/networking.md#4-network-segmentation-ingress--egress)
+for the full segmentation model.
+
+> The per-project config file was named `ingress.yml` before v2.1. Both names
+> still load (`itsup-project.yml` wins); `ingress.yml` is deprecated and warns,
+> with support ending in v3.0.
 
 See `samples/example-project/` for a complete working example.
 
@@ -941,8 +956,8 @@ cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
 
 Add the secrets to GitHub:
 
-- `SERVER_HOST`: the hostname of this repo's api server
-- `SERVER_USERNAME`: the username that has access to your host's ssh server
+- `SSH_HOST`: the hostname of this repo's api server
+- `SSH_USERNAME`: the username that has access to your host's ssh server
 - `SSH_PRIVATE_KEY`: the private key of the user
 
 #### 5. Make sure port 1194 is portforwarding the UDP protocol.

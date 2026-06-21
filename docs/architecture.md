@@ -10,7 +10,7 @@ itsUP is a zero-downtime infrastructure management system built around Docker Co
 └────────────────────┬────────────────────────────────────────┘
                      │
               ┌──────▼──────┐
-              │   Router    │  LAN forwards 80→8080, 443→8443
+              │   Router    │  Port forwards 80/443/8080/8443
               │ 192.168.1.1 │
               └──────┬──────┘
                      │
@@ -39,25 +39,25 @@ itsUP is a zero-downtime infrastructure management system built around Docker Co
 - **Purpose**: Reverse proxy, TLS termination, routing
 - **Network**: Host network mode (for zero-downtime scaling)
 - **Services**:
-  - Traefik (v3.6.17) - Reverse proxy
-  - socket proxy - Secure Docker API access
-  - CrowdSec (v1.7.3) - Threat detection and banning
+  - Traefik (v3.5.1) - Reverse proxy
+  - dockerproxy - Secure Docker API access
+  - CrowdSec - Threat detection and banning
 
 ### 3. API Server
 - **Purpose**: Infrastructure management REST API
 - **Type**: Non-containerized Python FastAPI app
-- **Port**: 8888 (bound to 0.0.0.0)
-- **Routing**: Exposed via Traefik (host-only ingress project; see [API Server](stacks/api.md))
+- **Port**: 8888 (internal)
+- **Routing**: Exposed via Traefik at `itsup.srv.instrukt.ai`
 
 ### 4. Security Monitor
 - **Purpose**: Container network security monitoring
-- **Type**: Non-containerized Python service (`monitor/` package, entry point `bin/monitor.py`)
-- **Mechanism**: Correlates container outbound TCP connections against DNS-honeypot query history (persisted in `data/dns-registry.json`). A connection to an IP with no prior DNS lookup is treated as a hardcoded-IP/malware indicator: the IP is added to the blacklist and dropped via an `iptables` DROP rule inserted into the `DOCKER-USER` chain. OpenSnitch cross-referencing is optional (`--use-opensnitch`).
+- **Type**: Non-containerized Python service
+- **Integration**: OpenSnitch, iptables, threat intelligence
 
 ### 5. Upstream Projects
 - **Purpose**: User workloads (apps, databases, services)
-- **Network**: `proxynet` (connected to proxy)
-- **Deployment**: Parallel zero-downtime rollouts
+- **Network**: Segmented per declaration — `proxynet` only for services with ingress, target `{project}_default` networks for declared egress, project-local `default` otherwise (see [Networking](networking.md#4-network-segmentation-ingress--egress))
+- **Deployment**: Parallel zero-downtime rollouts, ordered by egress dependencies
 - **Discovery**: Auto-discovered by Traefik via Docker labels
 
 ## Data Flow
@@ -68,10 +68,10 @@ itsUP is a zero-downtime infrastructure management system built around Docker Co
 Internet Request (example.com)
     │
     ▼
-Router (LAN forwards 80→8080, 443→8443)
+Router (NAT/Port Forward)
     │
     ▼
-Traefik (host network, entrypoints :8080/:8443)
+Traefik (Host Network :80/:443)
     │
     ├─ TLS Termination
     ├─ CrowdSec Check (block if malicious)
@@ -93,7 +93,7 @@ User runs: itsup apply
 Read projects/{project}/itsup-project.yml
     │
     ▼
-Generate Traefik labels
+Generate Traefik labels + assign networks (ingress/egress segmentation)
     │
     ▼
 Write upstream/{project}/docker-compose.yml
@@ -115,24 +115,27 @@ Traefik auto-discovers new containers
    - No NAT overhead
 
 2. **proxynet Bridge** (172.20.0.0/16)
-   - Connects all upstream services
-   - DNS resolution between containers
+   - Connects only services that declare ingress (Traefik routing)
+   - DNS resolution between containers on it
    - Isolated from external access (except via Traefik)
 
-3. **Project Networks** (optional)
+3. **Project Networks** (`default`, per project)
    - Internal communication (e.g., app ↔ database)
-   - Isolated from other projects
+   - Isolated from other projects by default
+   - Cross-project reach only via explicit `egress:` declarations, which join the target project's `{project}_default` network
 
 ### Port Mapping
 
 **External (Router → Host):**
-- 80 → Host :8080 (HTTP — Traefik `web` entrypoint)
-- 443 → Host :8443 (HTTPS — Traefik `websecure` entrypoint)
+- 80 → Host :80 (HTTP)
+- 443 → Host :443 (HTTPS)
+- 8080 → Host :8080 (Traefik HTTP internal)
+- 8443 → Host :8443 (Traefik HTTPS internal)
 
 **Internal (Host):**
-- :8080, :8443 - Traefik entrypoints (`web`, `websecure`)
 - :8888 - API server
-- :2375 - socket proxy (Docker API)
+- :2375 - dockerproxy (Docker API)
+- :8080, :8443 - Traefik entrypoints
 - :18080 - CrowdSec API
 
 ## Deployment Model
@@ -164,7 +167,7 @@ Multiple projects deploy simultaneously:
 ├── bin/                    # CLI scripts and utilities
 ├── commands/               # itsup subcommands
 ├── crowdsec/               # CrowdSec config
-├── data/                   # Persistent data (acme, crowdsec, blacklist, whitelist, dns-honeypot, dns-registry.json)
+├── data/                   # Persistent data (acme, crowdsec)
 ├── dns/                    # DNS stack compose file
 ├── docs/                   # Documentation (this)
 ├── lib/                    # Shared Python libraries
@@ -176,7 +179,7 @@ Multiple projects deploy simultaneously:
 │   ├── traefik.yml        # Traefik overrides
 │   └── {project}/         # Per-project configs
 │       ├── docker-compose.yml
-│       └── itsup-project.yml
+│       └── itsup-project.yml  # ingress + egress (was: ingress.yml)
 ├── secrets/                # Encrypted secrets (SOPS)
 ├── tpl/                    # Jinja2 templates
 └── upstream/               # Generated compose files (deployed)
@@ -190,6 +193,7 @@ Multiple projects deploy simultaneously:
 ### Defense in Depth
 
 1. **Network Level**:
+   - Project segmentation: services are isolated to their own project network by default; cross-project reach requires an explicit `egress:` declaration, and only ingress services join the shared `proxynet` (limits lateral movement — see [Networking → Network Segmentation](networking.md#4-network-segmentation-ingress--egress))
    - DNS honeypot detects malicious DNS queries
    - OpenSnitch monitors all container network traffic
    - iptables blocks unauthorized connections
