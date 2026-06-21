@@ -1,0 +1,12 @@
+last_analyzed_at: '2026-06-11T00:00:00Z'
+analyzed_by: telec-init
+files_analyzed: 25
+snippets_generated:
+  - project/design/network-segmentation
+  - project/spec/project-config
+  - project/design/artifact-generation
+  - project/design/deployment-orchestration
+  - project/spec/secrets-management
+  - project/spec/schema-migration
+  - project/spec/api-surface
+snippets_preserved: []

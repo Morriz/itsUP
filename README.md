@@ -40,6 +40,8 @@ Still interested? Then read on...
     - [3. Configure your installation](#3-configure-your-installation)
     - [4. Encrypt and commit secrets](#4-encrypt-and-commit-secrets)
     - [5. Deploy](#5-deploy)
+      - [Host DNS fallback (reboot resilience)](#host-dns-fallback-reboot-resilience)
+      - [Runtime logs](#runtime-logs)
     - [6. Monitor](#6-monitor)
   - [Configure services](#configure-services)
     - [Scenario 1: Adding an upstream service that will be deployed and managed](#scenario-1-adding-an-upstream-service-that-will-be-deployed-and-managed)
@@ -328,6 +330,7 @@ make clean             # Remove generated artifacts
 **For runtime operations** (run/dns/proxy/svc/monitor), use `itsup` commands instead. The Makefile is intentionally minimal to avoid command sprawl.
 
 **Background automation**
+
 - `itsup-bringup.service` (enabled): runs `itsup run && itsup apply` at boot; `itsup down --clean` on shutdown.
 - `itsup-apply.timer` (enabled): runs `itsup apply` nightly at 03:00 (systemd timer).
 - `itsup-backup.timer` (enabled): runs `bin/backup.py` nightly at 05:00 (systemd timer).
@@ -953,8 +956,8 @@ cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
 
 Add the secrets to GitHub:
 
-- `SERVER_HOST`: the hostname of this repo's api server
-- `SERVER_USERNAME`: the username that has access to your host's ssh server
+- `SSH_HOST`: the hostname of this repo's api server
+- `SSH_USERNAME`: the username that has access to your host's ssh server
 - `SSH_PRIVATE_KEY`: the private key of the user
 
 #### 5. Make sure port 1194 is portforwarding the UDP protocol.

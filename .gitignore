@@ -16,8 +16,12 @@ __pycache__
 /projects/
 /secrets/
 
-# Per-developer TeleClaude runtime state (todos DB, session caches, etc.)
+# TeleClaude stuff (todos DB, session caches, etc.)
 /.teleclaude/
+docs/**/index.yaml
+
+# Integration/worker git worktrees (operational, never tracked)
+/trees/
 
 *.local.json
 itsup.tar.gz
