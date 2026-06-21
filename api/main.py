@@ -47,6 +47,12 @@ def _handle_itsup_update() -> None:
             subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=".", check=True)
             info("Repository updated successfully")
 
+            # git reset bypasses the post-merge hook that installs requirements,
+            # so install explicitly — a dependency-adding update otherwise leaves
+            # the API importing a missing module on restart.
+            info("Installing dependencies")
+            subprocess.run([".venv/bin/pip", "install", "-q", "-r", "requirements-prod.txt"], check=True)
+
         # Deploy infrastructure stacks with smart rollout
         info("Deploying DNS stack...")
         deploy_dns_stack()
