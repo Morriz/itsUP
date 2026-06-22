@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,26 @@ from lib.migrations import (
 class TestMigrations(unittest.TestCase):
     """Tests for migration system"""
 
+    def setUp(self) -> None:
+        """Point the install root at a real temp tree via ITSUP_ROOT."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        (self.root / "pyproject.toml").write_text('[project]\nversion = "2.1.0"\n')
+        (self.root / "projects").mkdir()
+        self._prev_root = os.environ.get("ITSUP_ROOT")
+        os.environ["ITSUP_ROOT"] = str(self.root)
+
+    def tearDown(self) -> None:
+        if self._prev_root is None:
+            os.environ.pop("ITSUP_ROOT", None)
+        else:
+            os.environ["ITSUP_ROOT"] = self._prev_root
+        self._tmp.cleanup()
+
+    @property
+    def _itsup_file(self) -> Path:
+        return self.root / "projects" / "itsup.yml"
+
     def test_get_app_version(self) -> None:
         """Test getting app version from pyproject.toml"""
         version = get_app_version()
@@ -23,33 +44,26 @@ class TestMigrations(unittest.TestCase):
 
     def test_get_schema_version_missing_file(self) -> None:
         """Test getting schema version when file doesn't exist"""
-        with patch("lib.migrations.Path") as mock_path:
-            mock_path.return_value.exists.return_value = False
-            version = get_schema_version()
-            self.assertEqual(version, "1.0.0")  # Default
+        # No projects/itsup.yml under the temp root.
+        version = get_schema_version()
+        self.assertEqual(version, "1.0.0")  # Default
 
     def test_get_schema_version_missing_field(self) -> None:
         """Test getting schema version when field is missing"""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            itsup_file = Path(tmpdir) / "itsup.yml"
-            itsup_file.write_text("# Config without schemaVersion\nrouterIP: 192.168.1.1\n")
+        self._itsup_file.write_text("# Config without schemaVersion\nrouterIP: 192.168.1.1\n")
 
-            with patch("lib.migrations.Path", return_value=itsup_file):
-                version = get_schema_version()
-                self.assertEqual(version, "1.0.0")  # Default
+        version = get_schema_version()
+        self.assertEqual(version, "1.0.0")  # Default
 
     def test_set_schema_version(self) -> None:
         """Test setting schema version"""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            itsup_file = Path(tmpdir) / "itsup.yml"
-            itsup_file.write_text("schemaVersion: '1.0.0'\nrouterIP: 192.168.1.1\n")
+        self._itsup_file.write_text("schemaVersion: '1.0.0'\nrouterIP: 192.168.1.1\n")
 
-            with patch("lib.migrations.Path", return_value=itsup_file):
-                set_schema_version("2.1.0")
+        set_schema_version("2.1.0")
 
-            content = itsup_file.read_text()
-            self.assertIn("schemaVersion: '2.1.0'", content)
-            self.assertIn("routerIP: 192.168.1.1", content)
+        content = self._itsup_file.read_text()
+        self.assertIn("schemaVersion: '2.1.0'", content)
+        self.assertIn("routerIP: 192.168.1.1", content)
 
     @patch("lib.migrations.get_app_version")
     @patch("lib.migrations.get_schema_version")

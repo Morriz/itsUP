@@ -21,10 +21,16 @@ dynamic = ["dependencies", "optional-dependencies"]
 requires-python = ">=3.11"
 
 
+[project.scripts]
+itsup = "itsup.cli:main"
+
 [project.urls]
 homepage = "https://github.com/morriz/itsUP"
 "Source Code" = "https://github.com/morriz/itsUP"
 "Bug Tracker" = "https://github.com/morriz/itsUP/issues"
+
+[tool.setuptools.packages.find]
+include = ["itsup*", "lib*", "commands*", "api*", "bin*"]
 
 [tool.black]
 line-length = 120

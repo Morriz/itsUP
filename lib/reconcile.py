@@ -11,13 +11,11 @@ sufficient (a file lock would only matter under multiple worker processes).
 import logging
 import subprocess
 import threading
-from pathlib import Path
 
+from lib.paths import root
 from lib.sync import pull_repos
 
 logger = logging.getLogger(__name__)
-
-_ROOT = Path(__file__).resolve().parent.parent
 
 
 class ReconcileError(RuntimeError):
@@ -26,7 +24,7 @@ class ReconcileError(RuntimeError):
 
 def _pull_and_apply() -> None:
     """Pull both config repos, then apply the whole stack. Raises on failure."""
-    results = pull_repos(_ROOT)
+    results = pull_repos(root())
     failed = [name for name, ok in results.items() if not ok]
     if failed:
         raise ReconcileError(f"git pull failed for: {', '.join(failed)}")
@@ -34,7 +32,7 @@ def _pull_and_apply() -> None:
     # Shell to the CLI so the reconcile reuses apply's validation gate and
     # topological deploy ordering verbatim; there is no single Python entry
     # point that wraps both, and replicating them here would drift from `apply`.
-    subprocess.run([str(_ROOT / "bin" / "itsup"), "apply"], check=True)
+    subprocess.run([str(root() / "bin" / "itsup"), "apply"], check=True)
 
 
 class _Reconciler:

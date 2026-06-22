@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
@@ -18,6 +19,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 from click.testing import CliRunner
 
 from commands.validate import validate
+
+ALL_PROJECTS_VALID = "All projects valid"
+TEST_APP_VALID = "test-app: valid"
+ERROR = "error"
+SERVICE = "service"
+API = "api"
+INVALID_APP = "invalid-app"
+VALID = "valid"
+
+
+@pytest.fixture(autouse=True)
+def _itsup_root(tmp_path, monkeypatch):
+    """Resolve itsUP's install root to the per-test fixture tree."""
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
 
 
 def test_validate_all_projects_success(tmp_path, monkeypatch):
@@ -57,7 +72,7 @@ ingress:
     result = runner.invoke(validate, [])
 
     assert result.exit_code == 0
-    assert "All projects valid" in result.output
+    assert ALL_PROJECTS_VALID in result.output
 
 
 def test_validate_single_project_success(tmp_path, monkeypatch):
@@ -93,7 +108,7 @@ ingress:
     result = runner.invoke(validate, ["test-app"])
 
     assert result.exit_code == 0
-    assert "test-app: valid" in result.output
+    assert TEST_APP_VALID in result.output
 
 
 def test_validate_project_with_unknown_service(tmp_path, monkeypatch):
@@ -129,8 +144,8 @@ ingress:
     result = runner.invoke(validate, ["bad-app"])
 
     assert result.exit_code == 1
-    assert "error" in result.output.lower()
-    assert "api" in result.output or "service" in result.output.lower()
+    assert ERROR in result.output.lower()
+    assert API in result.output or SERVICE in result.output.lower()
 
 
 def test_validate_project_missing_compose(tmp_path, monkeypatch):
@@ -158,7 +173,7 @@ ingress:
     result = runner.invoke(validate, ["no-compose"])
 
     assert result.exit_code == 1
-    assert "error" in result.output.lower()
+    assert ERROR in result.output.lower()
 
 
 def test_validate_all_with_some_failures(tmp_path, monkeypatch):
@@ -206,8 +221,8 @@ ingress:
     result = runner.invoke(validate, [])
 
     assert result.exit_code == 1
-    assert "error" in result.output.lower()
-    assert "invalid-app" in result.output
+    assert ERROR in result.output.lower()
+    assert INVALID_APP in result.output
 
 
 def test_validate_no_projects_directory(tmp_path, monkeypatch):
@@ -232,4 +247,4 @@ def test_validate_empty_projects_directory(tmp_path, monkeypatch):
     result = runner.invoke(validate, [])
 
     assert result.exit_code == 0
-    assert "valid" in result.output.lower()
+    assert VALID in result.output.lower()

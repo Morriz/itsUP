@@ -1,6 +1,8 @@
 import os
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock
 
@@ -21,33 +23,30 @@ from lib.models import Ingress, TraefikConfig
 class TestDataV2(unittest.TestCase):
     """Tests for V2 API functions"""
 
+    def setUp(self) -> None:
+        """Point the install root at a real temp tree via ITSUP_ROOT."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        # pyproject.toml marks the tree as a valid install root (paths.root fail-closed).
+        (self.root / "pyproject.toml").write_text("[project]\n")
+        self._prev_root = os.environ.get("ITSUP_ROOT")
+        os.environ["ITSUP_ROOT"] = str(self.root)
+
+    def tearDown(self) -> None:
+        if self._prev_root is None:
+            os.environ.pop("ITSUP_ROOT", None)
+        else:
+            os.environ["ITSUP_ROOT"] = self._prev_root
+        self._tmp.cleanup()
+
     @mock.patch("lib.data.load_encrypted_env")
-    @mock.patch("lib.data.Path")
-    def test_load_secrets_with_files(self, mock_path: Mock, mock_load_env: Mock) -> None:
+    def test_load_secrets_with_files(self, mock_load_env: Mock) -> None:
         """Test loading secrets from files."""
-        # Mock Path behavior
-        mock_secrets_dir = Mock()
-        mock_path.return_value = mock_secrets_dir
-        mock_secrets_dir.exists.return_value = True
-
-        # Mock itsup.txt and project secret files
-        mock_global = Mock()
-        mock_global.name = "itsup.txt"
-        mock_global.exists.return_value = True
-
-        mock_project = Mock()
-        mock_project.name = "myproject.txt"
-        mock_project.exists.return_value = True
-
-        # Mock __truediv__ to return correct file mocks
-        def mock_truediv(_self: Mock, name: str) -> Mock:
-            if "itsup" in name:
-                return mock_global
-            if "myproject" in name:
-                return mock_project
-            return Mock(exists=Mock(return_value=False))
-
-        mock_secrets_dir.__truediv__ = mock_truediv
+        secrets_dir = self.root / "secrets"
+        secrets_dir.mkdir()
+        # Encrypted files exist on disk; load_encrypted_env is stubbed to supply values.
+        (secrets_dir / "itsup.enc.txt").write_text("")
+        (secrets_dir / "myproject.enc.txt").write_text("")
 
         # Test 1: Without project name, only itsup secrets loaded
         mock_load_env.return_value = {"GLOBAL_KEY": "global_value"}
@@ -63,49 +62,34 @@ class TestDataV2(unittest.TestCase):
         self.assertNotIn("GLOBAL_KEY", secrets)
 
     @mock.patch("lib.data.logger")
-    @mock.patch("lib.data.Path")
-    def test_load_secrets_no_directory(self, mock_path: Mock, mock_logger: Mock) -> None:
+    def test_load_secrets_no_directory(self, mock_logger: Mock) -> None:
         """Test loading secrets when directory doesn't exist."""
-        mock_secrets_dir = Mock()
-        mock_path.return_value = mock_secrets_dir
-        mock_secrets_dir.exists.return_value = False
-
+        # No secrets/ dir created under the temp root.
         secrets = load_secrets()
 
         self.assertEqual(secrets, {})
         # Verify warning was logged (but suppressed from output)
         mock_logger.warning.assert_called_once()
 
-    @mock.patch("lib.data.Path")
-    def test_list_projects_empty(self, mock_path: Mock) -> None:
+    def test_list_projects_empty(self) -> None:
         """Test listing projects when directory doesn't exist."""
-        mock_projects_dir = Mock()
-        mock_path.return_value = mock_projects_dir
-        mock_projects_dir.exists.return_value = False
-
+        # No projects/ dir created under the temp root.
         projects = list_projects()
 
         self.assertEqual(projects, [])
 
-    @mock.patch("lib.data.Path")
-    def test_list_projects_filters_hidden(self, mock_path: Mock) -> None:
+    def test_list_projects_filters_hidden(self) -> None:
         """Test that hidden directories are filtered out."""
-        mock_projects_dir = Mock()
-        mock_path.return_value = mock_projects_dir
-        mock_projects_dir.exists.return_value = True
+        projects_dir = self.root / "projects"
+        projects_dir.mkdir()
 
-        # Create mock project directories
-        mock_valid = Mock()
-        mock_valid.name = "valid_project"
-        mock_valid.is_dir.return_value = True
-        mock_valid.__truediv__ = lambda self, name: Mock(exists=lambda: True)
+        valid = projects_dir / "valid_project"
+        valid.mkdir()
+        (valid / "docker-compose.yml").write_text("")
 
-        mock_hidden = Mock()
-        mock_hidden.name = ".git"
-        mock_hidden.is_dir.return_value = True
-        mock_hidden.__truediv__ = lambda self, name: Mock(exists=lambda: True)
-
-        mock_projects_dir.iterdir.return_value = [mock_valid, mock_hidden]
+        hidden = projects_dir / ".git"
+        hidden.mkdir()
+        (hidden / "docker-compose.yml").write_text("")
 
         projects = list_projects()
 

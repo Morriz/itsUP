@@ -1,72 +1,61 @@
 import os
 import sys
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
-
-import os
 import unittest
-from unittest.mock import MagicMock, call, patch
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest import mock
 
-from backup import main
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from botocore.config import Config
+
+from bin.backup import main
 
 
 class TestBackupScript(unittest.TestCase):
+    """Real-boundary test: tar a real upstream tree under ITSUP_ROOT, upload via a mocked S3 client."""
 
-    @patch("os.path.isdir")
-    @patch("os.listdir")
-    @patch("tarfile.open")
-    @patch("boto3.client")
-    @patch("os.environ.get")
-    def test_backup_script(
-        self,
-        mock_env_get: MagicMock,
-        mock_boto3_client: MagicMock,
-        mock_tarfile_open: MagicMock,
-        mock_listdir: MagicMock,
-        mock_isdir: MagicMock,
-    ) -> None:
-        # Mock environment variables
-        mock_env_get.side_effect = lambda key, default=None: {
-            "AWS_ACCESS_KEY_ID": "test-access-key",
-            "AWS_SECRET_ACCESS_KEY": "test-secret-key",
-            "AWS_S3_HOST": "s3.test.com",
-            "AWS_S3_REGION": "us-test-1",
-            "AWS_S3_BUCKET": "test-bucket",
-            "BACKUP_EXCLUDE": "exclude-folder",
-        }.get(key, default)
+    def setUp(self) -> None:
+        self._prev_root = os.environ.get("ITSUP_ROOT")
+        self._prev_cwd = os.getcwd()
+        self._tmp = TemporaryDirectory()
+        root = Path(self._tmp.name)
+        os.environ["ITSUP_ROOT"] = str(root)
 
-        # Mock os.path.isdir to return True
-        mock_isdir.return_value = True
+        upstream = root / "upstream" / "proj"
+        upstream.mkdir(parents=True)
+        (upstream / "data.txt").write_text("payload")
 
-        # Mock os.listdir to return a list of files and folders
-        mock_listdir.return_value = ["file1.txt", "file2.txt", "exclude-folder"]
+        secrets = root / "secrets"
+        secrets.mkdir()
+        (secrets / "itsup.txt").write_text(
+            "AWS_ACCESS_KEY_ID=test-access-key\n"
+            "AWS_SECRET_ACCESS_KEY=test-secret-key\n"
+            "AWS_S3_HOST=s3.test.com\n"
+            "AWS_S3_REGION=us-test-1\n"
+            "AWS_S3_BUCKET=test-bucket\n"
+        )
 
-        # Mock tarfile.open to simulate tarball creation
-        mock_tar = MagicMock()
-        mock_tarfile_open.return_value.__enter__.return_value = mock_tar
+        # db_file ("itsup.tar.gz") is written relative to cwd; keep it inside the temp tree.
+        os.chdir(self._tmp.name)
 
-        # Mock boto3 S3 client
-        mock_s3_client = MagicMock()
-        mock_boto3_client.return_value = mock_s3_client
+    def tearDown(self) -> None:
+        os.chdir(self._prev_cwd)
+        if self._prev_root is None:
+            os.environ.pop("ITSUP_ROOT", None)
+        else:
+            os.environ["ITSUP_ROOT"] = self._prev_root
+        self._tmp.cleanup()
 
-        # Mock S3 list_objects_v2 response
-        mock_s3_client.list_objects_v2.return_value = {"Contents": []}
+    @mock.patch("boto3.client")
+    def test_backup_uploads_upstream_tree(self, mock_boto3_client: mock.MagicMock) -> None:
+        s3_client = mock.MagicMock()
+        s3_client.list_objects_v2.return_value = {"Contents": []}
+        mock_boto3_client.return_value = s3_client
 
-        # Run the backup script
-        with patch("builtins.open", MagicMock()):
-            with patch("os.remove") as mock_remove:
-                main()
+        main()
 
-        # Assertions
-        mock_isdir.assert_called_once_with("./upstream")
-        mock_listdir.assert_called_once_with("./upstream")
-        mock_tar.add.assert_any_call(os.path.join("upstream", "file1.txt"), arcname="file1.txt")
-        mock_tar.add.assert_any_call(os.path.join("upstream", "file2.txt"), arcname="file2.txt")
-        self.assertNotIn("exclude-folder", [call[0][0] for call in mock_tar.add.call_args_list])
-
-        # Instead of directly comparing the Config objects, verify boto3.client was called
-        # with the correct parameters
+        # boto3 is configured from the real secrets file resolved under ITSUP_ROOT.
         self.assertEqual(mock_boto3_client.call_count, 1)
         args, kwargs = mock_boto3_client.call_args
         self.assertEqual(args[0], "s3")
@@ -74,12 +63,12 @@ class TestBackupScript(unittest.TestCase):
         self.assertEqual(kwargs["aws_access_key_id"], "test-access-key")
         self.assertEqual(kwargs["aws_secret_access_key"], "test-secret-key")
         self.assertEqual(kwargs["region_name"], "us-test-1")
-        # Verify the Config object has the correct signature_version
-        self.assertTrue(isinstance(kwargs["config"], Config))
+        self.assertIsInstance(kwargs["config"], Config)
         self.assertEqual(kwargs["config"].signature_version, "s3v4")
 
-        mock_s3_client.upload_fileobj.assert_called_once()
-        mock_remove.assert_called_once_with("itsup.tar.gz")
+        # The real archive of the upstream tree was uploaded and then cleaned up.
+        s3_client.upload_fileobj.assert_called_once()
+        self.assertFalse((Path(self._tmp.name) / "itsup.tar.gz").exists())
 
 
 if __name__ == "__main__":

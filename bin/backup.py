@@ -12,6 +12,7 @@ from botocore.client import Config
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib.data import load_itsup_config, load_secrets
+from lib.paths import root
 
 
 def main() -> None:
@@ -19,7 +20,8 @@ def main() -> None:
     db_file = "itsup.tar.gz"
 
     # Check if upstream directory exists
-    if not os.path.isdir("./upstream"):
+    upstream_dir = root() / "upstream"
+    if not os.path.isdir(upstream_dir):
         print("Error: './upstream' directory not found.")
         sys.exit(1)
 
@@ -58,10 +60,10 @@ def main() -> None:
     print(f"Creating backup archive: {db_file}")
     with tarfile.open(db_file, "w:gz") as tar:
         # Add each file/directory from upstream, skipping excluded folders
-        for item in os.listdir("./upstream"):
+        for item in os.listdir(upstream_dir):
             item_name = os.path.basename(item)
             if item_name not in excluded_folders:
-                item_path = os.path.join("upstream", item)
+                item_path = os.path.join(str(upstream_dir), item)
                 print(f"Adding to tarball: {item_path}")
                 _add_robust(tar, item_path, item)
 

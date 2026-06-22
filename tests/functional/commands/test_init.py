@@ -7,13 +7,9 @@ Tests project initialization, repo cloning, sample file copying.
 Uses REAL file operations and git.
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
@@ -21,22 +17,25 @@ from click.testing import CliRunner
 
 from commands.init import init
 
+MUST_BE_RUN_FROM_ROOT = "Must be run from itsUP project root"
+PROJECTS_ALREADY_EXISTS = "projects/ already exists"
+SECRETS_ALREADY_EXISTS = "secrets/ already exists"
+ENV_VAR_LINE = "ENV_VAR=test_value"
+ENV_ALREADY_EXISTS = ".env already exists"
+EXISTING_ENV_CONTENT = "EXISTING=value"
 
-def test_init_validates_project_structure(tmp_path):
+
+def test_init_validates_project_structure(tmp_path, monkeypatch):
     """Test that init validates it's run from correct directory."""
-    # Create commands directory but missing required files
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.init.__file__", str(commands_dir / "init.py")):
-        runner = CliRunner()
-        result = runner.invoke(init, [])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(init, [])
 
     assert result.exit_code == 1
-    assert "Must be run from itsUP project root" in result.output
+    assert MUST_BE_RUN_FROM_ROOT in result.output
 
 
-def test_init_with_existing_projects_and_secrets(tmp_path):
+def test_init_with_existing_projects_and_secrets(tmp_path, monkeypatch):
     """Test init when projects/ and secrets/ already exist."""
     # Create full project structure
     bin_dir = tmp_path / "bin"
@@ -56,20 +55,17 @@ def test_init_with_existing_projects_and_secrets(tmp_path):
     secrets_dir.mkdir()
     subprocess.run(["git", "init"], cwd=secrets_dir, check=True, capture_output=True)
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.init.__file__", str(commands_dir / "init.py")):
-        runner = CliRunner()
-        # Use input to simulate user pressing enter for all prompts
-        result = runner.invoke(init, input="\n\n\n")
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    # Use input to simulate user pressing enter for all prompts
+    result = runner.invoke(init, input="\n\n\n")
 
     assert result.exit_code == 0
-    assert "projects/ already exists" in result.output
-    assert "secrets/ already exists" in result.output
+    assert PROJECTS_ALREADY_EXISTS in result.output
+    assert SECRETS_ALREADY_EXISTS in result.output
 
 
-def test_init_creates_env_file_from_sample(tmp_path):
+def test_init_creates_env_file_from_sample(tmp_path, monkeypatch):
     """Test that init copies samples/env to .env if missing."""
     # Create full project structure
     bin_dir = tmp_path / "bin"
@@ -89,22 +85,19 @@ def test_init_creates_env_file_from_sample(tmp_path):
     secrets_dir.mkdir()
     subprocess.run(["git", "init"], cwd=secrets_dir, check=True, capture_output=True)
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.init.__file__", str(commands_dir / "init.py")):
-        runner = CliRunner()
-        result = runner.invoke(init, input="\n\n\n")
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(init, input="\n\n\n")
 
     assert result.exit_code == 0
 
     # Verify .env was created
     env_file = tmp_path / ".env"
     assert env_file.exists()
-    assert "ENV_VAR=test_value" in env_file.read_text()
+    assert ENV_VAR_LINE in env_file.read_text()
 
 
-def test_init_skips_existing_env_file(tmp_path):
+def test_init_skips_existing_env_file(tmp_path, monkeypatch):
     """Test that init doesn't overwrite existing .env file."""
     # Create full project structure
     bin_dir = tmp_path / "bin"
@@ -128,15 +121,12 @@ def test_init_skips_existing_env_file(tmp_path):
     secrets_dir.mkdir()
     subprocess.run(["git", "init"], cwd=secrets_dir, check=True, capture_output=True)
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.init.__file__", str(commands_dir / "init.py")):
-        runner = CliRunner()
-        result = runner.invoke(init, input="\n\n\n")
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(init, input="\n\n\n")
 
     assert result.exit_code == 0
 
     # Verify .env was NOT overwritten
-    assert env_file.read_text() == "EXISTING=value"
-    assert ".env already exists" in result.output
+    assert env_file.read_text() == EXISTING_ENV_CONTENT
+    assert ENV_ALREADY_EXISTS in result.output

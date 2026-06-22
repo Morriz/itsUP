@@ -23,6 +23,7 @@ from dotenv import dotenv_values
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib.logging_config import setup_logging
+from lib.paths import root
 
 logger = logging.getLogger(__name__)
 
@@ -343,7 +344,7 @@ def main():
     setup_logging()
 
     # Validate prerequisites
-    upstream_dir = Path("upstream")
+    upstream_dir = root() / "upstream"
     if not upstream_dir.exists():
         logger.error("upstream/ directory not found")
         return 1
@@ -353,12 +354,12 @@ def main():
         logger.error("db.yml not found")
         return 1
 
-    projects_dir = Path("projects")
+    projects_dir = root() / "projects"
     if not projects_dir.exists():
         logger.error("projects/ directory not found - run 'itsup init' first")
         return 1
 
-    secrets_dir = Path("secrets")
+    secrets_dir = root() / "secrets"
     if not secrets_dir.exists():
         logger.error("secrets/ directory not found - run 'itsup init' first")
         return 1

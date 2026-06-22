@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from lib.auth import verify_apikey
 from lib.data import list_projects
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack
+from lib.paths import root
 from lib.reconcile import reconcile
 
 dotenv.load_dotenv()
@@ -30,7 +31,7 @@ def _handle_update_upstream(project: str, service: str = None) -> None:
     try:
         info(f"Updating {project} via webhook...")
         # Use the CLI command which has all the logic
-        subprocess.run(["bin/itsup", "apply", project], check=True)
+        subprocess.run([str(root() / "bin" / "itsup"), "apply", project], check=True)
         info(f"✓ {project} updated successfully")
     except subprocess.CalledProcessError as e:
         info(f"✗ Failed to update {project}: {e}")
@@ -43,15 +44,18 @@ def _handle_itsup_update() -> None:
         # Update repository
         if os.environ.get("PYTHON_ENV") == "production":
             info("Updating repository from origin/main")
-            subprocess.run(["git", "fetch", "origin", "main"], cwd=".", check=True)
-            subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=".", check=True)
+            subprocess.run(["git", "fetch", "origin", "main"], cwd=str(root()), check=True)
+            subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=str(root()), check=True)
             info("Repository updated successfully")
 
             # git reset bypasses the post-merge hook that installs requirements,
             # so install explicitly — a dependency-adding update otherwise leaves
             # the API importing a missing module on restart.
             info("Installing dependencies")
-            subprocess.run([".venv/bin/pip", "install", "-q", "-r", "requirements-prod.txt"], check=True)
+            subprocess.run(
+                [str(root() / ".venv" / "bin" / "pip"), "install", "-q", "-r", str(root() / "requirements-prod.txt")],
+                check=True,
+            )
 
         # Deploy infrastructure stacks with smart rollout
         info("Deploying DNS stack...")
@@ -62,11 +66,11 @@ def _handle_itsup_update() -> None:
 
         # Apply all upstream project changes
         info("Deploying all upstream projects...")
-        subprocess.run(["bin/itsup", "apply"], check=True)
+        subprocess.run([str(root() / "bin" / "itsup"), "apply"], check=True)
 
         # Restart API to pick up new code
         info("Restarting API server")
-        subprocess.run(["./bin/start-api.sh"], check=True)
+        subprocess.run([str(root() / "bin" / "start-api.sh")], check=True)
 
     except Exception as e:
         info(f"✗ Failed to update itsUP: {e}")

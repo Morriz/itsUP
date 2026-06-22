@@ -8,9 +8,10 @@ Compare encrypted SOPS files to show meaningful diffs of secret changes.
 
 import subprocess
 import sys
-from pathlib import Path
 
 import click
+
+from lib.paths import root as install_root
 
 
 class Colors:
@@ -78,8 +79,8 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
 
     # No arguments: iterate over all encrypted files in secrets/
     if not file1:
-        root = Path(__file__).resolve().parent.parent
-        secrets_dir = root / "secrets"
+        repo_root = install_root()
+        secrets_dir = repo_root / "secrets"
 
         if not secrets_dir.exists():
             click.echo(f"{Colors.RED}✗{Colors.NC} secrets/ directory not found", err=True)
@@ -94,7 +95,7 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
         has_changes = False
         for enc_file in encrypted_files:
             # Show diff vs git HEAD
-            rel_path = enc_file.relative_to(root)
+            rel_path = enc_file.relative_to(repo_root)
 
             # Check if file exists in git HEAD of secrets repo
             check_in_git = subprocess.run(
@@ -164,9 +165,9 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
             sys.exit(1)
 
         # Validate files exist
-        root = Path(__file__).resolve().parent.parent
-        f1 = root / file1
-        f2 = root / file2
+        repo_root = install_root()
+        f1 = repo_root / file1
+        f2 = repo_root / file2
 
         if not f1.exists():
             click.echo(f"{Colors.RED}✗{Colors.NC} File not found: {file1}", err=True)

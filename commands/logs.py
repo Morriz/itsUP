@@ -3,17 +3,14 @@
 """Follow log files with smart formatting"""
 
 import logging
-import os
 import subprocess
 import sys
-from pathlib import Path
 
 import click
 
-logger = logging.getLogger(__name__)
+from lib.paths import root
 
-LOGS_DIR = Path("logs")
-FORMAT_LOGS_SCRIPT = Path("bin/format-logs.py")
+logger = logging.getLogger(__name__)
 
 # Logs that contain JSON and need formatting
 JSON_LOGS = {"access"}
@@ -21,11 +18,12 @@ JSON_LOGS = {"access"}
 
 def get_available_logs():
     """Get list of available log files (without .log extension)."""
-    if not LOGS_DIR.exists():
+    logs_dir = root() / "logs"
+    if not logs_dir.exists():
         return []
 
     logs = []
-    for log_file in LOGS_DIR.glob("*.log"):
+    for log_file in logs_dir.glob("*.log"):
         if log_file.name.endswith(".log") and not log_file.name.endswith((".log.1", ".log.2")):
             log_name = log_file.stem  # Remove .log extension
             logs.append(log_name)
@@ -77,7 +75,8 @@ def logs(names, lines):
             sys.exit(1)
 
     # Build list of log files
-    log_files = [str(LOGS_DIR / f"{name}.log") for name in log_names]
+    logs_dir = root() / "logs"
+    log_files = [str(logs_dir / f"{name}.log") for name in log_names]
 
     # Determine if we need formatting (if any JSON logs are included)
     needs_formatting = any(name in JSON_LOGS for name in log_names)
@@ -90,7 +89,7 @@ def logs(names, lines):
             if len(log_files) > 1:
                 tail_args.insert(0, "-q")
             tail_cmd = ["tail"] + tail_args + log_files
-            format_cmd = [str(FORMAT_LOGS_SCRIPT)]
+            format_cmd = [str(root() / "bin" / "format-logs.py")]
 
             logger.debug(f"Running: {' '.join(tail_cmd)} | {' '.join(format_cmd)}")
 

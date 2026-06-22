@@ -11,6 +11,7 @@ import click
 
 from commands.common import complete_docker_compose_command, complete_project
 from lib.data import get_env_with_secrets, list_projects
+from lib.paths import root
 from lib.version_check import check_schema_version
 
 logger = logging.getLogger(__name__)
@@ -18,10 +19,17 @@ logger = logging.getLogger(__name__)
 
 @click.command(context_settings=dict(ignore_unknown_options=True, allow_interspersed_args=False))
 @click.argument("project", shell_complete=complete_project)
-@click.argument("command", nargs=-1, required=True, type=click.UNPROCESSED,
-                shell_complete=complete_docker_compose_command("upstream/{project}/docker-compose.yml",
-                                                                args_param_name="command",
-                                                                project_param_name="project"))
+@click.argument(
+    "command",
+    nargs=-1,
+    required=True,
+    type=click.UNPROCESSED,
+    shell_complete=complete_docker_compose_command(
+        str(root() / "upstream" / "{project}" / "docker-compose.yml"),
+        args_param_name="command",
+        project_param_name="project",
+    ),
+)
 def svc(project, command):
     """
     🔧 Service operations PROJECT COMMAND... (docker compose passthrough)
@@ -52,7 +60,7 @@ def svc(project, command):
         sys.exit(1)
 
     # Run docker compose (no sync)
-    upstream_dir = f"upstream/{project}"
+    upstream_dir = str(root() / "upstream" / project)
     compose_file = f"{upstream_dir}/docker-compose.yml"
 
     # Auto-add -d flag for 'up' command (V1 compatibility)

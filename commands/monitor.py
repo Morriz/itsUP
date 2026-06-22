@@ -8,6 +8,8 @@ import sys
 
 import click
 
+from lib.paths import root
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,7 +61,7 @@ def start(skip_sync, report_only, use_opensnitch):
 
     try:
         env = {"FLAGS": flags_str} if flags else {}
-        subprocess.run(["./bin/start-monitor.sh"], env={**subprocess.os.environ, **env}, check=True)
+        subprocess.run([str(root() / "bin" / "start-monitor.sh")], env={**subprocess.os.environ, **env}, check=True)
     except subprocess.CalledProcessError as e:
         logger.error("Failed to start monitor")
         sys.exit(e.returncode)
@@ -102,7 +104,7 @@ def logs():
         itsup monitor logs
     """
     try:
-        subprocess.run(["tail", "-f", "logs/monitor.log"], check=True)
+        subprocess.run(["tail", "-f", str(root() / "logs" / "monitor.log")], check=True)
     except subprocess.CalledProcessError as e:
         logger.error("Failed to tail monitor logs")
         sys.exit(e.returncode)
@@ -125,7 +127,7 @@ def cleanup():
     logger.info("Running cleanup mode...")
 
     try:
-        subprocess.run(["sudo", "python3", "bin/monitor.py", "--cleanup"], check=True)
+        subprocess.run(["sudo", "python3", str(root() / "bin" / "monitor.py"), "--cleanup"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error("Failed to run cleanup")
         sys.exit(e.returncode)
@@ -145,7 +147,7 @@ def clear_iptables():
     logger.info("Clearing iptables rules created by monitor...")
 
     try:
-        subprocess.run(["sudo", "python3", "bin/monitor.py", "--clear-iptables"], check=True)
+        subprocess.run(["sudo", "python3", str(root() / "bin" / "monitor.py"), "--clear-iptables"], check=True)
     except subprocess.CalledProcessError as e:
         logger.error("Failed to clear iptables rules")
         sys.exit(e.returncode)
@@ -165,7 +167,7 @@ def report():
     logger.info("Generating threat intelligence report...")
 
     try:
-        subprocess.run(["python3", "bin/analyze_threats.py"], check=True)
+        subprocess.run(["python3", str(root() / "bin" / "analyze_threats.py")], check=True)
     except subprocess.CalledProcessError as e:
         logger.error("Failed to generate report")
         sys.exit(e.returncode)

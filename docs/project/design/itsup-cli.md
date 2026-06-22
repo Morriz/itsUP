@@ -1,12 +1,13 @@
 ---
-id: 'project/design/itsup-cli'
-type: 'design'
-scope: 'project'
-description: 'How the itsup CLI is distributed and invoked — a packaged console-script run with the venv interpreter intrinsically, resolving its install root from ITSUP_ROOT rather than cwd, exposed globally on PATH, so no caller sources env.sh at runtime.'
+id: project/design/itsup-cli
+type: design
+scope: project
+description: How the itsup CLI is distributed and invoked — a packaged console-script
+  run with the venv interpreter intrinsically, resolving its install root from ITSUP_ROOT
+  rather than cwd, exposed globally on PATH, so no caller sources env.sh at runtime.
 delivered_by:
-  - itsup-cli-package
-  - itsup-cli-install-desource
-  - itsup-cli-deprecate-env
+- itsup-cli-install-desource
+- itsup-cli-deprecate-env
 ---
 
 # itsUP CLI Distribution — Design

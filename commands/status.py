@@ -12,6 +12,8 @@ from pathlib import Path
 
 import click
 
+from lib.paths import root as install_root
+
 
 class Colors:
     """ANSI color codes for terminal output"""
@@ -68,11 +70,11 @@ def status():
     click.echo()
 
     # Get project root
-    root = Path(__file__).resolve().parent.parent
+    repo_root = install_root()
 
     # Check both repos
-    projects_clean = _run_git_status(root / "projects", "projects")
-    secrets_clean = _run_git_status(root / "secrets", "secrets")
+    projects_clean = _run_git_status(repo_root / "projects", "projects")
+    secrets_clean = _run_git_status(repo_root / "secrets", "secrets")
 
     # Summary
     if projects_clean and secrets_clean:

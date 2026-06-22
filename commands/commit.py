@@ -12,6 +12,8 @@ from pathlib import Path
 
 import click
 
+from lib.paths import root as install_root
+
 
 class Colors:
     """ANSI color codes for terminal output"""
@@ -94,10 +96,10 @@ def commit(force):
         itsup commit -f       # Force commit, skip encryption prompts
     """
     # Get project root
-    root = Path(__file__).resolve().parent.parent
+    repo_root = install_root()
 
-    projects_path = root / "projects"
-    secrets_path = root / "secrets"
+    projects_path = repo_root / "projects"
+    secrets_path = repo_root / "secrets"
 
     # Check for changes
     projects_dirty = _has_changes(projects_path)
@@ -142,7 +144,7 @@ def commit(force):
                     click.echo("Encrypting secrets...")
                     # Run itsup encrypt --delete
                     try:
-                        subprocess.run(["bin/itsup", "encrypt", "--delete"], check=True)
+                        subprocess.run([str(repo_root / "bin" / "itsup"), "encrypt", "--delete"], check=True)
                         click.echo(f"{Colors.GREEN}✓{Colors.NC} Secrets encrypted and plaintext removed")
                         click.echo()
                     except subprocess.CalledProcessError as e:

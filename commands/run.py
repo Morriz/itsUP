@@ -10,6 +10,7 @@ import click
 
 from bin.write_artifacts import write_proxy_artifacts
 from lib.data import get_env_with_secrets
+from lib.paths import root
 from lib.version_check import check_schema_version
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,9 @@ def run():
     try:
         # No --pull at boot: the Pi's own DNS may not be working yet (chicken-and-egg
         # with AdGuard). Use cached images. Pulls happen via itsup-apply.timer / manual apply.
-        subprocess.run(["docker", "compose", "-f", "dns/docker-compose.yml", "up", "-d"], env=env, check=True)
+        subprocess.run(
+            ["docker", "compose", "-f", str(root() / "dns" / "docker-compose.yml"), "up", "-d"], env=env, check=True
+        )
         logger.info("  ✓ DNS stack started")
     except subprocess.CalledProcessError as e:
         logger.error("  ✗ Failed to start DNS stack")
@@ -67,7 +70,9 @@ def run():
     # Step 2: Start proxy stack
     logger.info("  🔀 Starting proxy stack...")
     try:
-        subprocess.run(["docker", "compose", "-f", "proxy/docker-compose.yml", "up", "-d"], env=env, check=True)
+        subprocess.run(
+            ["docker", "compose", "-f", str(root() / "proxy" / "docker-compose.yml"), "up", "-d"], env=env, check=True
+        )
         logger.info("  ✓ Proxy stack started")
     except subprocess.CalledProcessError as e:
         logger.error("  ✗ Failed to start proxy stack")
@@ -76,7 +81,7 @@ def run():
     # Step 3: Start API server
     logger.info("  🌐 Starting API server...")
     try:
-        subprocess.run(["./bin/start-api.sh"], check=True)
+        subprocess.run([str(root() / "bin" / "start-api.sh")], check=True)
         logger.info("  ✓ API server started")
     except subprocess.CalledProcessError as e:
         logger.error("  ✗ Failed to start API server")
@@ -85,7 +90,7 @@ def run():
     # Step 4: Start container security monitor (report-only mode)
     logger.info("  🛡️  Starting container security monitor (report-only mode)...")
     try:
-        subprocess.run(["./bin/start-monitor.sh", "--report-only"], check=True)
+        subprocess.run([str(root() / "bin" / "start-monitor.sh"), "--report-only"], check=True)
         logger.info("  ✓ Monitor started in report-only mode")
     except subprocess.CalledProcessError as e:
         logger.error("  ✗ Failed to start monitor")

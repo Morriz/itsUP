@@ -5,18 +5,18 @@
 import logging
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 
 import click
 
 from lib.data import get_env_with_secrets, list_projects
+from lib.paths import root
 
 logger = logging.getLogger(__name__)
 
 
 def _stop_project(project: str) -> tuple[str, bool, str]:
     """Stop a single project. Returns (project, success, error_msg)"""
-    compose_file = Path("upstream") / project / "docker-compose.yml"
+    compose_file = root() / "upstream" / project / "docker-compose.yml"
     if not compose_file.exists():
         return (project, True, "No docker-compose.yml")
 
@@ -93,7 +93,9 @@ def down(clean: bool):
     logger.info("  🔀 Stopping proxy stack...")
     env = get_env_with_secrets()
     try:
-        subprocess.run(["docker", "compose", "-f", "proxy/docker-compose.yml", "down"], env=env, check=True)
+        subprocess.run(
+            ["docker", "compose", "-f", str(root() / "proxy" / "docker-compose.yml"), "down"], env=env, check=True
+        )
         logger.info("  ✓ Proxy stack stopped")
     except subprocess.CalledProcessError:
         logger.error("  ✗ Failed to stop proxy stack")
@@ -101,7 +103,9 @@ def down(clean: bool):
     # Step 5: Stop DNS stack
     logger.info("  📡 Stopping DNS stack...")
     try:
-        subprocess.run(["docker", "compose", "-f", "dns/docker-compose.yml", "down"], env=env, check=True)
+        subprocess.run(
+            ["docker", "compose", "-f", str(root() / "dns" / "docker-compose.yml"), "down"], env=env, check=True
+        )
         logger.info("  ✓ DNS stack stopped")
     except subprocess.CalledProcessError:
         logger.error("  ✗ Failed to stop DNS stack")
@@ -115,7 +119,7 @@ def down(clean: bool):
 
         def _cleanup_project(project: str) -> tuple[str, bool]:
             """Clean up a single project. Returns (project, success)"""
-            compose_file = Path("upstream") / project / "docker-compose.yml"
+            compose_file = root() / "upstream" / project / "docker-compose.yml"
             if not compose_file.exists():
                 return (project, True)
 
@@ -133,7 +137,7 @@ def down(clean: bool):
             env = get_env_with_secrets()
             try:
                 subprocess.run(
-                    ["docker", "compose", "-f", f"{stack}/docker-compose.yml", "rm", "-f"],
+                    ["docker", "compose", "-f", str(root() / stack / "docker-compose.yml"), "rm", "-f"],
                     env=env,
                     check=True,
                     capture_output=True,
