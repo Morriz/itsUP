@@ -1,10 +1,5 @@
 ---
-id: 'project/design/network-segmentation'
-type: 'design'
-scope: 'project'
 description: 'How itsUP assigns Docker networks to upstream services from ingress/egress declarations — the three network states, the project:service egress contract, validation, deploy ordering, and the lateral-movement threat model it defends.'
-generated_by: 'telec-init'
-generated_at: '2026-06-10 00:00:00+00:00'
 ---
 
 # Network Segmentation — Design
@@ -161,6 +156,4 @@ logs the `NXDOMAIN`).
 
 ## See Also
 
-- docs/networking.md
-- docs/security.md
-- docs/architecture.md
+- docs/project/design/security-architecture.md

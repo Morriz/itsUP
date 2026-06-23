@@ -1,10 +1,5 @@
 ---
-id: 'project/spec/schema-migration'
-type: 'spec'
-scope: 'project'
 description: 'How itsUP versions and migrates project configuration — schemaVersion in itsup.yml vs the app version, ordered fixers, the blocking pre-command check, and dry-run/list.'
-generated_by: 'telec-init'
-generated_at: '2026-06-11 00:00:00+00:00'
 ---
 
 # Schema Migration — Spec
@@ -62,5 +57,4 @@ Currently one: `rename_ingress` — renames `projects/{p}/ingress.yml` →
 
 ## See Also
 
-- docs/development/configuration.md
 - docs/project/design/network-segmentation.md

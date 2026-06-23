@@ -1,10 +1,5 @@
 ---
-id: 'project/spec/api-surface'
-type: 'spec'
-scope: 'project'
 description: 'The itsUP management REST API — apikey-guarded webhook endpoints that trigger deploys (including a production self-update that hard-resets to origin/main) and list projects.'
-generated_by: 'telec-init'
-generated_at: '2026-06-11 00:00:00+00:00'
 ---
 
 # API Surface — Spec
@@ -55,5 +50,4 @@ production (`:119-130`). OpenAPI schema is extractable via
 
 ## See Also
 
-- docs/stacks/api.md
 - docs/project/design/deployment-orchestration.md

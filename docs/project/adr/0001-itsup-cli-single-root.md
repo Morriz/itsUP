@@ -1,7 +1,4 @@
 ---
-id: 'project/adr/0001-itsup-cli-single-root'
-type: 'adr'
-scope: 'project'
 description: 'itsup binds to one install root via ITSUP_ROOT rather than selecting a project from the current directory, because itsUP orchestrates exactly one host stack.'
 date: '2026-06-22'
 number: 1

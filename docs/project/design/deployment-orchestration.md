@@ -1,10 +1,5 @@
 ---
-id: 'project/design/deployment-orchestration'
-type: 'design'
-scope: 'project'
 description: 'How itsUP deploys generated artifacts — zero-downtime rollout via the docker-rollout plugin, volume-inferred statelessness, config-hash change detection, and the apply/run/down stack orchestration with egress-topological ordering.'
-generated_by: 'telec-init'
-generated_at: '2026-06-11 00:00:00+00:00'
 ---
 
 # Deployment & Orchestration — Design
@@ -94,4 +89,3 @@ containers.
 
 - docs/project/design/artifact-generation.md
 - docs/project/spec/secrets-management.md
-- docs/operations/deployment.md
