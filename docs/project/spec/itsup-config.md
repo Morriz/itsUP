@@ -51,8 +51,7 @@ sample is `samples/projects/itsup.yml`):
 | `crowdsec.enabled` | bool | no (default `False`) | `write_artifacts.py:454`; `tpl/docker-compose.yml.j2:50,66` | Gates the CrowdSec service + bouncer middleware. When false, no `crowdsec` container is generated and the bouncer block is omitted. |
 | `crowdsec.apikey` | str | no (default `""`) | `write_artifacts.py:455`; `tpl/middlewares.yml.j2:43` | LAPI key injected into the bouncer middleware (`crowdsecLapiKey`). Typically `${CROWDSEC_APIKEY}`. |
 | `crowdsec.collections` | str[] | no | `tpl/docker-compose.yml.j2:82` | CrowdSec collections; space-joined into the container's `COLLECTIONS` env. |
-| `backup` | map | no | `bin/backup.py:30` | Backup settings read by `bin/backup.py`. |
-| `backup.exclude` | str[] | no (default `[]`) | `bin/backup.py:31,65` | Project folder names skipped when archiving `upstream/` to S3. |
+| `backup` | map | no | `samples/projects/itsup.yml` | Documentary holder for the S3 endpoint settings below; the live S3 credentials are read from `secrets/itsup.{enc.txt\|txt}`, not from this map. Live-tar exclusions are not configured here — each project declares its own `projects/<name>/backup.yml` (adapter + exclude paths; see `project/design/backup-restore`). |
 | `backup.s3.host` | str | no | `samples/projects/itsup.yml` | S3 endpoint host (typically `${AWS_S3_HOST}`). |
 | `backup.s3.region` | str | no | `samples/projects/itsup.yml` | S3 region (typically `${AWS_S3_REGION}`). |
 | `backup.s3.bucket` | str | no | `samples/projects/itsup.yml` | Target bucket (typically `${AWS_S3_BUCKET}`). |

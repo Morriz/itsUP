@@ -175,6 +175,25 @@ class Project(BaseModel):
 # V2 Models for projects/ structure
 
 
+class BackupConfig(BaseModel):
+    """Per-project backup registry entry (projects/<name>/backup.yml).
+
+    Travels with the project, decoupled from the ephemeral upstream/ tree. Drives
+    both adapter dispatch and the derived live-tar exclusion.
+    """
+
+    adapter: str | None = None
+    """The adapter that backs this project. When set, an adapter script supplies a
+    consistent logical dump and its inverse restore. Resolved project-local first
+    (projects/<name>/backup-adapter.sh), then from the shared set
+    (bin/backup-adapters/<adapter>.sh). Omitted for an ephemeral store: a backup.yml
+    carrying only `exclude` drops those paths from the live-tar without a dump."""
+    exclude: List[str] = Field(default_factory=list)
+    """Live-state paths under the project's archive dir (upstream/<name>/) to keep
+    out of the monolithic tar (e.g. `data`), so the torn live directory is skipped
+    while the adapter dump under _backup/ is included."""
+
+
 class TraefikConfig(BaseModel):
     """Traefik routing configuration for V2 projects"""
 

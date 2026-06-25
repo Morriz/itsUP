@@ -6,6 +6,7 @@ import logging
 import os
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -17,7 +18,7 @@ except ImportError:
     # module importable without it lets every interpreter (CI, dev) load lib.data.
     netifaces = None
 
-from lib.models import TraefikConfig
+from lib.models import BackupConfig, TraefikConfig
 from lib.paths import root
 from lib.sops import load_encrypted_env, load_env_file
 
@@ -171,6 +172,44 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
 
     # Secrets are left as ${VAR} for Docker Compose to expand at runtime
     return compose, traefik
+
+
+def load_project_backup_config(project_name: str) -> BackupConfig | None:
+    """Load projects/<name>/backup.yml, the per-project backup registry entry.
+
+    Returns a BackupConfig when the file is present, or None when the project
+    declares no backup config. Presence drives both adapter dispatch and the
+    derived live-tar exclusion (see project/design/backup-restore).
+    """
+    backup_file = root() / "projects" / project_name / "backup.yml"
+    if not backup_file.exists():
+        return None
+
+    with open(backup_file, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    return BackupConfig(**data)
+
+
+def resolve_backup_adapter(project_name: str, adapter: str) -> Path | None:
+    """Resolve an adapter name to its script path, project-local first.
+
+    Resolution order (see project/design/backup-restore):
+      1. projects/<project>/backup-adapter.sh — the project's own adapter, so a
+         new store can be fully self-contained with no change to the framework.
+      2. bin/backup-adapters/<adapter>.sh — the shared adapter set.
+
+    Returns the first existing path, or None when neither is present.
+    """
+    project_local = root() / "projects" / project_name / "backup-adapter.sh"
+    if project_local.exists():
+        return project_local
+
+    shared = root() / "bin" / "backup-adapters" / f"{adapter}.sh"
+    if shared.exists():
+        return shared
+
+    return None
 
 
 def list_projects() -> list[str]:

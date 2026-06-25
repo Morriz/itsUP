@@ -1,8 +1,9 @@
 ---
-description: 'How itsUP backs up and restores stateful stores: the per-project backup.yml adapter registry, the dump/restore adapter contract, in-tarball dump placement so the single monolithic archive ships everything, derived live-tar exclusion, proxy-state capture, and the guarded restore dispatcher.'
-visibility: 'internal'
-delivered_by:
-  - backup-restore-adapters
+description: 'How itsUP backs up and restores stateful stores: the per-project backup.yml
+  adapter registry, the dump/restore adapter contract, in-tarball dump placement so
+  the single monolithic archive ships everything, derived live-tar exclusion, proxy-state
+  capture, and the guarded restore dispatcher.'
+visibility: internal
 ---
 
 # Backup & Restore — Design

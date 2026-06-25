@@ -13,7 +13,9 @@ from lib.data import (
     edge_network_name,
     list_projects,
     list_projects_topo,
+    load_project_backup_config,
     load_secrets,
+    resolve_backup_adapter,
     validate_all,
     validate_project,
 )
@@ -95,6 +97,65 @@ class TestDataV2(unittest.TestCase):
 
         # Should only include valid_project, not .git
         self.assertEqual(projects, ["valid_project"])
+
+    def _write_backup_yml(self, project: str, body: str) -> None:
+        project_dir = self.root / "projects" / project
+        project_dir.mkdir(parents=True, exist_ok=True)
+        (project_dir / "backup.yml").write_text(body)
+
+    def test_load_project_backup_config_adapter_backed(self) -> None:
+        """An adapter-backed backup.yml loads adapter + exclude paths."""
+        self._write_backup_yml("postgres", "adapter: postgres\nexclude: [data]\n")
+
+        config = load_project_backup_config("postgres")
+
+        self.assertIsNotNone(config)
+        assert config is not None  # narrow for the type checker
+        self.assertEqual(config.adapter, "postgres")
+        self.assertEqual(config.exclude, ["data"])
+
+    def test_load_project_backup_config_exclude_only(self) -> None:
+        """An adapter-less backup.yml (ephemeral store) loads with adapter None."""
+        self._write_backup_yml("redis", "exclude: [data]\n")
+
+        config = load_project_backup_config("redis")
+
+        self.assertIsNotNone(config)
+        assert config is not None  # narrow for the type checker
+        self.assertIsNone(config.adapter)
+        self.assertEqual(config.exclude, ["data"])
+
+    def test_load_project_backup_config_absent(self) -> None:
+        """A project with no backup.yml yields None (declares no backup config)."""
+        (self.root / "projects" / "plain").mkdir(parents=True)
+
+        self.assertIsNone(load_project_backup_config("plain"))
+
+    def test_resolve_backup_adapter_prefers_project_local(self) -> None:
+        """Resolution returns the project's own adapter script when present."""
+        project_dir = self.root / "projects" / "postgres"
+        project_dir.mkdir(parents=True)
+        local = project_dir / "backup-adapter.sh"
+        local.write_text("#!/usr/bin/env sh\n")
+        shared = self.root / "bin" / "backup-adapters"
+        shared.mkdir(parents=True)
+        (shared / "postgres.sh").write_text("#!/usr/bin/env sh\n")
+
+        self.assertEqual(resolve_backup_adapter("postgres", "postgres"), local)
+
+    def test_resolve_backup_adapter_falls_back_to_shared(self) -> None:
+        """Resolution falls back to the shared adapter set by adapter name."""
+        (self.root / "projects" / "postgres").mkdir(parents=True)
+        shared = self.root / "bin" / "backup-adapters"
+        shared.mkdir(parents=True)
+        shared_script = shared / "postgres.sh"
+        shared_script.write_text("#!/usr/bin/env sh\n")
+
+        self.assertEqual(resolve_backup_adapter("postgres", "postgres"), shared_script)
+
+    def test_resolve_backup_adapter_missing(self) -> None:
+        """Resolution returns None when neither location has the adapter."""
+        self.assertIsNone(resolve_backup_adapter("postgres", "postgres"))
 
     @mock.patch("lib.data.load_project")
     def test_validate_project_success(self, mock_load_project: Mock) -> None:

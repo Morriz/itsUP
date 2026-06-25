@@ -1,0 +1,26 @@
+# Per-project backup registry (projects/<name>/backup.yml).
+#
+# Optional. Travels with the project, decoupled from the ephemeral upstream/
+# tree. Its presence drives two things in `bin/backup.py`:
+#   1. Adapter dispatch  — when `adapter` is set, the named adapter produces a
+#      consistent logical dump under upstream/<name>/_backup/ before the tar.
+#   2. Derived exclusion — paths in `exclude` are kept out of the monolithic
+#      live-tar (no separately maintained exclude list).
+#
+# ── Shape A: adapter-backed stateful store (e.g. postgres) ──────────────────
+# A consistent logical dump rides inside the archive; the torn live data dir is
+# excluded so it is never archived crash-inconsistent.
+#
+#   adapter: postgres   # resolved project-local first
+#                       #   (projects/<name>/backup-adapter.sh),
+#                       # then shared (bin/backup-adapters/postgres.sh)
+#   exclude: [data]     # skip the live data directory from the live-tar
+#
+# ── Shape B: ephemeral store, no adapter (e.g. redis) ───────────────────────
+# No dump is produced; the volatile data is simply dropped from the live-tar.
+#
+#   exclude: [data]
+#
+# This example uses Shape B — the example-project carries no durable state worth
+# archiving, so its data dir is excluded with no adapter.
+exclude: [data]
