@@ -19,7 +19,10 @@ __pycache__
 
 # TeleClaude stuff (todos DB, session caches, etc.)
 /.teleclaude/
-docs/**/index.yaml
+**/index.yaml
+
+# Generated tool output (never tracked)
+graphify-out/
 
 # Integration/worker git worktrees (operational, never tracked)
 /trees/
