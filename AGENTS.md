@@ -31,7 +31,7 @@ Read `README.md` first for architecture, components, and workflows.
 
 ## Deploy / Orchestration
 
-- `itsup apply` (all configs regen + deploy in parallel; hash-based change detection); `itsup apply <project>` (single).
+- `itsup apply` (all configs regen + deploy sequentially in egress-topological order; hash-based change detection); `itsup apply <project>` (single).
 - `itsup run` (orchestrated startup dns→proxy→api→monitor, monitor report-only).
 - `itsup down` (orchestrated shutdown monitor→api→ALL projects→proxy→dns); `itsup down --clean` also removes stopped itsUP containers.
 

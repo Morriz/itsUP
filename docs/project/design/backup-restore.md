@@ -34,8 +34,12 @@ round trip. New stateful stores plug in by authoring an adapter pair plus a
 
 - `projects/<name>/backup.yml` — the per-project registry entry. Travels with the
   project (not the infra config), decoupled from the ephemeral `upstream/`:
-  - `adapter: <name>` — the adapter that backs this project (resolves to
-    `bin/backup-adapters/<name>.sh`).
+  - `adapter: <name>` — optional; the adapter that backs this project. When set,
+    resolved from the project's own dir first (`projects/<name>/backup-adapter.sh`)
+    and otherwise from the shared set (`bin/backup-adapters/<name>.sh`), so a new
+    store can be fully self-contained with no change to the framework. Omitted for
+    an **ephemeral store** (e.g. redis): a `backup.yml` carrying only `exclude` and
+    no `adapter` drops those paths from the live-tar without producing a dump.
   - `exclude: [<path>...]` — live-state paths under the project's archive dir to
     keep out of the monolithic tar (e.g. `data`), so the torn live directory is
     skipped while the adapter dump is included.
@@ -75,12 +79,20 @@ round trip. New stateful stores plug in by authoring an adapter pair plus a
 - **Database restore is logical, into the running instance.** An adapter restore
   loads the dump into the live engine; it never drops a filesystem snapshot into a
   data directory. This distinction is the correctness fix.
-- **Restore is guarded.** Any restore that would overwrite existing data prompts
-  for confirmation first. Restore is a bare dispatcher (`bin/restore.py`), not an
-  `itsup` subcommand.
-- **Dump-before-tar ordering.** The mother script runs every adapter `dump` to
-  completion before it begins the tar, so the archive captures the just-written
-  consistent dumps.
+- **Restore is guarded, unconditionally.** Restore prompts the operator before
+  any write — it does **not** try to detect whether data already exists (that is
+  error-prone for a containerized store); it always asks, with a `-y`/`--yes`
+  bypass for non-interactive use. Restore is a bare dispatcher (`bin/restore.py`),
+  not an `itsup` subcommand.
+- **Dumps run concurrently, before the tar.** The mother script dispatches the
+  independent per-project adapter dumps in parallel (a `ThreadPoolExecutor` over
+  subprocesses — they share no state, each writing only its own
+  `upstream/<name>/_backup/`), and awaits all of them before it begins the tar,
+  so the archive captures the just-written consistent dumps.
+- **Partial availability over total failure.** A single adapter dump that fails
+  (e.g. its container is down) is logged and skipped — it never aborts the run.
+  The mother script still tars and uploads every healthy project plus `proxy/`
+  state. One sick store does not deny backup to the rest of the host.
 
 ## Primary flows
 
@@ -88,10 +100,10 @@ round trip. New stateful stores plug in by authoring an adapter pair plus a
 
 ```mermaid
 flowchart TD
-    A[bin/backup.py] --> B{for each projects/&lt;name&gt;/backup.yml}
-    B -->|has adapter| C[run bin/backup-adapters/&lt;name&gt;.sh dump upstream/&lt;name&gt;]
-    C --> D[consistent dump written to upstream/&lt;name&gt;/_backup/]
-    B -->|done| E[tar upstream/ + proxy/]
+    A[bin/backup.py] --> B[discover projects/&lt;name&gt;/backup.yml]
+    B --> C[dispatch adapter dumps concurrently — ThreadPoolExecutor]
+    C --> D[each writes consistent dump to upstream/&lt;name&gt;/_backup/; a failed dump is logged + skipped]
+    D --> E[await all, then tar upstream/ + proxy/]
     E --> F[skip paths declared in each backup.yml exclude]
     F --> G[itsup.tar.gz.&lt;ts&gt;]
     G --> H[keep-10 rotate + upload to S3 — existing path, unchanged]
@@ -109,6 +121,11 @@ flowchart TD
     D -->|no| G[confirm overwrite guard]
     G --> H[filesystem extract into upstream/&lt;name&gt;]
 ```
+
+`bin/restore.py` accepts a single project name, `all` for the whole stack, or the
+special target `proxy` (`bin/restore.py proxy --from <key>`) which extracts the
+archived `proxy/` state. Proxy is an infra stack, not a project, so it has its own
+restore target rather than being addressed as a project.
 
 ### Adapter contract
 
@@ -129,14 +146,18 @@ declares `adapter: postgres` and `exclude: [data]`.
 ## Failure modes
 
 - **Instance unreachable at dump/restore time.** Adapter operations run against
-  the live container; if it is down the operation fails loudly rather than
-  producing a silent partial dump. The dump step surfaces the error to the mother
-  script.
+  the live container. On dump, a failure (container down, exec error) is logged
+  and that one project is skipped; the mother script continues with every other
+  project and `proxy/` state (partial availability). On restore, a failure aborts
+  that project's restore and is reported — restore is operator-driven and
+  targeted, so it fails closed rather than continuing.
 - **Restore order dependency.** A per-database restore before roles/globals exist
   fails on missing roles. The Postgres adapter sequences globals first; this
   ordering is part of the adapter contract for any role-bearing store.
 - **Destructive overwrite.** Restore overwriting a running service's data is
-  guarded by an explicit confirmation before any write.
+  guarded by an unconditional confirmation prompt before any write (bypassable
+  only via an explicit `-y`/`--yes` flag for automation), rather than trying to
+  detect whether data already exists.
 - **Exclusion derivation error.** If derivation wrongly includes an
   adapter-managed live path, the archive carries both a torn directory and the
   dump (wasteful, and the torn copy is misleading); if it wrongly drops a

@@ -24,6 +24,11 @@ __pycache__
 # Generated tool output (never tracked)
 graphify-out/
 
+# Generated agent instructions — source of truth is AGENTS.master.md; the
+# inflated AGENTS.md/CLAUDE.md build artifacts are never tracked.
+AGENTS.md
+CLAUDE.md
+
 # Integration/worker git worktrees (operational, never tracked)
 /trees/
 
