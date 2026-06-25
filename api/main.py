@@ -30,8 +30,10 @@ def _handle_update_upstream(project: str, service: str = None) -> None:
     """Handle incoming requests to update the upstream - delegates to itsup apply command"""
     try:
         info(f"Updating {project} via webhook...")
-        # Use the CLI command which has all the logic
-        subprocess.run([str(root() / "bin" / "itsup"), "apply", project], check=True)
+        # Use the CLI command which has all the logic. Pass ITSUP_ROOT so the
+        # child itsup resolves the same install root regardless of the API's env.
+        env = {**os.environ, "ITSUP_ROOT": str(root())}
+        subprocess.run([str(root() / ".venv" / "bin" / "itsup"), "apply", project], check=True, env=env)
         info(f"✓ {project} updated successfully")
     except subprocess.CalledProcessError as e:
         info(f"✗ Failed to update {project}: {e}")
@@ -41,6 +43,10 @@ def _handle_update_upstream(project: str, service: str = None) -> None:
 def _handle_itsup_update() -> None:
     """Handle updates to itsUP itself (git pull and apply changes)"""
     try:
+        # ITSUP_ROOT for every child runtime process (itsup apply, start-api.sh),
+        # so root() resolves the same install root regardless of the API's env.
+        env = {**os.environ, "ITSUP_ROOT": str(root())}
+
         # Update repository
         if os.environ.get("PYTHON_ENV") == "production":
             info("Updating repository from origin/main")
@@ -52,6 +58,12 @@ def _handle_itsup_update() -> None:
             # so install explicitly — a dependency-adding update otherwise leaves
             # the API importing a missing module on restart.
             info("Installing dependencies")
+            # Editable reinstall re-mints the .venv/bin/itsup console-script when the
+            # entry point or package layout changed in this update.
+            subprocess.run(
+                [str(root() / ".venv" / "bin" / "pip"), "install", "-q", "-e", str(root())],
+                check=True,
+            )
             subprocess.run(
                 [str(root() / ".venv" / "bin" / "pip"), "install", "-q", "-r", str(root() / "requirements-prod.txt")],
                 check=True,
@@ -66,11 +78,11 @@ def _handle_itsup_update() -> None:
 
         # Apply all upstream project changes
         info("Deploying all upstream projects...")
-        subprocess.run([str(root() / "bin" / "itsup"), "apply"], check=True)
+        subprocess.run([str(root() / ".venv" / "bin" / "itsup"), "apply"], check=True, env=env)
 
         # Restart API to pick up new code
         info("Restarting API server")
-        subprocess.run([str(root() / "bin" / "start-api.sh")], check=True)
+        subprocess.run([str(root() / "bin" / "start-api.sh")], check=True, env=env)
 
     except Exception as e:
         info(f"✗ Failed to update itsUP: {e}")

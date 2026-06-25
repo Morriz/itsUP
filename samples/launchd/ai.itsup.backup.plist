@@ -8,9 +8,8 @@
     <string>ai.itsup.backup</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>-lc</string>
-        <string>cd {{ROOT}} &amp;&amp; source env.sh &amp;&amp; .venv/bin/python bin/backup.py</string>
+        <string>{{ROOT}}/.venv/bin/python</string>
+        <string>{{ROOT}}/bin/backup.py</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -23,6 +22,13 @@
     <dict>
         <key>HOME</key>
         <string>{{HOME}}</string>
+        <key>ITSUP_ROOT</key>
+        <string>{{ROOT}}</string>
+        <!-- launchd's default PATH omits Homebrew/Docker locations; backup.py
+             shells out to docker and adapter binaries via PATH, so set one
+             covering Apple Silicon + Intel Homebrew. -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>StandardOutPath</key>
     <string>/var/log/instrukt-ai/itsup/backup.log</string>

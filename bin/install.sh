@@ -199,11 +199,12 @@ else
     echo -e "${GREEN}✓${NC} .venv already exists"
 fi
 
-# Install Python dependencies
-echo "Installing Python dependencies..."
-.venv/bin/pip install -q -r requirements-prod.txt
-.venv/bin/pip install -q -r requirements-test.txt
-echo -e "${GREEN}✓${NC} Installed Python dependencies (prod + test)"
+# Editable install: resolves prod deps (pyproject dynamic dependencies) + the
+# `test` extra, and mints the repo-local `.venv/bin/itsup` console-script with
+# the venv interpreter baked into its shebang — runnable from any cwd, no sourcing.
+echo "Installing itsUP (editable) with test extras..."
+.venv/bin/pip install -q -e ".[test]"
+echo -e "${GREEN}✓${NC} Installed itsUP editable + test deps (minted .venv/bin/itsup)"
 
 # Host integration: launchd agents (macOS) or systemd units (Linux) + host
 # prereqs. Skipped in containers and CI runners; opt out on a dev box with
@@ -216,6 +217,13 @@ fi
 
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"
+echo ""
+echo "itsUP is repo-local — no system-wide install. The canonical command is:"
+echo ""
+echo "  .venv/bin/itsup <cmd>      # runs from any directory, no sourcing"
+echo ""
+echo "For an interactive shell, 'source env.sh' adds the bare 'itsup' shorthand"
+echo "and tab-completion for the session (the steps below use that shorthand)."
 echo ""
 echo "Next steps:"
 echo ""

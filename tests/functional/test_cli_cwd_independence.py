@@ -19,6 +19,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SHIM = REPO_ROOT / "bin" / "itsup"
+CONSOLE_SCRIPT = REPO_ROOT / ".venv" / "bin" / "itsup"
 
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -140,3 +141,40 @@ def test_fails_closed_on_missing_itsup_root(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert ITSUP_ROOT_ENV in (result.stderr + result.stdout)
+
+
+def _run_console(args: list[str], cwd: str, itsup_root: Path) -> subprocess.CompletedProcess[str]:
+    """Invoke the minted ``.venv/bin/itsup`` console-script directly (no python prefix).
+
+    The console-script's shebang carries the venv interpreter, so it is exec'd as
+    a standalone command — the canonical repo-local invocation, not the shim.
+    """
+    env = dict(os.environ)
+    env["ITSUP_ROOT"] = str(itsup_root)
+    return subprocess.run(
+        [str(CONSOLE_SCRIPT), *args],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+
+@pytest.mark.skipif(
+    not CONSOLE_SCRIPT.exists(),
+    reason="console-script absent — editable install not run (e.g. a bare CI venv)",
+)
+def test_console_script_runs_cwd_independently(
+    valid_root: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """The canonical .venv/bin/itsup console-script reads ITSUP_ROOT from any cwd."""
+    from_fs_root = _run_console(["validate"], cwd="/", itsup_root=valid_root)
+    assert from_fs_root.returncode == 0, from_fs_root.stderr
+    assert ALL_PROJECTS_VALID in from_fs_root.stdout
+
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    from_elsewhere = _run_console(["validate"], cwd=str(elsewhere), itsup_root=valid_root)
+    assert from_elsewhere.returncode == 0, from_elsewhere.stderr
+    assert ALL_PROJECTS_VALID in from_elsewhere.stdout

@@ -10,12 +10,16 @@ User={{USER}}
 Group={{GROUP}}
 WorkingDirectory={{ROOT}}
 Environment=HOME=/home/{{USER}}
-# Start core infra then deploy all projects (apply may take time for pulls)
-ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup run && itsup apply'
+Environment=ITSUP_ROOT={{ROOT}}
+# Start core infra then deploy all projects (apply may take time for pulls).
+# Type=oneshot runs ExecStartPost only after ExecStart succeeds — the systemd-native
+# form of the old `run && apply` (systemd does not interpret `&&`).
+ExecStart={{ROOT}}/.venv/bin/itsup run
+ExecStartPost={{ROOT}}/.venv/bin/itsup apply
 # On shutdown, stop containers in dependency order but DO NOT remove them —
 # leaves them in `exited` state so Docker's restart policy brings them back
 # sub-second on next boot (vs minutes to recreate from compose).
-ExecStop=/bin/bash -lc 'cd {{ROOT}} && source env.sh && itsup down'
+ExecStop={{ROOT}}/.venv/bin/itsup down
 TimeoutStopSec=120
 RemainAfterExit=yes
 

@@ -16,5 +16,6 @@ User=root
 # and the AWS_* env vars come back missing — backup aborts mid-tarball
 # with "Missing required secrets".
 Environment=HOME=/home/{{USER}}
+Environment=ITSUP_ROOT={{ROOT}}
 WorkingDirectory={{ROOT}}
-ExecStart=/bin/bash -lc 'cd {{ROOT}} && source env.sh && .venv/bin/python bin/backup.py'
+ExecStart={{ROOT}}/.venv/bin/python {{ROOT}}/bin/backup.py

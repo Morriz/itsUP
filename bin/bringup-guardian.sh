@@ -10,23 +10,24 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-cd "${REPO_ROOT}"
-# shellcheck disable=SC1091
-source env.sh
+# Repo-local, cwd-independent: resolve the root for itsup and invoke the venv
+# console-script at an absolute path — no sourcing of env.sh on the runtime path.
+export ITSUP_ROOT="${REPO_ROOT}"
+ITSUP="${REPO_ROOT}/.venv/bin/itsup"
 
 shutdown_cleanly() {
     # Stop containers in dependency order but DO NOT remove them — leaves them
     # in `exited` state so Docker's restart policy brings them back sub-second
     # on next boot (vs minutes to recreate from compose).
     echo "[bringup-guardian] signal caught — running itsup down"
-    itsup down
+    "${ITSUP}" down
     exit 0
 }
 trap shutdown_cleanly TERM INT QUIT
 
 # Bring core infra up, then deploy all projects.
-itsup run
-itsup apply
+"${ITSUP}" run
+"${ITSUP}" apply
 
 # Stay alive so launchd can signal us at shutdown for graceful teardown.
 # `wait $!` on a backgrounded sleep is the canonical signal-responsive idle

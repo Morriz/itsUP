@@ -4,7 +4,6 @@ description: How the itsup CLI is distributed and invoked — a packaged console
   rather than cwd, invoked from the repo's own venv (no system-wide install), so no
   runtime caller sources env.sh.
 delivered_by:
-- itsup-cli-install-desource
 - itsup-cli-deprecate-env
 ---
 
