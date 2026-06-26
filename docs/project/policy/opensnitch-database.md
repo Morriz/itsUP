@@ -45,8 +45,8 @@ monitor's confirmation path. The monitor enforces this in code: every access is 
   `bin/monitor.py`, both of which issue `SELECT`-only statements. New code that
   needs OpenSnitch data routes through these read paths.
 - Any write, move, or delete operation against the DB file is a policy violation.
-- This rule is mirrored in the repo's top-level `AGENTS.md` Critical Rules; this
-  snippet is its canonical home.
+- This snippet is the canonical home for the rule; it is surfaced always-on by
+  inflation into the generated `AGENTS.md` via `docs/project/baseline.md`.
 
 ## Exceptions
 
