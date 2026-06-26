@@ -19,13 +19,13 @@ test-functional: ## Run functional tests (requires SOPS/age installed)
 
 test-all: test-unit test-functional ## Run both unit and functional tests
 
-test: test-unit ## Run unit tests (default, alias for test-unit)
+test: test-all ## Run the full gate (unit + functional)
 
 format: ## Format code
-	./bin/format.sh
+	@FILES_FROM="$(FILES_FROM)" ./bin/format.sh
 
 lint: ## Run linter
-	./bin/lint.sh
+	@FILES_FROM="$(FILES_FROM)" ./bin/lint.sh
 
 clean: ## Remove generated artifacts and caches
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
