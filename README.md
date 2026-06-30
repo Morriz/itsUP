@@ -322,7 +322,9 @@ itsUP automatically adapts its output based on context:
 A minimal Makefile focused on development workflow. Run `make help` to see all available targets:
 
 ```bash
-make install           # Install deps; on persistent Linux hosts, also install systemd bringup + host prereqs
+make install           # Install dependencies only (system tools, Python venv, git hooks)
+make install-runtime   # Make this host a live deployment: host integration + start the stack
+make uninstall-runtime # Decommission this host: stop the stack + remove host integration
 make test              # Run all tests
 make lint              # Run linter
 make format            # Format code
@@ -425,10 +427,15 @@ Both repositories are **gitignored** in the main itsUP repo and managed as indep
 #### 2. Run installation
 
 ```bash
-make install
+make install            # dependencies only — safe on any dev box
+make install-runtime    # only on the container host — go live
 ```
 
-Adapts to the host. Always installs the language deps and mints the repo-local `.venv/bin/itsup` console-script via an editable install (`pip install -e ".[test]"`) — no system-wide install, no `/usr/local/bin` symlink. On a persistent host (macOS or Linux) it additionally installs the host integration: launchd agents on macOS (`~/Library/LaunchAgents/ai.itsup.*.plist`), systemd units on Linux (`/etc/systemd/system/itsup-*.service` + timers). These invoke the absolute `<repo>/.venv/bin/itsup` with `ITSUP_ROOT` set (no `env.sh` sourcing) to bring the stack up at load, plus nightly apply (03:00), nightly backup (05:00), and a 5-minute healthcheck. Linux hosts additionally get the public-DNS fallback (via systemd-resolved or resolvconf) and removal of conflicting `dnsmasq`. Skip the host integration entirely with `ITSUP_NO_BRINGUP=1 make install` on a dev box that only needs deps; containers and CI runners are auto-detected and skip it without the flag.
+**`make install`** installs the language deps and mints the repo-local `.venv/bin/itsup` console-script via an editable install (`pip install -e ".[test]"`) — no system-wide install, no `/usr/local/bin` symlink. It never installs host integration and never starts the stack, so it is safe to run on any dev box and re-run anytime.
+
+**`make install-runtime`** turns the **container host** into a live deployment (run it after `make install`). It installs the host integration: launchd agents on macOS (`~/Library/LaunchAgents/ai.itsup.*.plist`), systemd units on Linux (`/etc/systemd/system/itsup-*.service` + timers). These invoke the absolute `<repo>/.venv/bin/itsup` with `ITSUP_ROOT` set (no `env.sh` sourcing) to bring the stack up at load, plus nightly apply (03:00), nightly backup (05:00), and a 5-minute healthcheck. Linux hosts additionally get the public-DNS fallback (via systemd-resolved or resolvconf) and removal of conflicting `dnsmasq`.
+
+**`make uninstall-runtime`** is the inverse: it disables the timers/agents, tears the whole stack down through the CLI's own primitives (`itsup down --clean` + `itsup monitor clear-iptables`) so no container, host process, or monitor firewall rule is left behind, then removes the host integration. It deliberately preserves Docker volumes/data, shared system packages, host DNS/dnsmasq state, and the dependency layer (`.venv`).
 
 After install the canonical command is `.venv/bin/itsup <cmd>` (runs from any cwd, no sourcing); `source env.sh` adds the bare `itsup` shorthand and tab-completion for an interactive shell.
 
@@ -491,11 +498,11 @@ If you point this host's resolver at its own AdGuard (or any local DNS container
 - **dhcpcd:** `/etc/dhcpcd.conf` → `static domain_name_servers=192.168.1.30 1.1.1.1 9.9.9.9`
 - **NetworkManager:** add a secondary DNS to the active connection profile
 
-On Linux deploy targets, `make install` (via `bin/install-bringup.sh`) configures the fallback automatically — it detects systemd-resolved or resolvconf and uses whichever is in use. The three options above are for distros where neither path applies.
+On Linux hosts, `make install-runtime` (via `bin/install-bringup.sh`) configures the fallback automatically — it detects systemd-resolved or resolvconf and uses whichever is in use. The three options above are for distros where neither path applies.
 
 ##### Runtime logs
 
-itsUP runtime scripts write logs to `/var/log/instrukt-ai/itsup/`, following the InstruktAI fleet convention. The directory and permissions are created by `bin/install-bringup.sh` (run automatically by `make install` on persistent hosts). Tail across the fleet with:
+itsUP runtime scripts write logs to `/var/log/instrukt-ai/itsup/`, following the InstruktAI fleet convention. The directory and permissions are created by `bin/install-bringup.sh` (run by `make install-runtime`). Tail across the fleet with:
 
 ```bash
 instrukt-ai-logs -f itsup

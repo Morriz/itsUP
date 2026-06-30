@@ -9,8 +9,9 @@ description: 'Canonical truth for itsUP scheduled/triggered runtime operations �
 itsUP runs a small set of unattended runtime operations on the **container host**
 (the machine whose IP equals `SSH_HOST`): one boot-time bringup, two nightly
 timers (apply, backup), a 5-minute health watchdog, and a long-running container
-security monitor. Each is installed by `bin/install-bringup.sh` as a systemd
-unit/timer (Linux) or launchd job (macOS).
+security monitor. Each is installed by `bin/install-bringup.sh` — run via
+`make install-runtime`, separately from the dependency-only `make install` — as a
+systemd unit/timer (Linux) or launchd job (macOS).
 
 This spec is the single place an operator goes when one of those operations
 fails: for each operation it records what fires it, how often, what it actually

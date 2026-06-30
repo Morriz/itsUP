@@ -45,7 +45,8 @@ interpreter binding, root resolution, and PATH exposure.
 - Entry point: `pyproject.toml` `[project.scripts] itsup = "itsup.cli:main"`.
 - Root resolution: `lib/paths.py:root()`.
 - Editable install (mints the console-script) + `ITSUP_ROOT` wiring:
-  `bin/install.sh` / `bin/install-bringup.sh` (`make install`).
+  `bin/install.sh` (`make install`); host integration lives in
+  `bin/install-bringup.sh` (`make install-runtime`).
 
 ## Invariants
 

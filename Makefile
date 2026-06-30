@@ -1,4 +1,4 @@
-.PHONY: help install test test-unit test-functional test-all lint format clean
+.PHONY: help install install-runtime uninstall-runtime test test-unit test-functional test-all lint format clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -8,8 +8,15 @@ help: ## Show this help message
 	@echo ''
 	@echo 'For runtime operations (start/stop/logs/monitor), use: itsup --help'
 
-install: ## Install dependencies (and systemd bringup on persistent Linux hosts)
+install: ## Install dependencies only (system tools, Python venv, git hooks) — never starts the runtime
 	@./bin/install.sh
+
+install-runtime: ## Make this host a live deployment: install host integration (systemd/launchd) and start the stack
+	@test -x .venv/bin/itsup || { echo "Run 'make install' first — no .venv/bin/itsup found"; exit 1; }
+	@./bin/install-bringup.sh
+
+uninstall-runtime: ## Decommission this host: stop the whole stack, flush monitor rules, remove host integration
+	@./bin/uninstall-runtime.sh
 
 test-unit: ## Run unit tests (fast)
 	./bin/test.sh
