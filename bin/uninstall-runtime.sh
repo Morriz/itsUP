@@ -75,6 +75,27 @@ disable_systemd_units() {
   done
 }
 
+# Authoritative fail-closed gate for the disable/stop step above: the individual
+# disable/stop attempts are best-effort, so a swallowed failure is caught here by
+# checking the actual end state. Returns non-zero if any itsUP unit is still
+# active and could keep mutating the host during teardown.
+assert_systemd_inactive() {
+  local units=(
+    "itsup-bringup.service"
+    "itsup-apply.service" "itsup-apply.timer"
+    "itsup-backup.service" "itsup-backup.timer"
+    "pi-healthcheck.service" "pi-healthcheck.timer"
+  )
+  local active=0 unit
+  for unit in "${units[@]}"; do
+    if systemctl is-active --quiet "${unit}" 2>/dev/null; then
+      echo "✗ ${unit} is still active after disable/stop." >&2
+      active=1
+    fi
+  done
+  return "${active}"
+}
+
 bootout_launchd_agents() {
   local domain
   domain="gui/$(id -u "${ITSUP_USER}")"
@@ -113,12 +134,19 @@ teardown_stack() {
   fi
   if [ "${PLATFORM}" = "linux" ]; then
     echo "Flushing the monitor's iptables rules (itsup monitor clear-iptables)..."
-    ( cd "${ITSUP_ROOT}" && ITSUP_ROOT="${ITSUP_ROOT}" "${ITSUP}" monitor clear-iptables ) || true
+    if ! ( cd "${ITSUP_ROOT}" && ITSUP_ROOT="${ITSUP_ROOT}" "${ITSUP}" monitor clear-iptables ); then
+      echo "✗ 'itsup monitor clear-iptables' failed — monitor firewall rules may remain." >&2
+      return 1
+    fi
   fi
-  # `itsup down` is documented to keep going past individual stop failures, so a
-  # zero exit is not proof. Verify no itsUP host processes survived.
+  # `itsup down` is documented to keep going past individual container/process stop
+  # failures, so a zero exit is not proof. Verify the actual end state.
   if remnant_processes; then
-    echo "✗ itsUP processes survived 'itsup down --clean'." >&2
+    echo "✗ itsUP host process(es) survived 'itsup down --clean'." >&2
+    return 1
+  fi
+  if remnant_containers; then
+    echo "✗ itsUP container(s) survived 'itsup down --clean'." >&2
     return 1
   fi
 }
@@ -127,6 +155,25 @@ teardown_stack() {
 # started by `itsup run`) is still alive.
 remnant_processes() {
   pgrep -f 'bin/monitor.py' >/dev/null 2>&1 || pgrep -f 'api/main.py' >/dev/null 2>&1
+}
+
+# True when any container of an itsUP compose project is still running. Asks each
+# of itsUP's own compose files (the same ones `itsup down` operates on) rather
+# than re-deriving the container set — `docker compose ps -q` lists running IDs.
+remnant_containers() {
+  command -v docker >/dev/null 2>&1 || return 1
+  local files=("${ITSUP_ROOT}/proxy/docker-compose.yml" "${ITSUP_ROOT}/dns/docker-compose.yml")
+  local f
+  for f in "${ITSUP_ROOT}"/upstream/*/docker-compose.yml; do
+    [ -f "$f" ] && files+=("$f")
+  done
+  for f in "${files[@]}"; do
+    [ -f "$f" ] || continue
+    if [ -n "$(docker compose -f "$f" ps -q 2>/dev/null)" ]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 # ── Step 3: remove the unit / agent files ──────────────────────────────────
@@ -180,7 +227,10 @@ abort_incomplete() {
 
 case "${PLATFORM}" in
   linux)
-    if command -v systemctl >/dev/null 2>&1; then disable_systemd_units; fi
+    if command -v systemctl >/dev/null 2>&1; then
+      disable_systemd_units
+      assert_systemd_inactive || abort_incomplete
+    fi
     teardown_stack || abort_incomplete
     if command -v systemctl >/dev/null 2>&1; then remove_systemd_units; fi
     ;;

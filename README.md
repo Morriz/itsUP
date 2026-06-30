@@ -196,7 +196,7 @@ See [itsup-projects](https://github.com/Morriz/itsUP-projects) for all the apps 
 
 The `itsup` CLI is the main interface for managing your infrastructure. It provides smart change detection and zero-downtime deployments.
 
-**Invoking it** — `itsup` is repo-local; `make install` does not install it system-wide. The canonical command is `.venv/bin/itsup <cmd>`, which runs from any directory with no sourcing. For an interactive shell, `source env.sh` puts the bare `itsup` shorthand on `PATH` and enables tab-completion for the session — the examples below use that shorthand.
+**Invoking it** — `make install` puts a global `itsup` on your PATH (`~/.local/bin/itsup` → the repo's venv console-script), so `itsup <cmd>` runs from any directory with no sourcing and always operates on its own repo. `source env.sh` is an optional dev convenience (venv activation + tab-completion) — the examples below use the bare `itsup`.
 
 **Main commands:**
 
@@ -431,13 +431,13 @@ make install            # dependencies only — safe on any dev box
 make install-runtime    # only on the container host — go live
 ```
 
-**`make install`** installs the language deps and mints the repo-local `.venv/bin/itsup` console-script via an editable install (`pip install -e ".[test]"`) — no system-wide install, no `/usr/local/bin` symlink. It never installs host integration and never starts the stack, so it is safe to run on any dev box and re-run anytime.
+**`make install`** installs the language deps, mints the `.venv/bin/itsup` console-script via an editable install (`pip install -e ".[test]"`), and links it onto your PATH as `~/.local/bin/itsup` so the bare `itsup` works from any directory. It never installs host integration and never starts the stack, so it is safe to run on any dev box and re-run anytime.
 
 **`make install-runtime`** turns the **container host** into a live deployment (run it after `make install`). It installs the host integration: launchd agents on macOS (`~/Library/LaunchAgents/ai.itsup.*.plist`), systemd units on Linux (`/etc/systemd/system/itsup-*.service` + timers). These invoke the absolute `<repo>/.venv/bin/itsup` with `ITSUP_ROOT` set (no `env.sh` sourcing) to bring the stack up at load, plus nightly apply (03:00), nightly backup (05:00), and a 5-minute healthcheck. Linux hosts additionally get the public-DNS fallback (via systemd-resolved or resolvconf) and removal of conflicting `dnsmasq`.
 
 **`make uninstall-runtime`** is the inverse: it disables the timers/agents, tears the whole stack down through the CLI's own primitives (`itsup down --clean` + `itsup monitor clear-iptables`) so no container, host process, or monitor firewall rule is left behind, then removes the host integration. It deliberately preserves Docker volumes/data, shared system packages, host DNS/dnsmasq state, and the dependency layer (`.venv`).
 
-After install the canonical command is `.venv/bin/itsup <cmd>` (runs from any cwd, no sourcing); `source env.sh` adds the bare `itsup` shorthand and tab-completion for an interactive shell.
+After install, run the bare `itsup <cmd>` from any directory (via `~/.local/bin/itsup`); `source env.sh` is optional (venv activation + tab-completion for an interactive shell).
 
 If you prefer to run only the CLI bootstrap, the `itsup init` command will:
 
@@ -857,11 +857,11 @@ To restore from a backup, you'll need to:
 tar -xzf itsup.tar.gz.{timestamp} -C /path/to/itsup/
 ```
 
-3. Run the following to apply the restored configurations (the canonical repo-local commands; `source env.sh` is optional interactive shorthand):
+3. Run the following on the container host to apply the restored configurations:
 
 ```sh
-.venv/bin/itsup run   # to start the proxy stack
-.venv/bin/itsup apply # to deploy restored services
+itsup run   # to start the proxy stack
+itsup apply # to deploy restored services
 ```
 
 ### Threat Intelligence Reports
