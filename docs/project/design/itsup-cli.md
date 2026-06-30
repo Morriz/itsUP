@@ -1,8 +1,9 @@
 ---
 description: How the itsup CLI is distributed and invoked — a packaged console-script
-  run with the venv interpreter intrinsically, resolving its install root from ITSUP_ROOT
-  rather than cwd, invoked from the repo's own venv (no system-wide install), so no
-  runtime caller sources env.sh.
+  run with the venv interpreter intrinsically, exposed globally via a ~/.local/bin
+  symlink, resolving its install root from ITSUP_ROOT or the package location rather
+  than cwd, so the bare itsup runs from any directory while always operating on its
+  own repo and no runtime caller sources env.sh.
 delivered_by:
 - itsup-cli-deprecate-env
 ---
@@ -11,10 +12,14 @@ delivered_by:
 
 ## Purpose
 
-itsup is invokable as a repo-local console-script that always runs with the project
-venv and works from any directory, so no runtime caller — systemd units, the API
-self-update, `start-api.sh` — has to `source env.sh` first. itsUP is a single-repo,
-single-host tool; it is deliberately NOT installed system-wide.
+itsup is invokable as a packaged console-script that always runs with the project
+venv and works from any directory. It is exposed globally through a user-PATH
+symlink (`~/.local/bin/itsup` → `<repo>/.venv/bin/itsup`), so the bare `itsup` runs
+from anywhere on the machine — an agent or operator never has to `cd` into the repo
+or `source env.sh` to operate on the project's config and secrets. itsUP stays a
+single-root tool: the global handle always resolves back to, and operates on, its
+own repo. No runtime caller — systemd units, the API self-update, `start-api.sh` —
+sources `env.sh`.
 
 This exists because the prior `bin/itsup` (`#!/usr/bin/env python3`) bound the
 interpreter to whatever python was active, and read cwd-relative data paths, so
@@ -33,10 +38,13 @@ interpreter binding, root resolution, and PATH exposure.
 
 **Outputs**
 
-- A repo-local console-script `<repo>/.venv/bin/itsup`, minted by the editable
-  install — the canonical invocation, runnable from any cwd with no sourcing.
-- `source env.sh` remains the interactive shorthand (puts `itsup` on `PATH` for
-  the session + shell completion); no global/system install.
+- A console-script `<repo>/.venv/bin/itsup`, minted by the editable install —
+  runs with the venv interpreter from any cwd with no sourcing.
+- A user-PATH symlink `~/.local/bin/itsup` → `<repo>/.venv/bin/itsup`, created by
+  `make install` — the canonical global invocation: the bare `itsup` from any
+  directory.
+- `source env.sh` is an optional developer convenience (venv activation + shell
+  completion); it no longer plays any role in putting `itsup` on `PATH`.
 - All data access (`projects/`, `secrets/`, `upstream/`, `tpl/`,
   `projects/itsup.yml`, …) resolved beneath `root()`.
 
@@ -44,9 +52,9 @@ interpreter binding, root resolution, and PATH exposure.
 
 - Entry point: `pyproject.toml` `[project.scripts] itsup = "itsup.cli:main"`.
 - Root resolution: `lib/paths.py:root()`.
-- Editable install (mints the console-script) + `ITSUP_ROOT` wiring:
-  `bin/install.sh` (`make install`); host integration lives in
-  `bin/install-bringup.sh` (`make install-runtime`).
+- Editable install (mints the console-script) + the `~/.local/bin/itsup` PATH
+  symlink + `ITSUP_ROOT` wiring: `bin/install.sh` (`make install`); host
+  integration lives in `bin/install-bringup.sh` (`make install-runtime`).
 
 ## Invariants
 
@@ -57,17 +65,22 @@ interpreter binding, root resolution, and PATH exposure.
    `ITSUP_ROOT` when set, otherwise derives the repo root from the installed
    package location. Every data path is `root() / "…"`; no module reads a
    cwd-relative `Path("projects"|"secrets"|"upstream"|"tpl")`.
-3. **`itsup` is repo-local, not system-wide.** The editable install mints
-   `<repo>/.venv/bin/itsup`, the canonical command; it is self-contained and runs
-   from any cwd. There is no `/usr/local/bin` symlink — itsUP is not installed
-   system-wide. Runtime callers use the absolute `<repo>/.venv/bin/itsup`;
-   interactive users get the bare `itsup` shorthand via `source env.sh`.
+3. **`itsup` is global, but bound to one repo.** `make install` creates a
+   user-PATH symlink `~/.local/bin/itsup` → `<repo>/.venv/bin/itsup`, so the bare
+   `itsup` is invokable from any directory on the machine without sourcing. Because
+   `root()` resolves the symlink to its real target (`Path(__file__).resolve()`), a
+   global call always operates on the repo the symlink points at — never the cwd.
+   This mirrors how `telec` is exposed (a `~/.local/bin` symlink into its repo).
+   Runtime callers still use the absolute `<repo>/.venv/bin/itsup` directly; humans
+   and agents use the global `itsup`.
 4. **Single-root, not cwd/project-aware.** itsup binds to one install root; it
    does not select a project from the current directory the way `telec` does.
    See `project/adr/0001-itsup-cli-single-root`.
-5. **No runtime sourcing.** systemd units, `start-api.sh`, and the API
-   self-update invoke `itsup` (or the venv python) directly with `ITSUP_ROOT`
-   in the environment; `env.sh` is a developer convenience only.
+5. **No sourcing required, anywhere.** Runtime callers (systemd units,
+   `start-api.sh`, the API self-update) invoke the absolute `<repo>/.venv/bin/itsup`
+   (or the venv python) with `ITSUP_ROOT` set; interactive users and agents reach
+   the bare `itsup` through the global symlink. `env.sh` plays no PATH role — it is
+   a pure developer convenience (venv activation + shell completion).
 
 ## Primary flows
 
@@ -77,15 +90,19 @@ interpreter binding, root resolution, and PATH exposure.
 flowchart TD
     A[make install] --> B["pip install -e .[test] into .venv"]
     B --> C[.venv/bin/itsup console-script<br/>venv shebang baked in, cwd-independent]
-    A --> E[set ITSUP_ROOT in systemd/launchd units + API env]
+    C --> D["symlink ~/.local/bin/itsup → .venv/bin/itsup<br/>bare itsup, global, from any cwd"]
 ```
+
+`ITSUP_ROOT` wiring into the systemd/launchd units is installed separately by
+`make install-runtime` (host integration), not by `make install`.
 
 ### Invocation
 
-`<repo>/.venv/bin/itsup <cmd>` from any cwd → the venv console-script (right
-interpreter) → `main()` → `root()` resolves data dirs from `ITSUP_ROOT` or the
-package location. cwd is irrelevant. Interactively, `source env.sh` lets you type
-the bare `itsup` shorthand for the session.
+`itsup <cmd>` from any cwd → the `~/.local/bin/itsup` symlink → the venv
+console-script (right interpreter) → `main()` → `root()` resolves data dirs from
+`ITSUP_ROOT` or the package location (`.resolve()` follows the symlink back to the
+repo). cwd is irrelevant; the global `itsup` always operates on its own repo.
+Runtime callers invoke the absolute `<repo>/.venv/bin/itsup` directly.
 
 ### Self-update (`_handle_itsup_update`)
 
@@ -107,6 +124,9 @@ on entry-point changes) + `pip install -r requirements-prod.txt` → deploy stac
 - **Console-script missing because the editable install never ran.** `itsup`
   cannot be invoked and runtime callers fail. `make install` runs `pip install -e .`
   so the console-script always exists after install; the API self-update re-mints it.
+- **`~/.local/bin` not on `PATH`.** The bare `itsup` is not found from outside the
+  repo. The absolute `<repo>/.venv/bin/itsup` always works; `make install` surfaces
+  when `~/.local/bin` is absent from `PATH` so the user can add it.
 - **A caller still sourcing `env.sh` and relying on cwd.** Tolerated but
   unnecessary; the runtime path no longer depends on it.
 
