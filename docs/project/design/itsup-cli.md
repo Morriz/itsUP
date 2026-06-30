@@ -67,9 +67,13 @@ interpreter binding, root resolution, and PATH exposure.
    cwd-relative `Path("projects"|"secrets"|"upstream"|"tpl")`.
 3. **`itsup` is global, but bound to one repo.** `make install` creates a
    user-PATH symlink `~/.local/bin/itsup` → `<repo>/.venv/bin/itsup`, so the bare
-   `itsup` is invokable from any directory on the machine without sourcing. Because
-   `root()` resolves the symlink to its real target (`Path(__file__).resolve()`), a
-   global call always operates on the repo the symlink points at — never the cwd.
+   `itsup` is invokable from any directory on the machine without sourcing. The
+   symlink target *is* the repo's own console-script — baked venv-python shebang
+   (invariant 1) plus the editable install — so invoking it runs the repo's
+   interpreter and imports the repo's package. `root()` then derives the install
+   root from that package's location (invariant 2), so a global call always operates
+   on its own repo, never the cwd. The symlink only puts the name on `PATH`; the
+   repo binding comes from the target and package location, not the symlink path.
    This mirrors how `telec` is exposed (a `~/.local/bin` symlink into its repo).
    Runtime callers still use the absolute `<repo>/.venv/bin/itsup` directly; humans
    and agents use the global `itsup`.
@@ -98,11 +102,12 @@ flowchart TD
 
 ### Invocation
 
-`itsup <cmd>` from any cwd → the `~/.local/bin/itsup` symlink → the venv
-console-script (right interpreter) → `main()` → `root()` resolves data dirs from
-`ITSUP_ROOT` or the package location (`.resolve()` follows the symlink back to the
-repo). cwd is irrelevant; the global `itsup` always operates on its own repo.
-Runtime callers invoke the absolute `<repo>/.venv/bin/itsup` directly.
+`itsup <cmd>` from any cwd → the `~/.local/bin/itsup` symlink → the repo's venv
+console-script (right interpreter, repo's package) → `main()` → `root()` resolves
+data dirs from `ITSUP_ROOT` or the location of the installed package
+(`lib/paths.py`), which the editable install pins to the repo. cwd and the symlink
+path are irrelevant to that derivation; the global `itsup` always operates on its
+own repo. Runtime callers invoke the absolute `<repo>/.venv/bin/itsup` directly.
 
 ### Self-update (`_handle_itsup_update`)
 
