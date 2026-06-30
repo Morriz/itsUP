@@ -47,16 +47,30 @@ disable_systemd_units() {
   # --now disables AND stops. Stopping itsup-bringup.service fires its
   # ExecStop=`itsup down`; the explicit `itsup down --clean` below then guarantees
   # full removal. Order: kill the auto-restart/reboot sources before the stack.
-  local units=(
+  local timers=(
     "pi-healthcheck.timer"
     "itsup-apply.timer"
     "itsup-backup.timer"
     "itsup-bringup.service"
   )
-  for unit in "${units[@]}"; do
+  for unit in "${timers[@]}"; do
     if [ -f "${SERVICE_DIR}/${unit}" ]; then
       echo "Disabling ${unit}..."
       sudo systemctl disable --now "${unit}" 2>/dev/null || true
+    fi
+  done
+  # Disabling a timer does not stop the oneshot service it already launched. Stop
+  # any in-flight apply/backup/healthcheck run so it cannot keep mutating the
+  # stack (or reboot the host) while teardown proceeds.
+  local services=(
+    "itsup-apply.service"
+    "itsup-backup.service"
+    "pi-healthcheck.service"
+  )
+  for unit in "${services[@]}"; do
+    if [ -f "${SERVICE_DIR}/${unit}" ]; then
+      echo "Stopping ${unit}..."
+      sudo systemctl stop "${unit}" 2>/dev/null || true
     fi
   done
 }
@@ -78,17 +92,41 @@ bootout_launchd_agents() {
 
 # ── Step 2: tear the running stack down via the CLI's own primitives ───────
 
+# Returns non-zero if the stack could not be fully torn down — the caller must
+# then leave host integration in place rather than claim a clean decommission.
 teardown_stack() {
   if [ ! -x "${ITSUP}" ]; then
-    echo "⚠ ${ITSUP} not found — skipping stack teardown (dependencies not installed?)."
-    return
+    echo "⚠ ${ITSUP} not found — cannot run the CLI stack teardown."
+    # No CLI, but if itsUP processes are somehow up they cannot be torn down
+    # cleanly here — fail closed so the operator notices. With nothing running,
+    # there is nothing to tear down, so proceed.
+    if remnant_processes; then
+      echo "✗ itsUP processes are running but ${ITSUP} is absent — install deps and re-run." >&2
+      return 1
+    fi
+    return 0
   fi
   echo "Stopping the full itsUP stack (itsup down --clean)..."
-  ( cd "${ITSUP_ROOT}" && ITSUP_ROOT="${ITSUP_ROOT}" "${ITSUP}" down --clean ) || true
+  if ! ( cd "${ITSUP_ROOT}" && ITSUP_ROOT="${ITSUP_ROOT}" "${ITSUP}" down --clean ); then
+    echo "✗ 'itsup down --clean' failed — the stack may be partially up." >&2
+    return 1
+  fi
   if [ "${PLATFORM}" = "linux" ]; then
     echo "Flushing the monitor's iptables rules (itsup monitor clear-iptables)..."
     ( cd "${ITSUP_ROOT}" && ITSUP_ROOT="${ITSUP_ROOT}" "${ITSUP}" monitor clear-iptables ) || true
   fi
+  # `itsup down` is documented to keep going past individual stop failures, so a
+  # zero exit is not proof. Verify no itsUP host processes survived.
+  if remnant_processes; then
+    echo "✗ itsUP processes survived 'itsup down --clean'." >&2
+    return 1
+  fi
+}
+
+# True when an itsUP-managed host process (the monitor or the API server, both
+# started by `itsup run`) is still alive.
+remnant_processes() {
+  pgrep -f 'bin/monitor.py' >/dev/null 2>&1 || pgrep -f 'api/main.py' >/dev/null 2>&1
 }
 
 # ── Step 3: remove the unit / agent files ──────────────────────────────────
@@ -130,15 +168,25 @@ remove_launchd_agents() {
 echo "🛑 Decommissioning the itsUP runtime..."
 echo ""
 
+# Tear the stack down BEFORE removing host integration. If teardown fails, the
+# units stay in place so the operator can re-run rather than be left with a
+# half-decommissioned host that still claims success.
+abort_incomplete() {
+  echo "" >&2
+  echo "✗ Runtime teardown incomplete — host integration left in place. Fix the" >&2
+  echo "  cause above and re-run 'make uninstall-runtime'." >&2
+  exit 1
+}
+
 case "${PLATFORM}" in
   linux)
     if command -v systemctl >/dev/null 2>&1; then disable_systemd_units; fi
-    teardown_stack
+    teardown_stack || abort_incomplete
     if command -v systemctl >/dev/null 2>&1; then remove_systemd_units; fi
     ;;
   macos)
     bootout_launchd_agents
-    teardown_stack
+    teardown_stack || abort_incomplete
     remove_launchd_agents
     ;;
 esac
