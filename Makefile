@@ -1,4 +1,4 @@
-.PHONY: help install install-runtime uninstall-runtime test test-unit test-functional test-all lint format clean
+.PHONY: help install install-runtime uninstall-runtime test test-integration test-all lint format clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -18,15 +18,14 @@ install-runtime: ## Make this host a live deployment: install host integration (
 uninstall-runtime: ## Decommission this host: stop the whole stack, flush monitor rules, remove host integration
 	@./bin/uninstall-runtime.sh
 
-test-unit: ## Run unit tests (fast)
-	./bin/test.sh
+test: ## Fast test gate (excludes the integration tier)
+	@./bin/test.sh
 
-test-functional: ## Run functional tests (requires SOPS/age installed)
-	.venv/bin/pytest tests/functional/ -v --tb=short
+test-integration: ## Integration tier — real sops/age/git, slower
+	@.venv/bin/pytest -m integration
 
-test-all: test-unit test-functional ## Run both unit and functional tests
-
-test: test-all ## Run the full gate (unit + functional)
+test-all: ## Every tier (fast + integration)
+	@.venv/bin/pytest -m 'integration or not integration'
 
 format: ## Format code
 	@FILES_FROM="$(FILES_FROM)" ./bin/format.sh

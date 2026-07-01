@@ -93,7 +93,7 @@ dependencies = { file = ["requirements-prod.txt"] }
 optional-dependencies = { test = { file = ["requirements-test.txt"] } }
 
 [tool.pytest.ini_options]
-testpaths = ["commands", "lib", "tests"]
+testpaths = ["api", "bin", "commands", "lib", "monitor", "tests"]
 norecursedirs = [
   "upstream",
   ".venv",
@@ -109,7 +109,14 @@ norecursedirs = [
 python_files = ["*_test.py", "test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--strict-markers --tb=short"
+addopts = ["--strict-config", "--strict-markers", "--tb=short", "-q", "-n", "auto", "-m", "not integration"]
+timeout = 60
+timeout_method = "thread"
+markers = [
+  "functional: real in-process interaction at a boundary; mock only the process/network line",
+  "integration: slower; exercises a real external component (sops/age, docker)",
+  "spec(spec_id, scenario_id): bind a test to a human-authored feature-spec Gherkin scenario",
+]
 
 [tool.coverage.run]
 source = ["commands", "lib", "bin"]
