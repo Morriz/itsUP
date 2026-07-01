@@ -52,6 +52,18 @@ built by `get_env_with_secrets` at `docker compose up`.
 Verbosity for the `itsup` CLI is a flag, not an env var: `--verbose/-v` (`count`)
 on the CLI group (`itsup/cli.py:37-57`).
 
+<!-- planned:itsup-host-command-gate -->
+### Host identity (`SSH_HOST`, read from `.env`)
+
+`SSH_HOST` in `.env` is the container-host identity anchor: the host is the
+machine whose own LAN IP equals `SSH_HOST`. The CLI's host-identity gate reads it
+from `.env` via `load_env_file(root() / ".env")` — **not** from `os.environ`,
+which is why it is absent from the process-env table above — and compares it to
+the machine's detected LAN IP to decide whether runtime-mutating commands may run
+(full contract: `project/spec/cli`). It is documented in `samples/env` and set
+per host; unset or non-matching denies. (`lib/host_gate.py`)
+<!-- /planned:itsup-host-command-gate -->
+
 ### Infrastructure secrets (`secrets/itsup.{enc.txt|txt}`)
 
 Names verified against `samples/secrets/itsup.txt` and their code/template consumers.
