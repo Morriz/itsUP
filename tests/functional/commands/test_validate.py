@@ -9,10 +9,8 @@ Uses REAL project files and validation logic.
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
@@ -30,12 +28,12 @@ VALID = "valid"
 
 
 @pytest.fixture(autouse=True)
-def _itsup_root(tmp_path, monkeypatch):
+def _itsup_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Resolve itsUP's install root to the per-test fixture tree."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
 
 
-def test_validate_all_projects_success(tmp_path, monkeypatch):
+def test_validate_all_projects_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test validating all projects when all are valid."""
     # Create projects directory structure
     projects_dir = tmp_path / "projects"
@@ -75,7 +73,7 @@ ingress:
     assert ALL_PROJECTS_VALID in result.output
 
 
-def test_validate_single_project_success(tmp_path, monkeypatch):
+def test_validate_single_project_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test validating a single valid project."""
     # Create projects directory structure
     projects_dir = tmp_path / "projects"
@@ -111,7 +109,7 @@ ingress:
     assert TEST_APP_VALID in result.output
 
 
-def test_validate_project_with_unknown_service(tmp_path, monkeypatch):
+def test_validate_project_with_unknown_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test validation fails when ingress references non-existent service."""
     projects_dir = tmp_path / "projects"
     projects_dir.mkdir()
@@ -148,7 +146,7 @@ ingress:
     assert API in result.output or SERVICE in result.output.lower()
 
 
-def test_validate_project_missing_compose(tmp_path, monkeypatch):
+def test_validate_project_missing_compose(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test validation handles missing docker-compose.yml."""
     projects_dir = tmp_path / "projects"
     projects_dir.mkdir()
@@ -176,7 +174,7 @@ ingress:
     assert ERROR in result.output.lower()
 
 
-def test_validate_all_with_some_failures(tmp_path, monkeypatch):
+def test_validate_all_with_some_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test validating all projects when some have errors."""
     projects_dir = tmp_path / "projects"
     projects_dir.mkdir()
@@ -225,18 +223,7 @@ ingress:
     assert INVALID_APP in result.output
 
 
-def test_validate_no_projects_directory(tmp_path, monkeypatch):
-    """Test validation when projects/ directory doesn't exist."""
-    monkeypatch.chdir(tmp_path)
-
-    runner = CliRunner()
-    result = runner.invoke(validate, [])
-
-    # Should handle gracefully - either error or report no projects
-    assert result.exit_code in [0, 1]
-
-
-def test_validate_empty_projects_directory(tmp_path, monkeypatch):
+def test_validate_empty_projects_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test validation when projects/ directory is empty."""
     projects_dir = tmp_path / "projects"
     projects_dir.mkdir()

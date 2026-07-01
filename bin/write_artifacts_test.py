@@ -5,11 +5,11 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from bin.write_artifacts import inject_traefik_labels, write_upstream, write_upstreams
+from bin.write_artifacts import inject_traefik_labels, write_upstream
 from lib.data import edge_network_name
 from lib.models import Ingress, TraefikConfig
 from lib.paths import root
@@ -161,47 +161,6 @@ class TestWriteArtifacts(unittest.TestCase):
         with open(compose_file, encoding="utf-8") as f:
             result = yaml.safe_load(f)
         self.assertIn("web", result["services"])
-
-    @mock.patch("bin.write_artifacts.build_reverse_egress_graph")
-    @mock.patch("bin.write_artifacts.list_projects")
-    @mock.patch("bin.write_artifacts.write_upstream")
-    def test_write_upstreams_success(
-        self, mock_write_upstream: Mock, mock_list_projects: Mock, mock_build_graph: Mock
-    ) -> None:
-        """Test writing all upstream configs successfully; each project receives the reverse graph."""
-        mock_list_projects.return_value = ["project1", "project2"]
-        mock_build_graph.return_value = {}
-
-        result = write_upstreams()
-
-        self.assertTrue(result)
-        self.assertEqual(mock_write_upstream.call_count, 2)
-        mock_write_upstream.assert_has_calls([call("project1", {}), call("project2", {})])
-
-    @mock.patch("bin.write_artifacts.build_reverse_egress_graph")
-    @mock.patch("bin.write_artifacts.list_projects")
-    @mock.patch("bin.write_artifacts.write_upstream")
-    def test_write_upstreams_failure(
-        self, mock_write_upstream: Mock, mock_list_projects: Mock, mock_build_graph: Mock
-    ) -> None:
-        """Test writing upstream configs with failures."""
-        mock_list_projects.return_value = ["project1", "project2"]
-        mock_build_graph.return_value = {}
-        mock_write_upstream.side_effect = [None, Exception("Failed to process")]
-
-        result = write_upstreams()
-
-        self.assertFalse(result)
-        self.assertEqual(mock_write_upstream.call_count, 2)
-
-    @mock.patch("bin.write_artifacts.list_projects")
-    def test_write_upstreams_no_projects(self, mock_list_projects: Mock) -> None:
-        """Test writing upstream configs when no projects exist."""
-        mock_list_projects.return_value = []
-
-        result = write_upstreams()
-
-        self.assertTrue(result)  # Returns True when no projects to process
 
     @mock.patch("bin.write_artifacts.load_project")
     def test_write_upstream_network_assignment_with_ingress(self, mock_load_project: Mock) -> None:

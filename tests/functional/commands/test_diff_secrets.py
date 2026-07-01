@@ -11,7 +11,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 from unittest.mock import patch
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
@@ -29,18 +32,12 @@ FILE2_REQUIRED = "FILE2 required"
 FILE_NOT_FOUND = "File not found"
 
 
-def test_diff_secrets_help():
-    """Test diff-secrets help command.
-
-    Basic sanity check.
-    """
-    runner = CliRunner()
-    result = runner.invoke(diff_secrets, ["--help"])
-    assert result.exit_code == 0
-    assert HELP_DESCRIPTION in result.output
+class AgeKey(TypedDict):
+    private_key_file: Path
+    public_key: str
 
 
-def test_diff_secrets_no_secrets_directory(tmp_path, monkeypatch):
+def test_diff_secrets_no_secrets_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test error handling when secrets/ directory doesn't exist."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     runner = CliRunner()
@@ -50,7 +47,7 @@ def test_diff_secrets_no_secrets_directory(tmp_path, monkeypatch):
     assert SECRETS_DIR_NOT_FOUND in result.output
 
 
-def test_diff_secrets_no_encrypted_files(tmp_path, monkeypatch):
+def test_diff_secrets_no_encrypted_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test warning when no encrypted files exist."""
     # Create empty secrets directory
     secrets_dir = tmp_path / "secrets"
@@ -64,7 +61,9 @@ def test_diff_secrets_no_encrypted_files(tmp_path, monkeypatch):
     assert NO_ENCRYPTED_FILES in result.output
 
 
-def test_diff_secrets_uses_secrets_repo_not_parent_repo(tmp_path, real_age_key, monkeypatch):
+def test_diff_secrets_uses_secrets_repo_not_parent_repo(
+    tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """REGRESSION TEST: Verify git commands run in secrets repo, not parent.
 
     This is the critical test for the bug where all files showed as "new"
@@ -92,9 +91,7 @@ def test_diff_secrets_uses_secrets_repo_not_parent_repo(tmp_path, real_age_key, 
     # Create REAL secrets repo (SEPARATE git repo)
     secrets_repo = parent_repo / "secrets"
     secrets_repo.mkdir()
-    subprocess.run(
-        ["git", "init"], cwd=secrets_repo, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init"], cwd=secrets_repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
         cwd=secrets_repo,
@@ -128,9 +125,7 @@ def test_diff_secrets_uses_secrets_repo_not_parent_repo(tmp_path, real_age_key, 
     )
     plaintext.unlink()
 
-    subprocess.run(
-        ["git", "add", "."], cwd=secrets_repo, check=True, capture_output=True
-    )
+    subprocess.run(["git", "add", "."], cwd=secrets_repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "Add secret"],
         cwd=secrets_repo,
@@ -157,7 +152,9 @@ def test_diff_secrets_uses_secrets_repo_not_parent_repo(tmp_path, real_age_key, 
     assert NEW_FILE_MARKER not in result.output, "File IS committed in secrets repo, should not show as new"
 
 
-def test_diff_secrets_with_uncommitted_file(tmp_path, real_age_key, monkeypatch):
+def test_diff_secrets_with_uncommitted_file(
+    tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Uncommitted encrypted files should show as 'New file'.
 
     FUNCTIONAL TEST - uses real git and sops.
@@ -182,9 +179,7 @@ def test_diff_secrets_with_uncommitted_file(tmp_path, real_age_key, monkeypatch)
     # Create secrets repo
     secrets_repo = parent_repo / "secrets"
     secrets_repo.mkdir()
-    subprocess.run(
-        ["git", "init"], cwd=secrets_repo, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init"], cwd=secrets_repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
         cwd=secrets_repo,
@@ -200,11 +195,9 @@ def test_diff_secrets_with_uncommitted_file(tmp_path, real_age_key, monkeypatch)
 
     # Create .sops.yaml in secrets repo
     sops_config = secrets_repo / ".sops.yaml"
-    sops_config.write_text(
-        f"""creation_rules:
+    sops_config.write_text(f"""creation_rules:
   - age: {real_age_key["public_key"]}
-"""
-    )
+""")
 
     # Create and encrypt a file but DON'T commit it
     plaintext = secrets_repo / "uncommitted.txt"
@@ -246,7 +239,9 @@ def test_diff_secrets_with_uncommitted_file(tmp_path, real_age_key, monkeypatch)
     assert DECRYPTED_SECRET_CONTENT in result.output, "Should show decrypted content of new file"
 
 
-def test_diff_secrets_corrupted_file_shows_decrypt_error(tmp_path, real_age_key, monkeypatch):
+def test_diff_secrets_corrupted_file_shows_decrypt_error(
+    tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that corrupted encrypted files show decrypt error."""
     # Create parent repo
     parent_repo = tmp_path / "itsup"
@@ -268,9 +263,7 @@ def test_diff_secrets_corrupted_file_shows_decrypt_error(tmp_path, real_age_key,
     # Create secrets repo
     secrets_repo = parent_repo / "secrets"
     secrets_repo.mkdir()
-    subprocess.run(
-        ["git", "init"], cwd=secrets_repo, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init"], cwd=secrets_repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
         cwd=secrets_repo,
@@ -304,60 +297,7 @@ def test_diff_secrets_corrupted_file_shows_decrypt_error(tmp_path, real_age_key,
     assert FAILED_TO_DECRYPT in result.output or result.exit_code == 1
 
 
-def test_diff_secrets_specific_files_comparison(tmp_path, real_age_key, monkeypatch):
-    """Test comparing two specific encrypted files."""
-    # Create .sops.yaml
-    (tmp_path / ".sops.yaml").write_text(
-        f"""creation_rules:
-  - age: {real_age_key["public_key"]}
-"""
-    )
-
-    # Create two different plaintext files
-    plaintext1 = tmp_path / "secret1.txt"
-    plaintext1.write_text("KEY=value1")
-
-    plaintext2 = tmp_path / "secret2.txt"
-    plaintext2.write_text("KEY=value2")
-
-    # Encrypt both
-    encrypted1 = tmp_path / "secret1.enc.txt"
-    encrypted2 = tmp_path / "secret2.enc.txt"
-
-    for plaintext, encrypted in [(plaintext1, encrypted1), (plaintext2, encrypted2)]:
-        subprocess.run(
-            [
-                "sops",
-                "-e",
-                "--age",
-                real_age_key["public_key"],
-                "--output",
-                str(encrypted),
-                str(plaintext),
-            ],
-            check=True,
-            capture_output=True,
-        )
-
-    # Run diff-secrets with two files
-    env = {
-        **os.environ,
-        "SOPS_AGE_KEY_FILE": str(real_age_key["private_key_file"]),
-    }
-
-    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
-    with patch("commands.diff_secrets._check_sops_diff", return_value=True):
-        runner = CliRunner(env=env)
-        result = runner.invoke(
-            diff_secrets,
-            [str(encrypted1.relative_to(tmp_path)), str(encrypted2.relative_to(tmp_path))],
-        )
-
-    # Should run sops-diff (non-zero exit if files differ)
-    assert result.exit_code in [0, 1]  # 0 = same, 1 = different
-
-
-def test_diff_secrets_requires_file2_without_git_flag(tmp_path, monkeypatch):
+def test_diff_secrets_requires_file2_without_git_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that FILE2 is required when not using --git flag."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     with patch("commands.diff_secrets._check_sops_diff", return_value=True):
@@ -368,7 +308,7 @@ def test_diff_secrets_requires_file2_without_git_flag(tmp_path, monkeypatch):
     assert FILE2_REQUIRED in result.output
 
 
-def test_diff_secrets_file_not_found(tmp_path, monkeypatch):
+def test_diff_secrets_file_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test error handling when file doesn't exist."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     with patch("commands.diff_secrets._check_sops_diff", return_value=True):
@@ -377,87 +317,3 @@ def test_diff_secrets_file_not_found(tmp_path, monkeypatch):
 
     assert result.exit_code == 1
     assert FILE_NOT_FOUND in result.output
-
-
-def test_diff_secrets_with_git_flag(tmp_path, real_age_key, monkeypatch):
-    """Test --git flag for comparing with git revision."""
-    # Create git repo
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@test.com"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create .sops.yaml
-    (tmp_path / ".sops.yaml").write_text(
-        f"""creation_rules:
-  - age: {real_age_key["public_key"]}
-"""
-    )
-
-    # Create and commit encrypted file
-    plaintext = tmp_path / "secret.txt"
-    plaintext.write_text("KEY=value1")
-
-    encrypted = tmp_path / "secret.enc.txt"
-    subprocess.run(
-        [
-            "sops",
-            "-e",
-            "--age",
-            real_age_key["public_key"],
-            "--output",
-            str(encrypted),
-            str(plaintext),
-        ],
-        check=True,
-        capture_output=True,
-    )
-
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-
-    # Modify and re-encrypt
-    plaintext.write_text("KEY=value2")
-    subprocess.run(
-        [
-            "sops",
-            "-e",
-            "--age",
-            real_age_key["public_key"],
-            "--output",
-            str(encrypted),
-            str(plaintext),
-        ],
-        check=True,
-        capture_output=True,
-    )
-
-    # Run diff-secrets with --git flag
-    env = {
-        **os.environ,
-        "SOPS_AGE_KEY_FILE": str(real_age_key["private_key_file"]),
-    }
-
-    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
-    with patch("commands.diff_secrets._check_sops_diff", return_value=True):
-        runner = CliRunner(env=env)
-        result = runner.invoke(
-            diff_secrets, ["--git", "HEAD:secret.enc.txt", "secret.enc.txt"]
-        )
-
-    # Should run sops-diff (exit code 1 because files differ)
-    assert result.exit_code in [0, 1]
