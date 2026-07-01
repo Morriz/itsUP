@@ -4,8 +4,6 @@ description: How the itsup CLI is distributed and invoked — a packaged console
   symlink, resolving its install root from ITSUP_ROOT or the package location rather
   than cwd, so the bare itsup runs from any directory while always operating on its
   own repo and no runtime caller sources env.sh.
-delivered_by:
-- itsup-cli-deprecate-env
 ---
 
 # itsUP CLI Distribution — Design

@@ -55,11 +55,7 @@ itsup commit "<message>"   # commits + pushes projects/ and secrets/
 
 ### Automated nightly backup
 
-<!-- planned-change:itsup-cli-deprecate-env -->
-`make install` enables `itsup-backup.timer`, which fires `itsup-backup.service` at 05:00 daily with `Persistent=true` so a missed run executes at next boot. The service runs as root (to read root-owned container volumes), sources `env.sh`, and invokes `.venv/bin/python bin/backup.py`.
-<!-- change:itsup-cli-deprecate-env -->
 `make install` enables `itsup-backup.timer`, which fires `itsup-backup.service` at 05:00 daily with `Persistent=true` so a missed run executes at next boot. The service runs as root (to read root-owned container volumes) with `HOME` pinned to the itsUP user so SOPS finds the age key, and invokes the absolute `.venv/bin/python bin/backup.py` directly — no `env.sh` sourcing.
-<!-- /planned-change:itsup-cli-deprecate-env -->
 
 ### Restore
 
