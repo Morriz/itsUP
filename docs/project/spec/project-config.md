@@ -11,7 +11,19 @@ A project lives in `projects/{project}/` and is described by two files:
 - **`docker-compose.yml`** — a standard Compose file (services, images, volumes,
   env with `${VAR}` placeholders). itsUP loads it as a **raw mapping**
   (`yaml.safe_load`, `lib/data.py:168`), not through a model — any valid Compose
-  is accepted; itsUP only injects networks/labels/DNS at generation time.
+  is accepted; itsUP only injects networks/labels/DNS at generation time. The
+  author writes only the service definitions: ingress, Traefik labels, networks,
+  and DNS are declared in `itsup-project.yml` and injected downstream, never
+  hand-written here. Two authoring constraints the raw-mapping load does **not**
+  enforce but the platform depends on:
+  - **Persist with bind mounts, never named volumes.** The nightly backup tars
+    only bind-mounted state under `upstream/`
+    (`project/procedure/backup-and-restore`); a named volume lives outside that
+    tree and is silently lost on restore.
+  - **Give each service a healthcheck.** The zero-downtime rollout waits on it
+    (`scale-up → health-check → kill-old`,
+    `project/design/deployment-orchestration`) and `depends_on: service_healthy`
+    gating relies on it.
 - **`itsup-project.yml`** (legacy name `ingress.yml`, deprecated — see
   `project/design/network-segmentation`) — the itsUP routing + segmentation
   contract, parsed into the `TraefikConfig` model (`lib/data.py:199`).
@@ -96,3 +108,5 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
 
 - docs/project/design/network-segmentation.md
 - docs/project/design/artifact-generation.md
+- docs/project/procedure/backup-and-restore.md
+- docs/project/design/deployment-orchestration.md
