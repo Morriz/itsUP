@@ -59,7 +59,9 @@ own LAN IP equals `SSH_HOST` in `.env` — read from the file via `load_env_file
 **not** from `os.environ` — and the LAN IP is detected with a UDP-socket probe.
 The gate is fail-closed: an unset, empty, or non-matching `SSH_HOST`, or a failed
 detection, denies. It runs once for the invoked subcommand in the group callback,
-keyed on `ctx.invoked_subcommand` against a single host-only set.
+keyed on `ctx.invoked_subcommand` against a single host-only set — so it precedes
+per-command argument parsing, and off-host even `itsup <host-only-cmd> --help` is
+refused.
 
 - **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
   `proxy`, `svc`, `monitor`, `logs`. `make install-runtime` refuses off-host
