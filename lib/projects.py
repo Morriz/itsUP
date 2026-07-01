@@ -75,16 +75,19 @@ def create_project(name: str, root: Path | None = None) -> None:
     # docker-compose.yml — intentionally empty; the author fills in the services.
     compose_yml = project_path / "docker-compose.yml"
     compose_yml.write_text(
-        "# Define this project's services here.\n"
+        "# Define this project's service(s) here — raw Compose input to itsUP's\n"
+        "# upstream generator.\n"
         "#\n"
-        "# Source the stack from the software's OFFICIAL publisher — the vendor's own\n"
-        "# published Docker Compose stack / install docs (e.g. a Grafana stack from\n"
-        "# Grafana). Do NOT write it from memory or a trained recollection; fetch the\n"
-        "# producer's current published stack when one exists, and adapt that.\n"
-        "# Then apply itsUP's conventions (see projects/*/docker-compose.yml): expose\n"
-        "# instead of ports, join the project networks, add a healthcheck.\n"
-        "# Do NOT use named volumes — the nightly backup only captures bind-mounted\n"
-        "# state, so named volumes are lost on restore. Persist with bind mounts.\n"
+        "# Source the stack from the software's OFFICIAL publisher: the vendor's own\n"
+        "# published Docker Compose / install docs (e.g. a Grafana stack from Grafana),\n"
+        "# not from memory. Prefer the producer's current published stack when one exists.\n"
+        "#\n"
+        "# Do not add ingress, Traefik labels, networks, or DNS — routing is declared in\n"
+        "# itsup-project.yml and itsUP injects the rest when it generates the deployable\n"
+        "# stack. Just define the services.\n"
+        "#\n"
+        "# Use bind mounts, never named volumes — the nightly backup only captures\n"
+        "# bind-mounted state, so named volumes are lost on restore.\n"
     )
     logger.info("Created %s", compose_yml)
 
