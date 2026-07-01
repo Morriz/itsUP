@@ -86,6 +86,9 @@ def create_project(name: str, root: Path | None = None) -> None:
         "# itsup-project.yml and itsUP injects the rest when it generates the deployable\n"
         "# stack. Just define the services.\n"
         "#\n"
+        "# Give each service a healthcheck — the zero-downtime rollout waits on it\n"
+        "# (scale-up -> health-check -> kill-old) and depends_on gating relies on it.\n"
+        "#\n"
         "# Use bind mounts, never named volumes — the nightly backup only captures\n"
         "# bind-mounted state, so named volumes are lost on restore.\n"
     )
