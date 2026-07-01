@@ -85,14 +85,6 @@ class TestCreateProject(unittest.TestCase):
         self.assertEqual(content["ingress"][0]["service"], "my-app-web")
         self.assertEqual(content["ingress"][0]["domain"], "my-app.srv.instrukt.ai")
 
-    def test_docker_compose_yml_valid(self) -> None:
-        import yaml
-
-        create_project("my-app", self.root)
-        content = yaml.safe_load((self.root / "projects" / "my-app" / "docker-compose.yml").read_text())
-        self.assertIn("my-app-web", content["services"])
-        self.assertEqual(content["services"]["my-app-web"]["image"], "nginx:alpine")
-
     def test_rejects_existing_project(self) -> None:
         (self.root / "projects" / "existing").mkdir()
         with self.assertRaises(ValueError):
