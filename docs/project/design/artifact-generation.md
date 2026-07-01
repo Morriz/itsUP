@@ -1,10 +1,5 @@
 ---
-id: 'project/design/artifact-generation'
-type: 'design'
-scope: 'project'
 description: 'How itsUP turns declarative projects/ config into deployable artifacts — Traefik label injection (HTTP) vs dynamic-file routers (TCP/UDP/host), template+override merge, DNS injection, and static-IP pinning, all via change-detecting writes.'
-generated_by: 'telec-init'
-generated_at: '2026-06-11 00:00:00+00:00'
 ---
 
 # Artifact Generation — Design
@@ -109,4 +104,4 @@ egress targets, project default) → inject DNS → pin static IPs → write
 
 - docs/project/spec/project-config.md
 - docs/project/design/network-segmentation.md
-- docs/networking.md
+- docs/project/design/network-segmentation.md

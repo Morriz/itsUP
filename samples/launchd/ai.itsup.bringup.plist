@@ -30,6 +30,11 @@
     <dict>
         <key>HOME</key>
         <string>{{HOME}}</string>
+        <!-- launchd's default PATH omits Homebrew/Docker locations; the guardian
+             invokes itsup, which shells out to docker/sops/etc via PATH, so set
+             one covering Apple Silicon + Intel Homebrew. -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>StandardOutPath</key>
     <string>/var/log/instrukt-ai/itsup/bringup.log</string>

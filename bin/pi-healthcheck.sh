@@ -76,7 +76,10 @@ if ! [[ "$HOUR" > "0230" && "$HOUR" < "0330" ]]; then
   # On 3rd consecutive strike: restart docker + stacks; next strike would reboot (still daytime).
   log "WARN (day strike ${strikes}/3) ${reasons[*]} -> restarting docker + itsup stacks"
   systemctl restart docker || log "ERROR failed to restart docker"
-  ( cd "$REPO_ROOT" && source env.sh && itsup dns up && itsup proxy up ) || log "ERROR itsup bringup failed"
+  if ! ( export ITSUP_ROOT="$REPO_ROOT"; "$REPO_ROOT/.venv/bin/itsup" dns up && "$REPO_ROOT/.venv/bin/itsup" proxy up ); then
+    log "ERROR itsup bringup failed"
+    exit 1
+  fi
   exit 0
 fi
 
@@ -86,7 +89,10 @@ if [[ ! -f "$STAMP" ]]; then
   log "WARN ${reasons[*]} -> restarting docker + itsup stacks"
   systemctl restart docker || log "ERROR failed to restart docker"
   # bring stacks back
-  ( cd "$REPO_ROOT" && source env.sh && itsup dns up && itsup proxy up ) || log "ERROR itsup bringup failed"
+  if ! ( export ITSUP_ROOT="$REPO_ROOT"; "$REPO_ROOT/.venv/bin/itsup" dns up && "$REPO_ROOT/.venv/bin/itsup" proxy up ); then
+    log "ERROR itsup bringup failed"
+    exit 1
+  fi
   exit 0
 fi
 

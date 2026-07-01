@@ -2,6 +2,7 @@
 
 import os
 import sys
+import tempfile
 import unittest
 from unittest import mock
 from unittest.mock import Mock, call
@@ -11,10 +12,21 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from bin.write_artifacts import inject_traefik_labels, write_upstream, write_upstreams
 from lib.data import edge_network_name
 from lib.models import Ingress, TraefikConfig
+from lib.paths import root
 
 
 class TestWriteArtifacts(unittest.TestCase):
     """Tests for write-artifacts.py V2 implementation"""
+
+    def setUp(self) -> None:
+        """Anchor each test's artifact tree under an isolated ITSUP_ROOT."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self._env = mock.patch.dict(os.environ, {"ITSUP_ROOT": self._tmp.name})
+        self._env.start()
+
+    def tearDown(self) -> None:
+        self._env.stop()
+        self._tmp.cleanup()
 
     def test_inject_traefik_labels_disabled(self) -> None:
         """Test that labels are not injected when Traefik is disabled."""
@@ -136,7 +148,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_generates_compose_file(self, mock_load_project: Mock) -> None:
         """write_upstream writes a docker-compose.yml to the upstream directory."""
         import yaml
-        from pathlib import Path
 
         compose = {"services": {"web": {"image": "nginx"}}}
         ingress = Ingress(service="web", domain="example.com", port=80, router="http")
@@ -145,7 +156,7 @@ class TestWriteArtifacts(unittest.TestCase):
 
         write_upstream("test-project")
 
-        compose_file = Path("upstream/test-project/docker-compose.yml")
+        compose_file = root() / "upstream" / "test-project" / "docker-compose.yml"
         self.assertTrue(compose_file.exists())
         with open(compose_file, encoding="utf-8") as f:
             result = yaml.safe_load(f)
@@ -208,10 +219,9 @@ class TestWriteArtifacts(unittest.TestCase):
         write_upstream("test-project")
 
         # Read generated file
-        from pathlib import Path
         import yaml
 
-        compose_file = Path("upstream/test-project/docker-compose.yml")
+        compose_file = root() / "upstream" / "test-project" / "docker-compose.yml"
         with open(compose_file, encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
@@ -236,10 +246,9 @@ class TestWriteArtifacts(unittest.TestCase):
 
         write_upstream("test-project", {})
 
-        from pathlib import Path
         import yaml
 
-        compose_file = Path("upstream/test-project/docker-compose.yml")
+        compose_file = root() / "upstream" / "test-project" / "docker-compose.yml"
         with open(compose_file, encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
@@ -265,10 +274,9 @@ class TestWriteArtifacts(unittest.TestCase):
 
         write_upstream("test-project", {})
 
-        from pathlib import Path
         import yaml
 
-        compose_file = Path("upstream/test-project/docker-compose.yml")
+        compose_file = root() / "upstream" / "test-project" / "docker-compose.yml"
         with open(compose_file, encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
@@ -283,7 +291,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_ipv4_address_mapping_form(self, mock_load_project: Mock) -> None:
         """A static ipv4_address renders the networks block in mapping form on proxynet."""
         import yaml
-        from pathlib import Path
 
         compose = {"services": {"web": {"image": "nginx"}}}
         ingress = Ingress(service="web", domain="example.com", port=80, router="http", ipv4_address="172.20.0.50")
@@ -292,7 +299,7 @@ class TestWriteArtifacts(unittest.TestCase):
 
         write_upstream("test-project")
 
-        with open(Path("upstream/test-project/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "test-project" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         networks = result["services"]["web"]["networks"]
@@ -303,18 +310,15 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_dns_override(self, mock_load_project: Mock) -> None:
         """An explicit dns list on ingress replaces the honeypot injection verbatim."""
         import yaml
-        from pathlib import Path
 
         compose = {"services": {"web": {"image": "nginx"}}}
-        ingress = Ingress(
-            service="web", domain="example.com", port=80, router="http", dns=["127.0.0.11", "1.1.1.1"]
-        )
+        ingress = Ingress(service="web", domain="example.com", port=80, router="http", dns=["127.0.0.11", "1.1.1.1"])
         traefik = TraefikConfig(enabled=True, ingress=[ingress], egress=[])
         mock_load_project.return_value = (compose, traefik)
 
         write_upstream("test-project")
 
-        with open(Path("upstream/test-project/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "test-project" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         self.assertEqual(result["services"]["web"]["dns"], ["127.0.0.11", "1.1.1.1"])
@@ -323,7 +327,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_no_ipv4_keeps_list_form(self, mock_load_project: Mock) -> None:
         """Without a static IP the networks block stays in list form (no churn)."""
         import yaml
-        from pathlib import Path
 
         compose = {"services": {"web": {"image": "nginx"}}}
         ingress = Ingress(service="web", domain="example.com", port=80, router="http")
@@ -332,7 +335,7 @@ class TestWriteArtifacts(unittest.TestCase):
 
         write_upstream("test-project")
 
-        with open(Path("upstream/test-project/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "test-project" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         self.assertIsInstance(result["services"]["web"]["networks"], list)
@@ -342,7 +345,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_provider_creates_edge_network(self, mock_load_project: Mock) -> None:
         """Provider creates named edge networks and attaches only the declared service."""
         import yaml
-        from pathlib import Path
 
         compose = {
             "services": {
@@ -357,7 +359,7 @@ class TestWriteArtifacts(unittest.TestCase):
         reverse_graph = {"provider": [("consumer-a", "redis")]}
         write_upstream("provider", reverse_graph)
 
-        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "provider" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         edge_net = edge_network_name("consumer-a", "provider", "redis")
@@ -372,7 +374,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_co_consumer_isolation(self, mock_load_project: Mock) -> None:
         """Two consumers egressing to the same service get separate, disjoint edge networks."""
         import yaml
-        from pathlib import Path
 
         compose = {"services": {"redis": {"image": "redis"}}}
         traefik = TraefikConfig(enabled=True, ingress=[], egress=[])
@@ -381,7 +382,7 @@ class TestWriteArtifacts(unittest.TestCase):
         reverse_graph = {"provider": [("consumer-a", "redis"), ("consumer-b", "redis")]}
         write_upstream("provider", reverse_graph)
 
-        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "provider" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         edge_a = edge_network_name("consumer-a", "provider", "redis")
@@ -399,7 +400,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_least_privilege_provider(self, mock_load_project: Mock) -> None:
         """Consumer's edge network only attaches the named service — not other provider services."""
         import yaml
-        from pathlib import Path
 
         compose = {
             "services": {
@@ -413,7 +413,7 @@ class TestWriteArtifacts(unittest.TestCase):
         reverse_graph = {"provider": [("consumer-a", "redis")]}
         write_upstream("provider", reverse_graph)
 
-        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "provider" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         edge_net = edge_network_name("consumer-a", "provider", "redis")
@@ -426,7 +426,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_provider_service_preserves_default_network(self, mock_load_project: Mock) -> None:
         """Provider service attached to an edge network also retains the implicit default network."""
         import yaml
-        from pathlib import Path
 
         compose = {
             "services": {
@@ -440,7 +439,7 @@ class TestWriteArtifacts(unittest.TestCase):
         reverse_graph = {"provider": [("consumer-a", "redis")]}
         write_upstream("provider", reverse_graph)
 
-        with open(Path("upstream/provider/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "provider" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         edge_net = edge_network_name("consumer-a", "provider", "redis")
@@ -454,7 +453,6 @@ class TestWriteArtifacts(unittest.TestCase):
     def test_write_upstream_consumer_not_on_provider_default(self, mock_load_project: Mock) -> None:
         """Consumer joins edge network only; the provider's _default network is never added."""
         import yaml
-        from pathlib import Path
 
         compose = {"services": {"app": {"image": "app"}}}
         traefik = TraefikConfig(enabled=True, ingress=[], egress=["db:postgres", "db:redis"])
@@ -462,7 +460,7 @@ class TestWriteArtifacts(unittest.TestCase):
 
         write_upstream("consumer", {})
 
-        with open(Path("upstream/consumer/docker-compose.yml"), encoding="utf-8") as f:
+        with open(root() / "upstream" / "consumer" / "docker-compose.yml", encoding="utf-8") as f:
             result = yaml.safe_load(f)
 
         edge_postgres = edge_network_name("consumer", "db", "postgres")

@@ -9,4 +9,5 @@ User={{USER}}
 Group={{GROUP}}
 WorkingDirectory={{ROOT}}
 Environment=HOME=/home/{{USER}}
+Environment=ITSUP_ROOT={{ROOT}}
 ExecStart={{ROOT}}/bin/pi-healthcheck.sh

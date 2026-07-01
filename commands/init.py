@@ -13,6 +13,8 @@ from pathlib import Path
 
 import click
 
+from lib.paths import root
+
 
 class Colors:
     """ANSI color codes for terminal output"""
@@ -41,11 +43,7 @@ def _warning(message: str) -> None:
 
 def _get_project_root() -> Path:
     """Get the project root directory"""
-    # itsup script is in project root, commands/ is also in project root
-    # So we go up from commands/ directory
-    commands_dir = Path(__file__).resolve().parent
-    project_root = commands_dir.parent
-    return project_root
+    return root()
 
 
 def _validate_project_structure(root: Path) -> None:
@@ -205,17 +203,17 @@ def init(force: bool):
     click.echo()
 
     # Get project root (work from where script is located)
-    root = _get_project_root()
+    project_root = _get_project_root()
 
     # Validate project structure
-    _validate_project_structure(root)
+    _validate_project_structure(project_root)
 
     # Check if already initialized (exit early unless --force)
     if not force:
         required_files = [
-            root / "projects" / "itsup.yml",
-            root / "projects" / "traefik.yml",
-            root / "secrets" / "itsup.txt",
+            project_root / "projects" / "itsup.yml",
+            project_root / "projects" / "traefik.yml",
+            project_root / "secrets" / "itsup.txt",
         ]
         if all(f.exists() for f in required_files):
             _success("Already initialized (use --force to re-run)")
@@ -223,36 +221,36 @@ def init(force: bool):
 
     # Setup git repositories
     click.echo("Setting up configuration repositories...")
-    _setup_repo(root, "projects")
-    _setup_repo(root, "secrets")
+    _setup_repo(project_root, "projects")
+    _setup_repo(project_root, "secrets")
     click.echo()
 
     # Initialize configuration files
     click.echo("Copying configuration files...")
-    _copy_if_missing(root / "samples" / "env", root / ".env", "samples/env → .env")
+    _copy_if_missing(project_root / "samples" / "env", project_root / ".env", "samples/env → .env")
     _copy_if_missing(
-        root / "samples" / "itsup.yml",
-        root / "projects" / "itsup.yml",
+        project_root / "samples" / "itsup.yml",
+        project_root / "projects" / "itsup.yml",
         "samples/itsup.yml → projects/itsup.yml",
     )
     _copy_if_missing(
-        root / "samples" / "traefik.yml",
-        root / "projects" / "traefik.yml",
+        project_root / "samples" / "traefik.yml",
+        project_root / "projects" / "traefik.yml",
         "samples/traefik.yml → projects/traefik.yml",
     )
     _copy_if_missing(
-        root / "samples" / "middlewares.yml",
-        root / "projects" / "middlewares.yml",
+        project_root / "samples" / "middlewares.yml",
+        project_root / "projects" / "middlewares.yml",
         "samples/middlewares.yml → projects/middlewares.yml",
     )
     _copy_dir_if_missing(
-        root / "samples" / "example-project",
-        root / "projects" / "example-project",
+        project_root / "samples" / "example-project",
+        project_root / "projects" / "example-project",
         "samples/example-project/ → projects/example-project/",
     )
     _copy_if_missing(
-        root / "samples" / "secrets" / "itsup.txt",
-        root / "secrets" / "itsup.txt",
+        project_root / "samples" / "secrets" / "itsup.txt",
+        project_root / "secrets" / "itsup.txt",
         "samples/secrets/itsup.txt → secrets/itsup.txt",
     )
     click.echo()

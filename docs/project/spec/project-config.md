@@ -1,10 +1,5 @@
 ---
-id: 'project/spec/project-config'
-type: 'spec'
-scope: 'project'
 description: 'The per-project declarative configuration contract — itsup-project.yml (TraefikConfig/Ingress/Egress/TLS + enums) and the docker-compose.yml it accompanies, including validation rules and the two project types (container vs external host).'
-generated_by: 'telec-init'
-generated_at: '2026-06-11 00:00:00+00:00'
 ---
 
 # Project Config — Spec
@@ -99,6 +94,5 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
 
 ## See Also
 
-- docs/development/configuration.md
 - docs/project/design/network-segmentation.md
 - docs/project/design/artifact-generation.md

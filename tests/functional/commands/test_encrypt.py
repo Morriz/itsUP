@@ -20,8 +20,16 @@ from click.testing import CliRunner
 from commands.encrypt import encrypt
 from lib.sops import encrypt_file
 
+SOPS_METADATA_MARKER = "sops"
+ENCRYPTED_ONE_FILE = "Encrypted 1 file"
+SKIPPED_ONE_FILE = "Skipped 1 file"
+SECRETS_DIR_NOT_FOUND = "secrets/ directory not found"
+FILE_NOT_FOUND_NONEXISTENT = "File not found: secrets/nonexistent.txt"
+NO_PLAINTEXT_SECRETS = "No plaintext secrets found"
+FAILED_TO_ENCRYPT = "Failed to encrypt"
 
-def test_encrypt_command_with_real_sops(tmp_path, real_age_key):
+
+def test_encrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
     """Test 'itsup encrypt' command end-to-end.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -49,14 +57,9 @@ def test_encrypt_command_with_real_sops(tmp_path, real_age_key):
         "SOPS_AGE_KEY_FILE": str(real_age_key["private_key_file"]),
     }
 
-    # Create commands directory for __file__ mocking
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    # Mock __file__ to point to our tmp directory
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        runner = CliRunner(env=env)
-        result = runner.invoke(encrypt, ["test"])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner(env=env)
+    result = runner.invoke(encrypt, ["test"])
 
     # Command should succeed
     assert result.exit_code == 0, f"Encrypt failed: {result.output}"
@@ -68,7 +71,7 @@ def test_encrypt_command_with_real_sops(tmp_path, real_age_key):
     # Verify content is actually encrypted (not plaintext)
     encrypted_content = encrypted.read_text()
     assert plaintext_content not in encrypted_content, "Content should be encrypted"
-    assert "sops" in encrypted_content, "Should contain SOPS metadata"
+    assert SOPS_METADATA_MARKER in encrypted_content, "Should contain SOPS metadata"
 
     # Verify we can decrypt with real sops
     decrypted_content = subprocess.run(
@@ -123,7 +126,7 @@ def test_encrypt_temp_plaintext_uses_secrets_config(tmp_path, real_age_key):
     assert decrypted_content == plaintext_content, "Decrypted content should match original"
 
 
-def test_encrypt_with_delete_flag(tmp_path, real_age_key):
+def test_encrypt_with_delete_flag(tmp_path, real_age_key, monkeypatch):
     """Test 'itsup encrypt --delete' removes plaintext files.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -149,14 +152,10 @@ def test_encrypt_with_delete_flag(tmp_path, real_age_key):
         "SOPS_AGE_KEY_FILE": str(real_age_key["private_key_file"]),
     }
 
-    # Create commands directory for __file__ mocking
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
     # Encrypt with --delete flag
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        runner = CliRunner(env=env)
-        result = runner.invoke(encrypt, ["delete-test", "--delete"])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner(env=env)
+    result = runner.invoke(encrypt, ["delete-test", "--delete"])
 
     assert result.exit_code == 0, f"Encrypt failed: {result.output}"
 
@@ -168,7 +167,7 @@ def test_encrypt_with_delete_flag(tmp_path, real_age_key):
     assert not plaintext.exists(), "Plaintext should be deleted with --delete flag"
 
 
-def test_encrypt_skip_unchanged(tmp_path, real_age_key):
+def test_encrypt_skip_unchanged(tmp_path, real_age_key, monkeypatch):
     """Test 'itsup encrypt' skips files when content is unchanged.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -195,80 +194,64 @@ def test_encrypt_skip_unchanged(tmp_path, real_age_key):
         "SOPS_AGE_KEY_FILE": str(real_age_key["private_key_file"]),
     }
 
-    # Create commands directory for __file__ mocking
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     runner = CliRunner(env=env)
 
     # First encryption
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        result = runner.invoke(encrypt, ["unchanged"])
+    result = runner.invoke(encrypt, ["unchanged"])
     assert result.exit_code == 0
-    assert "Encrypted 1 file" in result.output, "Should encrypt on first run"
+    assert ENCRYPTED_ONE_FILE in result.output, "Should encrypt on first run"
 
     # Second encryption (content unchanged)
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        result = runner.invoke(encrypt, ["unchanged"])
+    result = runner.invoke(encrypt, ["unchanged"])
     assert result.exit_code == 0
-    assert "Skipped 1 file" in result.output, "Should skip unchanged file"
+    assert SKIPPED_ONE_FILE in result.output, "Should skip unchanged file"
 
     # Force re-encryption
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        result = runner.invoke(encrypt, ["unchanged", "--force"])
+    result = runner.invoke(encrypt, ["unchanged", "--force"])
     assert result.exit_code == 0
-    assert "Encrypted 1 file" in result.output, "Should re-encrypt with --force"
+    assert ENCRYPTED_ONE_FILE in result.output, "Should re-encrypt with --force"
 
 
-def test_encrypt_no_secrets_directory(tmp_path):
+def test_encrypt_no_secrets_directory(tmp_path, monkeypatch):
     """Test encrypt command when secrets/ directory doesn't exist."""
-    # Create commands directory for __file__ mocking (but no secrets/)
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        runner = CliRunner()
-        result = runner.invoke(encrypt, [])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(encrypt, [])
 
     assert result.exit_code == 1
-    assert "secrets/ directory not found" in result.output
+    assert SECRETS_DIR_NOT_FOUND in result.output
 
 
-def test_encrypt_file_not_found(tmp_path):
+def test_encrypt_file_not_found(tmp_path, monkeypatch):
     """Test encrypt command when specific file doesn't exist."""
     # Create empty secrets directory
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        runner = CliRunner()
-        result = runner.invoke(encrypt, ["nonexistent"])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(encrypt, ["nonexistent"])
 
     assert result.exit_code == 1
-    assert "File not found: secrets/nonexistent.txt" in result.output
+    assert FILE_NOT_FOUND_NONEXISTENT in result.output
 
 
-def test_encrypt_no_plaintext_files(tmp_path):
+def test_encrypt_no_plaintext_files(tmp_path, monkeypatch):
     """Test encrypt command when no plaintext files exist."""
     # Create empty secrets directory
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        runner = CliRunner()
-        result = runner.invoke(encrypt, [])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(encrypt, [])
 
     assert result.exit_code == 0
-    assert "No plaintext secrets found" in result.output
+    assert NO_PLAINTEXT_SECRETS in result.output
 
 
-def test_encrypt_failure_handling(tmp_path, real_age_key):
+def test_encrypt_failure_handling(tmp_path, real_age_key, monkeypatch):
     """Test encrypt command handles encryption failures."""
     # Setup secrets directory WITHOUT .sops.yaml
     secrets_dir = tmp_path / "secrets"
@@ -283,12 +266,9 @@ def test_encrypt_failure_handling(tmp_path, real_age_key):
         "SOPS_AGE_KEY_FILE": str(real_age_key["private_key_file"]),
     }
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.encrypt.__file__", str(commands_dir / "encrypt.py")):
-        runner = CliRunner(env=env)
-        result = runner.invoke(encrypt, ["test"])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner(env=env)
+    result = runner.invoke(encrypt, ["test"])
 
     assert result.exit_code == 1
-    assert "Failed to encrypt" in result.output
+    assert FAILED_TO_ENCRYPT in result.output

@@ -1,10 +1,5 @@
 ---
-id: 'project/spec/secrets-management'
-type: 'spec'
-scope: 'project'
 description: 'How itsUP stores, loads, and injects secrets — SOPS/age encrypted files, .enc.txt-over-.txt auto-detection, per-context (non-merged) loading, and ${VAR} passthrough expanded by Docker Compose at deploy.'
-generated_by: 'telec-init'
-generated_at: '2026-06-11 00:00:00+00:00'
 ---
 
 # Secrets Management — Spec
@@ -71,6 +66,5 @@ surface as Compose-time errors, not itsUP errors.
 
 ## See Also
 
-- docs/reference/environment-variables.md
-- docs/development/configuration.md
+- docs/project/spec/environment-variables.md
 - docs/project/design/deployment-orchestration.md

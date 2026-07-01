@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
+import logging
 import os
+import subprocess
 import sys
 import tarfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import boto3
 import botocore.exceptions
@@ -11,61 +16,154 @@ from botocore.client import Config
 # Add parent directory to path to import lib modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from lib.data import load_itsup_config, load_secrets
+from lib.data import (
+    BackupConfig,
+    get_env_with_secrets,
+    load_project_backup_config,
+    load_secrets,
+    resolve_backup_adapter,
+)
+from lib.paths import root
+
+logger = logging.getLogger("backup")
+
+DB_FILE = "itsup.tar.gz"
 
 
-def main() -> None:
-    # Configuration
-    db_file = "itsup.tar.gz"
+def discover_backup_configs(upstream_dir: Path) -> dict[str, BackupConfig]:
+    """Map each upstream project that carries a backup.yml to its BackupConfig.
 
-    # Check if upstream directory exists
-    if not os.path.isdir("./upstream"):
-        print("Error: './upstream' directory not found.")
-        sys.exit(1)
+    Anchored on the upstream tree because that is what gets archived: a project's
+    adapter dump is written into upstream/<name>/_backup/ and its exclusion paths
+    sit under upstream/<name>/.
+    """
+    configs: dict[str, BackupConfig] = {}
+    for item in sorted(os.listdir(upstream_dir)):
+        if not (upstream_dir / item).is_dir():
+            continue
+        config = load_project_backup_config(item)
+        if config is not None:
+            configs[item] = config
+    return configs
 
-    # Load backup config from itsup.yml
-    itsup_config = load_itsup_config()
-    backup_config = itsup_config.get("backup", {})
-    excluded_folders = backup_config.get("exclude", [])
 
-    # Debugging: Print excluded folders
-    print(f"Excluded folders: {excluded_folders}")
+def run_adapter_dump(adapter: Path, project: str, target: Path) -> None:
+    """Run one adapter `dump` against the project's upstream dir (compose-exec)."""
+    subprocess.run(
+        [str(adapter), "dump", str(target)],
+        env=get_env_with_secrets(project),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
-    def _add_robust(tar: tarfile.TarFile, src: str, arcname: str) -> None:
-        """Walk src and tar each entry, skipping files that vanish mid-walk.
 
-        Containers actively writing to their volumes (notably redis with its
-        `temp-NNN.rdb` snapshot files renamed atomically to dump.rdb) routinely
-        cause `tar.add` to crash with FileNotFoundError when an enumerated entry
-        is gone by the time tar opens it. We do the walk ourselves and add each
-        entry non-recursively so one disappearing file only skips itself.
-        """
-        try:
-            tar.add(src, arcname=arcname, recursive=False)
-        except FileNotFoundError:
-            print(f"  skip (vanished): {src}")
-            return
-        if not os.path.isdir(src):
-            return
-        try:
-            entries = sorted(os.listdir(src))
-        except FileNotFoundError:
-            return
-        for entry in entries:
-            _add_robust(tar, os.path.join(src, entry), os.path.join(arcname, entry))
+def run_adapter_dumps(configs: dict[str, BackupConfig], upstream_dir: Path) -> list[str]:
+    """Run adapter dumps concurrently, returning the names of projects that failed.
 
-    # Create tar.gz archive
-    print(f"Creating backup archive: {db_file}")
-    with tarfile.open(db_file, "w:gz") as tar:
-        # Add each file/directory from upstream, skipping excluded folders
-        for item in os.listdir("./upstream"):
-            item_name = os.path.basename(item)
-            if item_name not in excluded_folders:
-                item_path = os.path.join("upstream", item)
-                print(f"Adding to tarball: {item_path}")
-                _add_robust(tar, item_path, item)
+    Partial availability over total failure: a dump that fails (container down,
+    missing adapter, exec error) is logged and its project skipped — the run still
+    archives every healthy project plus proxy state. The caller surfaces the
+    partial result (non-zero exit + PARTIAL BACKUP summary); it is never silent.
+    """
+    jobs = {project: config for project, config in configs.items() if config.adapter}
+    if not jobs:
+        return []
 
-    # Load AWS credentials from secrets
+    failed: list[str] = []
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 8)) as executor:
+        futures = {}
+        for project, config in jobs.items():
+            assert config.adapter is not None  # filtered above
+            adapter = resolve_backup_adapter(project, config.adapter)
+            if adapter is None:
+                logger.error("backup: no adapter '%s' found for project '%s' — skipping", config.adapter, project)
+                failed.append(project)
+                continue
+            futures[executor.submit(run_adapter_dump, adapter, project, upstream_dir / project)] = project
+
+        for future in as_completed(futures):
+            project = futures[future]
+            try:
+                future.result()
+                print(f"Adapter dump complete: {project}")
+            except subprocess.CalledProcessError as e:
+                logger.error("backup: adapter dump failed for '%s' — skipping. stderr: %s", project, e.stderr)
+                failed.append(project)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("backup: adapter dump errored for '%s' — skipping: %s", project, e)
+                failed.append(project)
+
+    return failed
+
+
+def build_exclude_paths(configs: dict[str, BackupConfig], upstream_dir: Path) -> set[str]:
+    """Derive the live-tar exclusion set from each project's backup.yml.
+
+    A project with an adapter dump excludes its torn live data dir so the archive
+    never carries a crash-inconsistent copy; an ephemeral store excludes its data
+    with no dump at all. The exclusion is derived solely from the presence and
+    `exclude` paths of backup.yml — there is no separately maintained list.
+    """
+    excludes: set[str] = set()
+    for project, config in configs.items():
+        for rel in config.exclude:
+            excludes.add(os.path.normpath(str(upstream_dir / project / rel)))
+    return excludes
+
+
+def add_robust(tar: tarfile.TarFile, src: str, arcname: str, exclude_paths: set[str]) -> None:
+    """Walk src and tar each entry, skipping excluded paths and vanished files.
+
+    Containers actively writing to their volumes (notably redis with its
+    `temp-NNN.rdb` snapshot files renamed atomically to dump.rdb) routinely
+    cause `tar.add` to crash with FileNotFoundError when an enumerated entry
+    is gone by the time tar opens it. We do the walk ourselves and add each
+    entry non-recursively so one disappearing file only skips itself. Paths in
+    `exclude_paths` (derived from backup.yml) are pruned entirely.
+    """
+    if os.path.normpath(src) in exclude_paths:
+        print(f"  skip (excluded): {src}")
+        return
+    try:
+        tar.add(src, arcname=arcname, recursive=False)
+    except FileNotFoundError:
+        print(f"  skip (vanished): {src}")
+        return
+    if not os.path.isdir(src):
+        return
+    try:
+        entries = sorted(os.listdir(src))
+    except FileNotFoundError:
+        return
+    for entry in entries:
+        add_robust(tar, os.path.join(src, entry), os.path.join(arcname, entry), exclude_paths)
+
+
+def create_archive(upstream_dir: Path, exclude_paths: set[str]) -> None:
+    """Tar upstream/ (skipping excluded paths) plus proxy/ state into DB_FILE."""
+    print(f"Creating backup archive: {DB_FILE}")
+    with tarfile.open(DB_FILE, "w:gz") as tar:
+        for item in sorted(os.listdir(upstream_dir)):
+            item_path = str(upstream_dir / item)
+            print(f"Adding to tarball: {item_path}")
+            add_robust(tar, item_path, os.path.join("upstream", item), exclude_paths)
+
+        # Proxy config + acme.json certificates survive total loss alongside upstream.
+        proxy_dir = root() / "proxy"
+        if proxy_dir.is_dir():
+            print(f"Adding to tarball: {proxy_dir}")
+            add_robust(tar, str(proxy_dir), "proxy", exclude_paths)
+        else:
+            print("No ./proxy directory — skipping proxy state")
+
+
+def build_s3_client() -> tuple[Any, str]:
+    """Build an S3 client + bucket from infra secrets (shared by backup/restore).
+
+    Loads the AWS settings per-context via load_secrets() — the single boto3
+    access pattern. Exits with a clear error when required secrets are missing.
+    """
     secrets = load_secrets()
 
     required_secrets = [
@@ -78,39 +176,35 @@ def main() -> None:
 
     missing = [key for key in required_secrets if key not in secrets]
     if missing:
-        print(f"Error: Missing required secrets for backup: {', '.join(missing)}")
+        print(f"Error: Missing required secrets for S3 access: {', '.join(missing)}")
         print("Add to secrets/itsup.txt or secrets/itsup.enc.txt")
         sys.exit(1)
 
-    aws_access_key = secrets["AWS_ACCESS_KEY_ID"]
-    aws_secret_key = secrets["AWS_SECRET_ACCESS_KEY"]
     aws_s3_host = secrets["AWS_S3_HOST"]
-    aws_s3_region = secrets["AWS_S3_REGION"]
-    aws_s3_bucket = secrets["AWS_S3_BUCKET"]
-
-    print("Uploading backup to S3")
-
     # Format endpoint URL correctly
     if not aws_s3_host.startswith(("http://", "https://")):
         endpoint_url = f"https://{aws_s3_host}"
     else:
         endpoint_url = aws_s3_host
 
-    # Debugging: Print AWS S3 configuration
-    print(f"AWS S3 Configuration: Host={aws_s3_host}, Region={aws_s3_region}, Bucket={aws_s3_bucket}")
-
-    # Debugging: Print endpoint URL
+    print(f"AWS S3 Configuration: Host={aws_s3_host}, Region={secrets['AWS_S3_REGION']}, Bucket={secrets['AWS_S3_BUCKET']}")
     print(f"Endpoint URL: {endpoint_url}")
 
-    # Configure boto3 with endpoint URL and credentials
     s3_client = boto3.client(
         "s3",
         endpoint_url=endpoint_url,
-        aws_access_key_id=aws_access_key,
-        aws_secret_access_key=aws_secret_key,
-        region_name=aws_s3_region,
+        aws_access_key_id=secrets["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=secrets["AWS_SECRET_ACCESS_KEY"],
+        region_name=secrets["AWS_S3_REGION"],
         config=Config(signature_version="s3v4"),
     )
+    return s3_client, secrets["AWS_S3_BUCKET"]
+
+
+def upload_to_s3() -> None:
+    """Upload DB_FILE to S3 with keep-10 timestamped rotation (existing path)."""
+    print("Uploading backup to S3")
+    s3_client, aws_s3_bucket = build_s3_client()
 
     # List existing versions of the backup file
     print("Checking existing backup versions in S3...")
@@ -121,15 +215,12 @@ def main() -> None:
             existing_versions.append(obj["Key"])
     print(f"Existing versions: {existing_versions}")
 
-    # Rotate existing backups to keep only 10 versions
-    from datetime import datetime
-
     # Generate a timestamped name for the new backup
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    new_backup_name = f"{db_file}.{timestamp}"
+    new_backup_name = f"{DB_FILE}.{timestamp}"
 
     # Sort existing backups by timestamp and delete older ones if more than 10 exist
-    backup_prefix = f"{db_file}."
+    backup_prefix = f"{DB_FILE}."
     timestamped_backups = [key for key in existing_versions if key.startswith(backup_prefix)]
     timestamped_backups.sort(reverse=True)
 
@@ -140,35 +231,51 @@ def main() -> None:
 
     # Upload the new backup with the timestamped name
     print(f"Uploading new backup: {new_backup_name}")
-    with open(db_file, "rb") as file_data:
-        s3_client.upload_fileobj(file_data, aws_s3_bucket, new_backup_name)
-    print("Backup completed successfully")
-
     try:
-        # Debugging: List objects in the bucket
-        response = s3_client.list_objects_v2(Bucket=aws_s3_bucket)
-        if "Contents" in response:
-            print("Objects in bucket:")
-            for obj in response["Contents"]:
-                print(f" - {obj['Key']}")
-        else:
-            print("Bucket is empty.")
-    except botocore.exceptions.ClientError as e:
-        print(f"Error listing objects in bucket: {e}")
-
+        with open(DB_FILE, "rb") as file_data:
+            s3_client.upload_fileobj(file_data, aws_s3_bucket, new_backup_name)
+        print("Backup completed successfully")
     except botocore.exceptions.ClientError as e:
         print(f"AWS S3 Client Error: {e}")
         sys.exit(1)
     except botocore.exceptions.EndpointConnectionError as e:
-        print(f"Cannot connect to endpoint {endpoint_url}: {e}")
+        print(f"Cannot connect to S3 endpoint: {e}")
         sys.exit(1)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error uploading to S3: {e}")
         sys.exit(1)
     finally:
-        # Optionally clean up the local backup file after upload
-        os.remove(db_file)
-        pass
+        os.remove(DB_FILE)
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+    upstream_dir = root() / "upstream"
+    if not upstream_dir.is_dir():
+        print("Error: './upstream' directory not found.")
+        sys.exit(1)
+
+    configs = discover_backup_configs(upstream_dir)
+    print(f"Projects with backup.yml: {sorted(configs)}")
+
+    # Consistent dumps run before the tar so the archive captures them.
+    failed_projects = run_adapter_dumps(configs, upstream_dir)
+
+    exclude_paths = build_exclude_paths(configs, upstream_dir)
+    print(f"Excluded paths: {sorted(exclude_paths)}")
+
+    create_archive(upstream_dir, exclude_paths)
+    upload_to_s3()
+
+    if failed_projects:
+        print(
+            f"PARTIAL BACKUP: archived and uploaded healthy projects + proxy, but "
+            f"{len(failed_projects)} adapter dump(s) failed and were skipped: "
+            f"{', '.join(sorted(failed_projects))}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

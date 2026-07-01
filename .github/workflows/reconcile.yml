@@ -31,7 +31,6 @@ jobs:
           ca: '${{ secrets.OVPN_CA }}'
           cert: '${{ secrets.OVPN_CERT }}'
           client_key: '${{ secrets.OVPN_USER_KEY }}'
-          client_pass: '${{ secrets.OVPN_USER_PASS }}'
           tls_auth_key: '${{ secrets.OVPN_TLS_AUTH_KEY }}'
 
       - name: Trigger reconcile via SSH

@@ -1,15 +1,16 @@
 import logging
 import tomllib
-from pathlib import Path
 
 from ruamel.yaml import YAML
+
+from lib.paths import root
 
 logger = logging.getLogger(__name__)
 
 
 def get_schema_version() -> str:
     """Get current schema version from projects/itsup.yml"""
-    itsup_file = Path("projects/itsup.yml")
+    itsup_file = root() / "projects" / "itsup.yml"
     if not itsup_file.exists():
         return "1.0.0"
 
@@ -25,7 +26,7 @@ def get_schema_version() -> str:
 
 def set_schema_version(version: str) -> None:
     """Update schema version in projects/itsup.yml"""
-    itsup_file = Path("projects/itsup.yml")
+    itsup_file = root() / "projects" / "itsup.yml"
 
     yaml = YAML()
     yaml.preserve_quotes = True
@@ -42,7 +43,7 @@ def set_schema_version(version: str) -> None:
 
 def get_app_version() -> str:
     """Get app version from pyproject.toml (MAJOR.MINOR only)"""
-    with open("pyproject.toml", "rb") as f:
+    with open(root() / "pyproject.toml", "rb") as f:
         config = tomllib.load(f)
 
     version = config["project"]["version"]
@@ -80,7 +81,7 @@ def migrate(dry_run: bool = False, list_only: bool = False) -> bool:
             logger.info(f"  [{i}/{len(FIXERS_V2_1)}] {fixer.__name__.replace('_', ' ').title()}")
         return True
 
-    projects_dir = Path("projects")
+    projects_dir = root() / "projects"
 
     for i, fixer in enumerate(FIXERS_V2_1, 1):
         logger.info(f"[{i}/{len(FIXERS_V2_1)}] Running {fixer.__name__}")

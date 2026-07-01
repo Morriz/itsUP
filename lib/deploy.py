@@ -21,6 +21,7 @@ import yaml
 
 from bin.write_artifacts import write_proxy_artifacts, write_upstream
 from lib.data import edge_network_name, get_env_with_secrets
+from lib.paths import root
 
 logger = logging.getLogger(__name__)
 
@@ -277,7 +278,7 @@ def deploy_dns_stack(service: Optional[str] = None) -> None:
     DNS services that are stateless: dns-honeypot (if stateless)
     """
     smart_deploy(
-        compose_dir="dns",
+        compose_dir=str(root() / "dns"),
         stateless_services=[],  # DNS services typically not stateless (has state/logs)
         env=get_env_with_secrets(),
         service_filter=service,
@@ -295,7 +296,7 @@ def deploy_proxy_stack(service: Optional[str] = None) -> None:
 
     # Deploy with rollout for traefik only
     smart_deploy(
-        compose_dir="proxy",
+        compose_dir=str(root() / "proxy"),
         stateless_services=["traefik"],  # Only traefik is stateless
         env=get_env_with_secrets(),
         service_filter=service,
@@ -350,7 +351,7 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
     # If project is disabled, stop it instead of deploying
     if not traefik_config.enabled:
         logger.info(f"{project} is disabled (enabled: false) - stopping containers...")
-        compose_dir = f"upstream/{project}"
+        compose_dir = str(root() / "upstream" / project)
 
         # Stop all containers for this project
         try:
@@ -388,7 +389,7 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
 
     # Deploy with smart rollout
     smart_deploy(
-        compose_dir=f"upstream/{project}",
+        compose_dir=str(root() / "upstream" / project),
         stateless_services=stateless_services,
         env=get_env_with_secrets(project),
         service_filter=service,

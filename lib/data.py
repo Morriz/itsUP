@@ -9,10 +9,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import netifaces
 import yaml
 
-from lib.models import TraefikConfig
+try:
+    import netifaces
+except ImportError:
+    # Optional C-extension; only needed for router-IP auto-detection. Keeping the
+    # module importable without it lets every interpreter (CI, dev) load lib.data.
+    netifaces = None
+
+from lib.models import BackupConfig, TraefikConfig
+from lib.paths import root
 from lib.sops import load_encrypted_env, load_env_file
 
 logger = logging.getLogger(__name__)
@@ -44,7 +51,7 @@ def load_secrets(project_name: str | None = None) -> dict[str, str]:
         Dictionary of secret key-value pairs
     """
     secrets: dict[str, str] = {}
-    secrets_dir = Path("secrets")
+    secrets_dir = root() / "secrets"
 
     if not secrets_dir.exists():
         logger.warning("secrets/ directory not found")
@@ -121,7 +128,7 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
         For external hosts, docker_compose_dict will be empty {}
         Secrets are left as ${VAR} placeholders for runtime expansion by Docker Compose
     """
-    project_dir = Path("projects") / project_name
+    project_dir = root() / "projects" / project_name
 
     if not project_dir.exists():
         raise FileNotFoundError(f"Project not found: {project_name}")
@@ -167,9 +174,47 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     return compose, traefik
 
 
+def load_project_backup_config(project_name: str) -> BackupConfig | None:
+    """Load projects/<name>/backup.yml, the per-project backup registry entry.
+
+    Returns a BackupConfig when the file is present, or None when the project
+    declares no backup config. Presence drives both adapter dispatch and the
+    derived live-tar exclusion (see project/design/backup-restore).
+    """
+    backup_file = root() / "projects" / project_name / "backup.yml"
+    if not backup_file.exists():
+        return None
+
+    with open(backup_file, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    return BackupConfig(**data)
+
+
+def resolve_backup_adapter(project_name: str, adapter: str) -> Path | None:
+    """Resolve an adapter name to its script path, project-local first.
+
+    Resolution order (see project/design/backup-restore):
+      1. projects/<project>/backup-adapter.sh — the project's own adapter, so a
+         new store can be fully self-contained with no change to the framework.
+      2. bin/backup-adapters/<adapter>.sh — the shared adapter set.
+
+    Returns the first existing path, or None when neither is present.
+    """
+    project_local = root() / "projects" / project_name / "backup-adapter.sh"
+    if project_local.exists():
+        return project_local
+
+    shared = root() / "bin" / "backup-adapters" / f"{adapter}.sh"
+    if shared.exists():
+        return shared
+
+    return None
+
+
 def list_projects() -> list[str]:
     """List all available projects (both container and ingress-only)"""
-    projects_dir = Path("projects")
+    projects_dir = root() / "projects"
     if not projects_dir.exists():
         return []
 
@@ -388,7 +433,7 @@ def get_router_ip() -> str:
     """Get router IP from projects/itsup.yml or auto-detect"""
 
     # Try to load from projects/itsup.yml (top-level routerIP key)
-    itsup_file = Path("projects/itsup.yml")
+    itsup_file = root() / "projects" / "itsup.yml"
     if itsup_file.exists():
         with open(itsup_file, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
@@ -414,7 +459,7 @@ def get_router_ip() -> str:
 
 def update_itsup_yml_router_ip(ip: str) -> None:
     """Update projects/itsup.yml with detected router IP"""
-    itsup_file = Path("projects/itsup.yml")
+    itsup_file = root() / "projects" / "itsup.yml"
 
     if not itsup_file.exists():
         logger.warning("projects/itsup.yml not found, cannot update router IP")
@@ -451,7 +496,7 @@ def load_itsup_config() -> dict[str, Any]:
         Dictionary of itsUP configuration
         Secrets are left as ${VAR} placeholders - not expanded
     """
-    itsup_file = Path("projects/itsup.yml")
+    itsup_file = root() / "projects" / "itsup.yml"
 
     if not itsup_file.exists():
         logger.warning("projects/itsup.yml not found, using defaults")
@@ -471,7 +516,7 @@ def load_traefik_overrides() -> dict[str, Any]:
         Dictionary of Traefik configuration overrides
         Secrets are left as ${VAR} placeholders - not expanded
     """
-    traefik_file = Path("projects/traefik.yml")
+    traefik_file = root() / "projects" / "traefik.yml"
 
     if not traefik_file.exists():
         logger.warning("projects/traefik.yml not found")
@@ -491,7 +536,7 @@ def load_middleware_overrides() -> dict[str, Any]:
         Dictionary of middleware configuration overrides
         Secrets are left as ${VAR} placeholders - not expanded
     """
-    middleware_file = Path("projects/middlewares.yml")
+    middleware_file = root() / "projects" / "middlewares.yml"
 
     if not middleware_file.exists():
         logger.warning("projects/middlewares.yml not found")

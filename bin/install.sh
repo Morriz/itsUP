@@ -30,8 +30,6 @@ esac
 echo -e "${GREEN}✓${NC} Detected: ${PLATFORM} (${ARCH})"
 echo ""
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -41,19 +39,6 @@ command_exists() {
 # command, so privileged commands inside them must omit sudo.
 is_container() {
     [ -f /.dockerenv ] || [ -n "${CONTAINER:-}" ]
-}
-
-# True on a persistent host (macOS or Linux) where itsUP's host integration
-# (systemd units on Linux, launchd agents on macOS, host prereqs on both)
-# should be installed. False in containers and CI runners (transient envs
-# that don't need — and shouldn't get — runtime services installed). Pass
-# ITSUP_NO_BRINGUP=1 to skip the host integration on a dev box that just
-# wants the language deps installed.
-is_deploy_target() {
-    ! is_container \
-        && [ "${CI:-}" != "true" ] \
-        && [ "${GITHUB_ACTIONS:-}" != "true" ] \
-        && [ "${ITSUP_NO_BRINGUP:-}" != "1" ]
 }
 
 # Install dependencies based on platform
@@ -199,43 +184,52 @@ else
     echo -e "${GREEN}✓${NC} .venv already exists"
 fi
 
-# Install Python dependencies
-echo "Installing Python dependencies..."
-.venv/bin/pip install -q -r requirements-prod.txt
-.venv/bin/pip install -q -r requirements-test.txt
-echo -e "${GREEN}✓${NC} Installed Python dependencies (prod + test)"
+# Editable install: resolves prod deps (pyproject dynamic dependencies) + the
+# `test` extra, and mints the repo-local `.venv/bin/itsup` console-script with
+# the venv interpreter baked into its shebang — runnable from any cwd, no sourcing.
+echo "Installing itsUP (editable) with test extras..."
+.venv/bin/pip install -q -e ".[test]"
+echo -e "${GREEN}✓${NC} Installed itsUP editable + test deps (minted .venv/bin/itsup)"
 
-# Host integration: launchd agents (macOS) or systemd units (Linux) + host
-# prereqs. Skipped in containers and CI runners; opt out on a dev box with
-# ITSUP_NO_BRINGUP=1.
-if is_deploy_target; then
-    echo ""
-    echo -e "${BLUE}🔧 Installing host integration ($([ "$PLATFORM" = "Mac" ] && echo "launchd" || echo "systemd"))...${NC}"
-    "${SCRIPT_DIR}/install-bringup.sh"
+# Expose a global `itsup` on the user's PATH: ~/.local/bin/itsup -> the repo's
+# console-script. The target is cwd-independent (venv shebang + root() resolution),
+# so the bare `itsup` works from any directory. Runtime callers (systemd/launchd)
+# use the absolute path and do not rely on this symlink.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOCAL_BIN="${HOME}/.local/bin"
+mkdir -p "${LOCAL_BIN}"
+ln -sf "${REPO_ROOT}/.venv/bin/itsup" "${LOCAL_BIN}/itsup"
+echo -e "${GREEN}✓${NC} Linked global itsup: ${LOCAL_BIN}/itsup -> ${REPO_ROOT}/.venv/bin/itsup"
+if [[ ":$PATH:" != *":${LOCAL_BIN}:"* ]]; then
+    echo -e "${YELLOW}⚠${NC} ${LOCAL_BIN} is not on your PATH — add it to use the bare 'itsup':"
+    echo "     export PATH=\"${LOCAL_BIN}:\$PATH\"   # add to your shell profile"
 fi
 
 echo ""
-echo -e "${GREEN}✅ Installation complete!${NC}"
+echo -e "${GREEN}✅ Dependencies installed!${NC}"
+echo ""
+echo "itsup is global: run 'itsup <cmd>' from any directory (via ~/.local/bin/itsup)."
+echo "'source env.sh' is optional — venv activation + shell completion for development."
 echo ""
 echo "Next steps:"
 echo ""
-echo "  1. Source the environment (enables shell completion and PATH):"
-echo "     source env.sh"
-echo ""
-echo "  2. Initialize itsUP (sets up projects and secrets repos):"
+echo "  1. Initialize itsUP (sets up projects and secrets repos):"
 echo "     itsup init"
 echo ""
-echo "  3. Generate SOPS encryption key (auto-updates .sops.yaml):"
+echo "  2. Generate SOPS encryption key (auto-updates .sops.yaml):"
 echo "     itsup sops-key"
 echo ""
-echo "  4. Edit secrets:"
+echo "  3. Edit secrets:"
 echo "     itsup edit-secret itsup"
 echo ""
-echo "  5. Deploy:"
-echo "     itsup apply"
-echo ""
-echo "  6. Enable git hooks (auto requirements install on pull):"
+echo "  4. Enable git hooks (auto requirements install on pull):"
 echo "     git config core.hooksPath bin/hooks"
+echo ""
+echo "On the container host only — make it a live deployment:"
+echo ""
+echo "  make install-runtime       # install boot/nightly/healthcheck integration + start the stack"
+echo "  itsup apply                # deploy/redeploy the stack (host-only; never on a dev box)"
+echo "  make uninstall-runtime     # decommission: stop everything, remove integration"
 echo ""
 
 # Auto-enable git hooks (post-merge requirements install) if inside a git repo

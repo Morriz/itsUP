@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "itsUP"
 version = "2.1.1"
 license = { text = "GPL-3.0-only" }
-authors = [{ name = "Maurice Faber", email = "morriz@idiotz.nl" }]
+authors = [{ name = "Maurice Faber", email = "maurice@instrukt.ai" }]
 description = "Lean, automated, poor man's infra for lightweight services running in docker."
 readme = "README.md"
 classifiers = [
@@ -14,17 +14,23 @@ classifiers = [
   "Intended Audience :: System Administrators",
   "Programming Language :: Python :: 3.11",
   "Typing :: Typed",
-  "Topic :: Software Development :: Build Tools",
+  "Topic :: Software Development :: Infrastructure",
 ]
-keywords = ["github", "webhooks", "fastapi"]
+keywords = ["traefik", "docker-compose", "ingress", "egress", "fastapi"]
 dynamic = ["dependencies", "optional-dependencies"]
 requires-python = ">=3.11"
 
+
+[project.scripts]
+itsup = "itsup.cli:main"
 
 [project.urls]
 homepage = "https://github.com/morriz/itsUP"
 "Source Code" = "https://github.com/morriz/itsUP"
 "Bug Tracker" = "https://github.com/morriz/itsUP/issues"
+
+[tool.setuptools.packages.find]
+include = ["itsup*", "lib*", "commands*", "api*", "bin*"]
 
 [tool.black]
 line-length = 120

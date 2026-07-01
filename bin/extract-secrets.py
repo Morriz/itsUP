@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Extract secrets from db.yml to secrets/ files"""
 
+import os
 import re
-from pathlib import Path
+import sys
 
 import yaml
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from lib.paths import root
 
 
 def is_secret(key: str, value: str) -> bool:
@@ -94,7 +99,7 @@ def main():
             config_vars[key] = value
 
     # Write secrets to secrets/itsup.txt
-    secrets_dir = Path("secrets")
+    secrets_dir = root() / "secrets"
     with open(secrets_dir / "itsup.txt", "w") as f:
         f.write("# Shared secrets extracted from db.yml\n")
         f.write("# Review and deduplicate before encrypting\n\n")

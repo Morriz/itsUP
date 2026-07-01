@@ -5,6 +5,7 @@ __pycache__
 .history
 .*_cache
 .venv
+*.egg-info/
 /data/
 /htmlcov/
 /proxy/
@@ -16,9 +17,26 @@ __pycache__
 /projects/
 /secrets/
 
+# Local AI config artifacts
+.antigravitycli/
+.claude/
+.codex/
+.gemini/
+
 # TeleClaude stuff (todos DB, session caches, etc.)
-/.teleclaude/
-docs/**/index.yaml
+.teleclaude/
+**/index.yaml
+# Inflated per-domain baselines generated beside their source manifest and
+# exposed via the whole-tree docs symlink at ~/.teleclaude/docs/<domain>/.
+docs/global/*/domain-baseline.md
+
+# Generated tool output (never tracked)
+graphify-out/
+
+# Generated agent instructions — source of truth is AGENTS.master.md; the
+# inflated AGENTS.md/CLAUDE.md build artifacts are never tracked.
+AGENTS.md
+CLAUDE.md
 
 # Integration/worker git worktrees (operational, never tracked)
 /trees/

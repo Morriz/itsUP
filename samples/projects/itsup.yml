@@ -6,8 +6,9 @@ traefikDomain: traefik.example.com # Dashboard domain (REQUIRED)
 
 # Backup configuration (optional), can be added to cron:
 # 0 5 * * * cd /path/to/itsup && .venv/bin/python bin/backup.py
+# Live-tar exclusions are NOT configured here — each project declares its own
+# backup.yml (adapter + exclude paths); see samples/projects/example-project/backup.yml.
 backup:
-  exclude: [] # project names to exclude from backup
   s3:
     host: ${AWS_S3_HOST} # from secrets
     region: ${AWS_S3_REGION} # from secrets

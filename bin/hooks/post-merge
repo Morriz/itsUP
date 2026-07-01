@@ -25,12 +25,6 @@ fi
 echo "Detected updated requirements files:"
 printf '  - %s\n' $changed_reqs
 
-# Source env for PATH/exported vars (optional, but keeps parity with manual workflow)
-if [[ -f "$root/env.sh" ]]; then
-  # shellcheck disable=SC1090
-  source "$root/env.sh"
-fi
-
 unique_files=$(printf '%s\n' $changed_reqs | sort -u)
 for req in $unique_files; do
   if [[ -f "$req" ]]; then

@@ -14,6 +14,8 @@ from pathlib import Path
 
 import click
 
+from lib.paths import root
+
 logger = logging.getLogger(__name__)
 
 
@@ -126,7 +128,7 @@ def sops_key(rotate: bool):
         click.echo()
 
         # Auto-update .sops.yaml
-        secrets_dir = Path("secrets")
+        secrets_dir = root() / "secrets"
         sops_yaml = secrets_dir / ".sops.yaml"
 
         if secrets_dir.exists():
@@ -173,7 +175,7 @@ def sops_key(rotate: bool):
             click.echo(f"{Colors.BLUE}🔄 Re-encrypting all secrets with new key...{Colors.NC}")
             click.echo()
 
-            secrets_dir = Path("secrets")
+            secrets_dir = root() / "secrets"
             if not secrets_dir.exists():
                 click.echo(f"{Colors.YELLOW}⚠{Colors.NC} secrets/ directory not found, skipping re-encryption")
                 return

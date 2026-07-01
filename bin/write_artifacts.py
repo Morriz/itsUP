@@ -28,6 +28,7 @@ from lib.data import (
 )
 from lib.logging_config import setup_logging
 from lib.models import ProxyProtocol
+from lib.paths import root
 
 load_dotenv()
 
@@ -257,9 +258,7 @@ def write_upstream(project_name: str, reverse_graph: dict[str, list[tuple[str, s
         # Resolve the actual service key (consumer may use short or prefixed name)
         actual_key = svc_name if svc_name in services else f"{project_name}-{svc_name}"
         if actual_key not in services:
-            logger.warning(
-                f"Edge net {edge_net}: service '{svc_name}' not found in provider {project_name}; skipping"
-            )
+            logger.warning(f"Edge net {edge_net}: service '{svc_name}' not found in provider {project_name}; skipping")
             continue
 
         if edge_net not in compose["networks"]:
@@ -295,12 +294,10 @@ def write_upstream(project_name: str, reverse_graph: dict[str, list[tuple[str, s
             )
             continue
 
-        service_config["networks"] = {
-            name: {"ipv4_address": ip} if name == "proxynet" else None for name in net_names
-        }
+        service_config["networks"] = {name: {"ipv4_address": ip} if name == "proxynet" else None for name in net_names}
 
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
-    compose_file = Path("upstream") / project_name / "docker-compose.yml"
+    compose_file = root() / "upstream" / project_name / "docker-compose.yml"
     content = yaml.dump(
         compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False, width=float("inf")
     )
@@ -383,7 +380,7 @@ def write_traefik_config() -> None:
                 projects_data.append({"name": project_name, "ingress": tcp_udp_ingress})
 
     # Load minimal template
-    with open("tpl/traefik.yml.j2", encoding="utf-8") as f:
+    with open(root() / "tpl" / "traefik.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     template = Template(template_content)
@@ -417,7 +414,7 @@ def write_traefik_config() -> None:
     # Variables are left as-is for Traefik to process
 
     # Write final config (only if changed) using ruamel.yaml to preserve comments
-    traefik_config_file = Path("proxy/traefik/traefik.yml")
+    traefik_config_file = root() / "proxy" / "traefik" / "traefik.yml"
     output = StringIO()
     ryaml.dump(final_config, output)
     content = output.getvalue()
@@ -444,7 +441,7 @@ def write_middleware_config() -> None:
         )
 
     # Load minimal template
-    with open("tpl/middlewares.yml.j2", encoding="utf-8") as f:
+    with open(root() / "tpl" / "middlewares.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     template = Template(template_content)
@@ -479,7 +476,7 @@ def write_middleware_config() -> None:
         final_config = base_config
 
     # Write final config (only if changed) using ruamel.yaml to preserve comments
-    middleware_config_file = Path("proxy/traefik/dynamic/middlewares.yml")
+    middleware_config_file = root() / "proxy" / "traefik" / "dynamic" / "middlewares.yml"
     output = StringIO()
     ryaml.dump(final_config, output)
     content = output.getvalue()
@@ -584,7 +581,7 @@ def write_dynamic_routers() -> None:
             projects_udp.append({"name": p["name"], "services": udp_services})
 
     # Render HTTP routers using full template
-    with open("tpl/routers-http.yml.j2", encoding="utf-8") as f:
+    with open(root() / "tpl" / "routers-http.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     tpl_routers_http = Template(template_content)
@@ -597,7 +594,7 @@ def write_dynamic_routers() -> None:
     )
 
     # Render TCP routers using full template
-    with open("tpl/routers-tcp.yml.j2", encoding="utf-8") as f:
+    with open(root() / "tpl" / "routers-tcp.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     tpl_routers_tcp = Template(template_content)
@@ -607,7 +604,7 @@ def write_dynamic_routers() -> None:
     )
 
     # Render UDP routers
-    with open("tpl/routers-udp.yml.j2", encoding="utf-8") as f:
+    with open(root() / "tpl" / "routers-udp.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     tpl_routers_udp = Template(template_content)
@@ -616,9 +613,9 @@ def write_dynamic_routers() -> None:
     )
 
     # Write router files (only if changed)
-    http_file = Path("proxy/traefik/dynamic/routers-http.yml")
-    tcp_file = Path("proxy/traefik/dynamic/routers-tcp.yml")
-    udp_file = Path("proxy/traefik/dynamic/routers-udp.yml")
+    http_file = root() / "proxy" / "traefik" / "dynamic" / "routers-http.yml"
+    tcp_file = root() / "proxy" / "traefik" / "dynamic" / "routers-tcp.yml"
+    udp_file = root() / "proxy" / "traefik" / "dynamic" / "routers-udp.yml"
 
     http_changed = write_file_if_changed(http_file, routers_http, "routers-http.yml")
     tcp_changed = write_file_if_changed(tcp_file, routers_tcp, "routers-tcp.yml")
@@ -641,14 +638,14 @@ def write_proxy_compose() -> None:
         "itsup": itsup_config,
     }
 
-    with open("tpl/docker-compose.yml.j2", encoding="utf-8") as f:
+    with open(root() / "tpl" / "docker-compose.yml.j2", encoding="utf-8") as f:
         template_content = f.read()
 
     template = Template(template_content)
     compose_content = template.render(**context)
 
     # Write compose file (only if changed)
-    proxy_compose_file = Path("proxy/docker-compose.yml")
+    proxy_compose_file = root() / "proxy" / "docker-compose.yml"
     write_file_if_changed(proxy_compose_file, compose_content, "proxy/docker-compose.yml")
 
 

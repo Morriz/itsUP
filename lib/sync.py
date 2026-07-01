@@ -4,6 +4,8 @@ import logging
 import subprocess
 from pathlib import Path
 
+from lib.paths import root as install_root
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +50,7 @@ def pull_repos(root: Path | None = None) -> dict[str, bool]:
         Dict of {repo_name: success_bool}.
     """
     if root is None:
-        root = Path(".")
+        root = install_root()
 
     return {
         "projects": _pull_repo(root / "projects", "projects"),

@@ -11,7 +11,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
@@ -19,8 +18,13 @@ from click.testing import CliRunner
 
 from commands.decrypt import decrypt
 
+SECRETS_DIR_NOT_FOUND = "secrets/ directory not found"
+FILE_NOT_FOUND = "File not found: secrets/nonexistent.enc.txt"
+NO_ENCRYPTED_SECRETS = "No encrypted secrets found"
+FAILED_TO_DECRYPT = "Failed to decrypt"
 
-def test_decrypt_command_with_real_sops(tmp_path, real_age_key):
+
+def test_decrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
     """Test 'itsup decrypt' command end-to-end.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -65,14 +69,9 @@ def test_decrypt_command_with_real_sops(tmp_path, real_age_key):
 
     plaintext_tmp.unlink()
 
-    # Create commands directory for __file__ mocking
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    # Mock __file__ to point to our tmp directory
-    with patch("commands.decrypt.__file__", str(commands_dir / "decrypt.py")):
-        runner = CliRunner(env=env)
-        result = runner.invoke(decrypt, ["test"])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner(env=env)
+    result = runner.invoke(decrypt, ["test"])
 
     # Command should succeed
     assert result.exit_code == 0, f"Decrypt failed: {result.output}"
@@ -85,52 +84,43 @@ def test_decrypt_command_with_real_sops(tmp_path, real_age_key):
     assert plaintext.read_text() == plaintext_content, "Decrypted content should match original"
 
 
-def test_decrypt_no_secrets_directory(tmp_path):
+def test_decrypt_no_secrets_directory(tmp_path, monkeypatch):
     """Test decrypt command when secrets/ directory doesn't exist."""
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.decrypt.__file__", str(commands_dir / "decrypt.py")):
-        runner = CliRunner()
-        result = runner.invoke(decrypt, [])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(decrypt, [])
 
     assert result.exit_code == 1
-    assert "secrets/ directory not found" in result.output
+    assert SECRETS_DIR_NOT_FOUND in result.output
 
 
-def test_decrypt_file_not_found(tmp_path):
+def test_decrypt_file_not_found(tmp_path, monkeypatch):
     """Test decrypt command when specific file doesn't exist."""
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.decrypt.__file__", str(commands_dir / "decrypt.py")):
-        runner = CliRunner()
-        result = runner.invoke(decrypt, ["nonexistent"])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(decrypt, ["nonexistent"])
 
     assert result.exit_code == 1
-    assert "File not found: secrets/nonexistent.enc.txt" in result.output
+    assert FILE_NOT_FOUND in result.output
 
 
-def test_decrypt_no_encrypted_files(tmp_path):
+def test_decrypt_no_encrypted_files(tmp_path, monkeypatch):
     """Test decrypt command when no encrypted files exist."""
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.decrypt.__file__", str(commands_dir / "decrypt.py")):
-        runner = CliRunner()
-        result = runner.invoke(decrypt, [])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(decrypt, [])
 
     assert result.exit_code == 0
-    assert "No encrypted secrets found" in result.output
+    assert NO_ENCRYPTED_SECRETS in result.output
 
 
-def test_decrypt_failure_handling(tmp_path):
+def test_decrypt_failure_handling(tmp_path, monkeypatch):
     """Test decrypt command handles decryption failures."""
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
@@ -139,12 +129,9 @@ def test_decrypt_failure_handling(tmp_path):
     encrypted = secrets_dir / "corrupted.enc.txt"
     encrypted.write_text("This is not a valid SOPS encrypted file")
 
-    commands_dir = tmp_path / "commands"
-    commands_dir.mkdir()
-
-    with patch("commands.decrypt.__file__", str(commands_dir / "decrypt.py")):
-        runner = CliRunner()
-        result = runner.invoke(decrypt, ["corrupted"])
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(decrypt, ["corrupted"])
 
     assert result.exit_code == 1
-    assert "Failed to decrypt" in result.output
+    assert FAILED_TO_DECRYPT in result.output

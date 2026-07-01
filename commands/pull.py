@@ -4,10 +4,10 @@
 
 import subprocess
 import sys
-from pathlib import Path
 
 import click
 
+from lib.paths import root as install_root
 from lib.sync import pull_repos
 from lib.version_check import check_schema_version
 
@@ -35,10 +35,10 @@ def pull(run_apply):
     """
     check_schema_version()
 
-    root = Path(__file__).resolve().parent.parent
+    repo_root = install_root()
 
     click.echo("Pulling changes...")
-    results = pull_repos(root)
+    results = pull_repos(repo_root)
 
     for repo, ok in results.items():
         if ok:
@@ -58,6 +58,6 @@ def pull(run_apply):
         click.echo()
         click.echo("Running apply...")
         try:
-            subprocess.run([str(root / "bin" / "itsup"), "apply"], check=True)
+            subprocess.run([str(repo_root / "bin" / "itsup"), "apply"], check=True)
         except subprocess.CalledProcessError:
             sys.exit(1)

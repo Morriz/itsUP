@@ -8,10 +8,10 @@ Encrypt plaintext secrets using SOPS.
 
 import logging
 import sys
-from pathlib import Path
 
 import click
 
+from lib.paths import root as install_root
 from lib.sops import encrypt_file, is_sops_available
 
 logger = logging.getLogger(__name__)
@@ -54,8 +54,7 @@ def encrypt(name: str, delete: bool, force: bool):
         click.echo()
         sys.exit(1)
 
-    root = Path(__file__).resolve().parent.parent
-    secrets_dir = root / "secrets"
+    secrets_dir = install_root() / "secrets"
 
     if not secrets_dir.exists():
         click.echo(f"{Colors.RED}✗{Colors.NC} secrets/ directory not found", err=True)

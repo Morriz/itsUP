@@ -1,4 +1,4 @@
-.PHONY: help install test test-unit test-functional test-all lint format clean
+.PHONY: help install install-runtime uninstall-runtime test test-unit test-functional test-all lint format clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -8,8 +8,15 @@ help: ## Show this help message
 	@echo ''
 	@echo 'For runtime operations (start/stop/logs/monitor), use: itsup --help'
 
-install: ## Install dependencies (and systemd bringup on persistent Linux hosts)
+install: ## Install dependencies only (system tools, Python venv, git hooks) — never starts the runtime
 	@./bin/install.sh
+
+install-runtime: ## Make this host a live deployment: install host integration (systemd/launchd) and start the stack
+	@test -x .venv/bin/itsup || { echo "Run 'make install' first — no .venv/bin/itsup found"; exit 1; }
+	@./bin/install-bringup.sh
+
+uninstall-runtime: ## Decommission this host: stop the whole stack, flush monitor rules, remove host integration
+	@./bin/uninstall-runtime.sh
 
 test-unit: ## Run unit tests (fast)
 	./bin/test.sh
@@ -19,13 +26,13 @@ test-functional: ## Run functional tests (requires SOPS/age installed)
 
 test-all: test-unit test-functional ## Run both unit and functional tests
 
-test: test-unit ## Run unit tests (default, alias for test-unit)
+test: test-all ## Run the full gate (unit + functional)
 
 format: ## Format code
-	./bin/format.sh
+	@FILES_FROM="$(FILES_FROM)" ./bin/format.sh
 
 lint: ## Run linter
-	./bin/lint.sh
+	@FILES_FROM="$(FILES_FROM)" ./bin/lint.sh
 
 clean: ## Remove generated artifacts and caches
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

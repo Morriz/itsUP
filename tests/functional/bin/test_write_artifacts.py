@@ -22,6 +22,28 @@ from bin.write_artifacts import DNS_HONEYPOT, write_proxy_compose, write_upstrea
 # Path to real project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
+# Expected-value literals asserted against generated artifacts.
+SERVICES_KEY = "services"
+WEB_SERVICE = "web"
+DNS_KEY = "dns"
+LABELS_KEY = "labels"
+TRAEFIK_ENABLE = "traefik.enable=true"
+RULE_MARKER = ".rule="
+TEST_DOMAIN = "test.example.com"
+NETWORKS_KEY = "networks"
+PROXYNET = "proxynet"
+ENTRYPOINTS_KEY = "entryPoints"
+PROVIDERS_KEY = "providers"
+LOG_KEY = "log"
+LOG_LEVEL_DEBUG = "DEBUG"
+API_KEY = "api"
+
+
+@pytest.fixture(autouse=True)
+def _itsup_root(tmp_path, monkeypatch):
+    """Resolve itsUP's install root to the per-test fixture tree."""
+    monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+
 
 def copy_templates(tmp_path):
     """Copy template files to test directory."""
@@ -119,32 +141,32 @@ ingress:
         compose_data = yaml.safe_load(f)
 
     assert compose_data is not None, "Compose file should be valid YAML"
-    assert "services" in compose_data, "Compose should have services"
-    assert "web" in compose_data["services"], "Should have web service"
+    assert SERVICES_KEY in compose_data, "Compose should have services"
+    assert WEB_SERVICE in compose_data["services"], "Should have web service"
 
     # Verify DNS honeypot was injected
     web_service = compose_data["services"]["web"]
-    assert "dns" in web_service, "Service should have DNS configured"
+    assert DNS_KEY in web_service, "Service should have DNS configured"
     assert DNS_HONEYPOT in web_service["dns"], f"Should use DNS honeypot {DNS_HONEYPOT}"
 
     # Verify Traefik labels were injected
-    assert "labels" in web_service, "Service should have labels"
+    assert LABELS_KEY in web_service, "Service should have labels"
     labels = web_service["labels"]
 
     # Convert dict to list if needed for checking
     if isinstance(labels, dict):
         labels = [f"{k}={v}" for k, v in labels.items()]
 
-    assert "traefik.enable=true" in labels, "Should enable Traefik"
+    assert TRAEFIK_ENABLE in labels, "Should enable Traefik"
 
     # Find router rule label
-    rule_labels = [l for l in labels if ".rule=" in l]
+    rule_labels = [l for l in labels if RULE_MARKER in l]
     assert len(rule_labels) > 0, "Should have router rule"
-    assert "test.example.com" in rule_labels[0], "Should route to configured domain"
+    assert TEST_DOMAIN in rule_labels[0], "Should route to configured domain"
 
     # Verify proxynet network was added
-    assert "networks" in compose_data, "Should have networks"
-    assert "proxynet" in compose_data["networks"], "Should add proxynet"
+    assert NETWORKS_KEY in compose_data, "Should have networks"
+    assert PROXYNET in compose_data["networks"], "Should add proxynet"
     assert compose_data["networks"]["proxynet"]["external"] is True, "proxynet should be external"
 
     # Validate with docker compose config (if docker is available)
@@ -260,7 +282,7 @@ ingress: []
             compose_data = yaml.safe_load(f)
 
         for service_config in compose_data["services"].values():
-            if "dns" in service_config:
+            if DNS_KEY in service_config:
                 dns_configs.append(service_config["dns"])
 
     proxy_compose = tmp_path / "proxy" / "docker-compose.yml"
@@ -269,7 +291,7 @@ ingress: []
             proxy_data = yaml.safe_load(f)
 
         for service_config in proxy_data.get("services", {}).values():
-            if "dns" in service_config:
+            if DNS_KEY in service_config:
                 dns_configs.append(service_config["dns"])
 
     assert dns_configs, "Expected at least one service with DNS configured"
@@ -301,7 +323,7 @@ def test_generated_traefik_config_is_valid(tmp_path, monkeypatch):
     itsup_config = projects_dir / "itsup.yml"
     itsup_config.write_text(
         """
-router_ip: 192.168.1.1
+routerIP: 192.168.1.1
 versions:
   traefik: v3.2
 traefik:
@@ -350,14 +372,14 @@ api:
     assert config_data is not None, "Traefik config should be valid YAML"
 
     # Verify core structure
-    assert "entryPoints" in config_data, "Should have entryPoints"
-    assert "providers" in config_data, "Should have providers"
+    assert ENTRYPOINTS_KEY in config_data, "Should have entryPoints"
+    assert PROVIDERS_KEY in config_data, "Should have providers"
 
     # Verify user overrides were merged
-    assert "log" in config_data, "Should have log config"
-    assert config_data["log"]["level"] == "DEBUG", "Should merge user log level"
+    assert LOG_KEY in config_data, "Should have log config"
+    assert config_data["log"]["level"] == LOG_LEVEL_DEBUG, "Should merge user log level"
 
     # Verify API config from overrides
-    assert "api" in config_data, "Should have API config"
+    assert API_KEY in config_data, "Should have API config"
     assert config_data["api"]["dashboard"] is True, "Should merge API dashboard setting"
     assert config_data["api"]["insecure"] is False, "Should merge API insecure setting"

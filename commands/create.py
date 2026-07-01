@@ -3,10 +3,10 @@
 """itsup create command — scaffold a new project."""
 
 import sys
-from pathlib import Path
 
 import click
 
+from lib.paths import root as install_root
 from lib.projects import create_project
 from lib.version_check import check_schema_version
 
@@ -36,10 +36,10 @@ def create(name):
     """
     check_schema_version()
 
-    root = Path(__file__).resolve().parent.parent
+    repo_root = install_root()
 
     try:
-        create_project(name, root)
+        create_project(name, repo_root)
     except ValueError as e:
         click.echo(f"{Colors.RED}✗ {e}{Colors.NC}", err=True)
         sys.exit(1)
