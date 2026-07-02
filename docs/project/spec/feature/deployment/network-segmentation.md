@@ -1,7 +1,8 @@
 ---
-description: Acceptance scenarios for itsUP's generation-time network segmentation — the three network states, ingress-gated proxynet membership, per-edge least-privilege egress, provider-side edge creation, DNS honeypot injection, and static-IP pinning as rendered into the generated upstream docker-compose.yml.
-delivered_by:
-  - test-network-segmentation
+description: Acceptance scenarios for itsUP's generation-time network segmentation
+  — the three network states, ingress-gated proxynet membership, per-edge least-privilege
+  egress, provider-side edge creation, DNS honeypot injection, and static-IP pinning
+  as rendered into the generated upstream docker-compose.yml.
 ---
 
 # Network Segmentation — Spec
