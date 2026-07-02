@@ -5,6 +5,7 @@ import os
 import sys
 from io import StringIO
 from pathlib import Path
+from typing import Any
 
 import yaml
 from dotenv import load_dotenv
@@ -27,7 +28,7 @@ from lib.data import (
     validate_all,
 )
 from lib.logging_config import setup_logging
-from lib.models import ProxyProtocol
+from lib.models import ProxyProtocol, TraefikConfig
 from lib.paths import root
 
 load_dotenv()
@@ -70,7 +71,11 @@ def write_file_if_changed(file_path: Path, content: str, description: str = None
     return True
 
 
-def inject_traefik_labels(compose: dict, traefik_config, project_name: str) -> dict:
+def inject_traefik_labels(
+    compose: dict[str, Any],  # guard: loose-dict - arbitrary docker-compose mapping
+    traefik_config: TraefikConfig,
+    project_name: str,
+) -> dict[str, Any]:  # guard: loose-dict - arbitrary docker-compose mapping
     """Inject Traefik labels into docker-compose services based on traefik.yml"""
     if not traefik_config.enabled:
         return compose
@@ -333,7 +338,10 @@ def write_upstreams() -> bool:
     return True
 
 
-def deep_merge(base: dict, override: dict) -> dict:
+def deep_merge(
+    base: dict[str, Any],  # guard: loose-dict - arbitrary YAML config merge
+    override: dict[str, Any],  # guard: loose-dict - arbitrary YAML config merge
+) -> dict[str, Any]:  # guard: loose-dict - arbitrary YAML config merge
     """Deep merge override dict into base dict"""
     result = base.copy()
     for key, value in override.items():
@@ -529,6 +537,7 @@ def write_dynamic_routers() -> None:
             all_projects.append(
                 {
                     "name": project_name,
+                    "external": True,
                     "services": [{"host": traefik.host, "ingress": traefik.ingress}],
                 }
             )
@@ -545,7 +554,7 @@ def write_dynamic_routers() -> None:
                 # resolvable from Traefik's network namespace.
                 backend_host = i.ipv4_address or i.service
                 services.append({"host": backend_host, "ingress": [i]})
-            all_projects.append({"name": project_name, "services": services})
+            all_projects.append({"name": project_name, "external": False, "services": services})
 
     # Filter by router type for templates
     projects_http = []
@@ -558,10 +567,16 @@ def write_dynamic_routers() -> None:
         udp_services = []
 
         for s in p["services"]:
+            # Containers route plain HTTP via Traefik labels, so a container only
+            # needs a dynamic-file HTTP router when it declares a hostport (a
+            # dedicated entrypoint). External hosts have no labels, so they must
+            # always get the dynamic-file router — routed on web-secure to
+            # host:port — regardless of hostport.
             http_ingress = [
                 i
                 for i in s["ingress"]
-                if (not i.router or i.router == "http") and i.hostport and i.hostport not in (8080, 8443)
+                if (not i.router or i.router == "http")
+                and (p["external"] or (i.hostport and i.hostport not in (8080, 8443)))
             ]
             tcp_ingress = [i for i in s["ingress"] if i.router == "tcp"]
             udp_ingress = [i for i in s["ingress"] if i.router == "udp"]

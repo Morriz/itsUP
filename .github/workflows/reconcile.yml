@@ -46,8 +46,8 @@ jobs:
           passphrase: '${{ secrets.SSH_PASSPHRASE }}'
           script: |
             if [ -n '${{ secrets.APP_NAME }}' ]; then
-              curl -v 'https://${{ secrets.API_HOST }}/update-upstream/${{ secrets.APP_NAME }}' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+              curl -v -f 'https://${{ secrets.API_HOST }}/update-upstream/${{ secrets.APP_NAME }}' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
             else
-              curl -v -X POST 'https://${{ secrets.API_HOST }}/reconcile' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+              curl -v -f -X POST 'https://${{ secrets.API_HOST }}/reconcile' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
             fi
             exit
