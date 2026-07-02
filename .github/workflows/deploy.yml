@@ -1,5 +1,9 @@
 name: Deploy
 
+# Thin caller that dogfoods the shared reconcile workflow — no VPN/SSH plumbing
+# of its own. Runs after the Test workflow succeeds; with the APP_NAME secret set
+# this triggers a targeted update-upstream on the host (see reconcile.yml).
+
 on:
   workflow_run:
     workflows: ['Test']
@@ -9,36 +13,6 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    # if: false
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install OpenVPN
-        run: |
-          sudo apt update
-          sudo apt install -y openvpn openvpn-systemd-resolved
-
-      - name: Connect to VPN
-        uses: Morriz/github-openvpn-connect-action@v3
-        with:
-          config_file: .github/workflows/client.ovpn
-          host: ${{ secrets.API_HOST }}
-          ca: '${{ secrets.OVPN_CA }}'
-          cert: '${{ secrets.OVPN_CERT }}'
-          client_key: '${{ secrets.OVPN_USER_KEY }}'
-          client_pass: '${{ secrets.OVPN_USER_PASS }}'
-          tls_auth_key: '${{ secrets.OVPN_TLS_AUTH_KEY }}'
-
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: '${{ secrets.SSH_PRIVATE_KEY }}'
-          passphrase: '${{ secrets.SSH_PASSPHRASE }}'
-          script: |
-            curl -v 'https://${{ secrets.API_HOST }}/update-upstream/itsUP' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
-            exit
+    uses: ./.github/workflows/reconcile.yml
+    secrets: inherit

@@ -1,14 +1,18 @@
 name: Reconcile
 
-# Reusable workflow: pull the config repos on the host and apply the full stack.
-# Called from the `projects` and `secrets` repos on push to main. Holds the
-# VPN + SSH plumbing in one place so neither config repo carries its own copy.
+# Shared reusable deploy workflow: holds the VPN + SSH plumbing in one place so
+# no caller repo copies it. Callers pass credentials with `secrets: inherit`;
+# behaviour is selected by whether the caller set the APP_NAME secret:
+#   - APP_NAME set   -> GET /update-upstream/<APP_NAME>: pull that app's fresh
+#     image and roll it out. App repos call this after their build-and-push.
+#   - APP_NAME unset -> POST /reconcile: pull the projects + secrets config repos
+#     and apply the whole stack. The projects and secrets repos call this on push.
 
 on:
   workflow_call:
 
 jobs:
-  reconcile:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       # Check out itsUP (public) for the committed VPN client config, so the
@@ -33,7 +37,7 @@ jobs:
           client_key: '${{ secrets.OVPN_USER_KEY }}'
           tls_auth_key: '${{ secrets.OVPN_TLS_AUTH_KEY }}'
 
-      - name: Trigger reconcile via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -41,5 +45,9 @@ jobs:
           key: '${{ secrets.SSH_PRIVATE_KEY }}'
           passphrase: '${{ secrets.SSH_PASSPHRASE }}'
           script: |
-            curl -v -X POST 'https://${{ secrets.API_HOST }}/reconcile' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+            if [ -n '${{ secrets.APP_NAME }}' ]; then
+              curl -v 'https://${{ secrets.API_HOST }}/update-upstream/${{ secrets.APP_NAME }}' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+            else
+              curl -v -X POST 'https://${{ secrets.API_HOST }}/reconcile' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+            fi
             exit
