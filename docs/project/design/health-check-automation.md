@@ -112,5 +112,5 @@ before the delivery slug implements remediation.
 
 ## See Also
 
-- docs/project/design/container-security-monitor.md — container security monitor + the two probe scripts (current state)
+- docs/project/design/container-security-monitor.md — container security monitor (current state)
 - docs/project/design/security-architecture.md — OpenSnitch egress control (why endpoint failures must not auto-restart)
