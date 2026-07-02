@@ -54,7 +54,7 @@ each layer rather than one blunt host-level hammer.
 
 1. **Endpoint failures never trigger workload restarts.** An "endpoint unreachable +
    workload healthy" state is the signature of an infra fault — cert/DNS/proxy, or the
-   OpenSnitch loopback wedge (see `docs/networking.md`). Auto-restarting workloads
+   OpenSnitch loopback wedge (see `docs/project/design/security-architecture.md`). Auto-restarting workloads
    there churns pointlessly and *masks* the real cause. Endpoint failure = alert,
    escalate to a human.
 2. **Workload remediation is targeted and strike-guarded.** Restart only the failing
@@ -112,5 +112,5 @@ before the delivery slug implements remediation.
 
 ## See Also
 
-- docs/operations/monitoring.md — container security monitor + the two probe scripts (current state)
-- docs/networking.md — OpenSnitch loopback wedge (why endpoint failures must not auto-restart)
+- docs/project/design/container-security-monitor.md — container security monitor + the two probe scripts (current state)
+- docs/project/design/security-architecture.md — OpenSnitch egress control (why endpoint failures must not auto-restart)
