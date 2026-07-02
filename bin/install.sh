@@ -8,6 +8,19 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# ── Guard: canonical checkout only ───────────────────────────────────────────
+# This binds global state to REPO_ROOT — the `~/.local/bin/itsup` symlink and
+# the editable install. Run from a linked git worktree (`.git` is a file, not a
+# directory) it would repoint the global `itsup` at that worktree's transient
+# venv. Refuse anywhere but the canonical checkout.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "${REPO_ROOT}/.git" ]; then
+    echo -e "${RED}✗ Refusing: run 'make install' from the canonical itsUP checkout, not a linked worktree.${NC}" >&2
+    echo -e "  here: ${REPO_ROOT} (this is a git worktree)" >&2
+    echo -e "  It binds the global ~/.local/bin/itsup symlink; from a worktree that points at a transient venv." >&2
+    exit 1
+fi
+
 echo -e "${BLUE}🔍 Detecting platform...${NC}"
 
 # Detect OS
@@ -195,7 +208,6 @@ echo -e "${GREEN}✓${NC} Installed itsUP editable + test deps (minted .venv/bin
 # console-script. The target is cwd-independent (venv shebang + root() resolution),
 # so the bare `itsup` works from any directory. Runtime callers (systemd/launchd)
 # use the absolute path and do not rely on this symlink.
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCAL_BIN="${HOME}/.local/bin"
 mkdir -p "${LOCAL_BIN}"
 ln -sf "${REPO_ROOT}/.venv/bin/itsup" "${LOCAL_BIN}/itsup"
