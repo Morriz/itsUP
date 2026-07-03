@@ -2,13 +2,15 @@
 # Worktree build-env prep for the TeleClaude work lifecycle.
 #
 # The lifecycle builds each todo in a linked git worktree at trees/<slug>/ and
-# needs an isolated Python env there. itsUP's `make install` refuses to run in a
-# worktree (bin/lib/assert-canonical-checkout.sh) because it binds GLOBAL host
-# state — the ~/.local/bin/itsup symlink plus an editable install — to the repo
-# path, and a worktree's path is transient. This script does only the
-# worktree-SAFE subset: a local .venv and editable install pinned to the
-# worktree's own code. It never touches ~/.local/bin or any host binding, so
-# global/host state stays bound to the canonical checkout alone.
+# needs a Python env there. itsUP's `make install` refuses in a worktree
+# (bin/lib/assert-canonical-checkout.sh) because it binds GLOBAL host state — the
+# ~/.local/bin/itsup symlink plus an editable install — to a transient path.
+#
+# This does the worktree-SAFE prep: SYMLINK the worktree's .venv to the canonical
+# root's .venv. No per-worktree virtualenv (those bloat the tree and cripple the
+# editor/agent file ops), no editable re-install, no global binding. The shared
+# .venv provides dependencies; pytest still imports the worktree's own source
+# because it inserts the worktree cwd first on sys.path.
 #
 # The lifecycle invokes this from the canonical checkout root with the slug as $1.
 set -euo pipefail
@@ -17,8 +19,7 @@ SLUG="${1:?worktree-prepare: slug argument required}"
 
 # Confine the slug to the lifecycle's kebab-case grammar before it becomes a
 # filesystem path. This rejects `/`, `..`, and any pathlike value, so the target
-# below can only ever be a single segment directly under trees/ — no traversal
-# out of the worktree tree.
+# below can only ever be a single segment directly under trees/ — no traversal.
 if [[ ! "${SLUG}" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
     echo "✗ invalid slug (expected kebab-case, no path separators): ${SLUG}" >&2
     exit 1
@@ -34,19 +35,22 @@ fi
 
 # Assert the target is an actual linked git worktree before mutating it — a
 # linked worktree keeps .git as a FILE (a gitdir pointer), never a directory.
-# Belt-and-suspenders with the slug grammar: never run pip in an arbitrary dir.
 if [ ! -f "${WORKTREE}/.git" ]; then
     echo "✗ not a linked git worktree: ${WORKTREE}" >&2
     exit 1
 fi
 
-cd "${WORKTREE}"
-
-# Local venv + editable install, pinned to THIS worktree's code. No global
-# symlink, no host binding — the safe subset of `make install` for a worktree.
-if [ ! -d .venv ]; then
-    python3 -m venv .venv
+# The shared root .venv must already exist — worktree prep reuses it, never
+# provisions Python. Provision the canonical checkout first with `make install`.
+if [ ! -x "${CANONICAL_ROOT}/.venv/bin/python" ]; then
+    echo "✗ canonical root .venv missing: ${CANONICAL_ROOT}/.venv" >&2
+    echo "  Run 'make install' in the canonical checkout first." >&2
+    exit 1
 fi
-.venv/bin/pip install -q -e ".[test]"
 
-echo "✓ Prepared worktree ${SLUG}: local .venv + editable install (no global binding)"
+# Replace any existing worktree-local .venv (real dir or stale link) with a
+# relative symlink to the shared root .venv. Relative so it survives tree moves.
+rm -rf "${WORKTREE}/.venv"
+ln -s "../../.venv" "${WORKTREE}/.venv"
+
+echo "✓ Prepared worktree ${SLUG}: .venv -> shared canonical .venv (no per-worktree venv)"
