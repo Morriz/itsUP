@@ -9,7 +9,7 @@ business:
 #   - code scope: the project's source roots (every language/file type — .py, .sh,
 #     etc.), by directory, so a source change owes the base test + log-check + the
 #     commit-obligation/integrator maintenance. Not an extension filter; not tests.
-#   - validate: changing a deployment input (db.yml or a tpl/*.j2 template that
+#   - validate: changing a deployment input (a tpl/*.j2 template that
 #     generates the compose/traefik artifacts) owes `itsup validate` — a config check
 #     with no rollout, distinct from the deploy path (make install-runtime / itsup apply).
 checkpoint:
@@ -34,7 +34,6 @@ checkpoint:
   bindings:
     - scope:
         include:
-          - db.yml
           - tpl/**
       actions:
         - validate
