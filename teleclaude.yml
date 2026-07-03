@@ -4,15 +4,16 @@ business: {}
 # Merged on top of the platform-universal base, which already covers
 # Makefile -> make install, docs/** -> telec sync, agents/** -> sync + reload-self,
 # and changed code -> test + log-check. This overlay adds itsUP's own surfaces:
-#   - code scope: the Python source roots, so a code change owes make test + log-check
-#     instead of being silent (the base test/log-check actions attach to this scope).
+#   - code scope: the project's source roots (every language/file type — .py, .sh,
+#     etc.), by directory, so a source change owes the base test + log-check + the
+#     commit-obligation/integrator maintenance. Not an extension filter; not tests.
 #   - validate: changing a deployment input (db.yml or a tpl/*.j2 template that
 #     generates the compose/traefik artifacts) owes `itsup validate` — a config check
 #     with no rollout, distinct from the deploy path (make install-runtime / itsup apply).
 checkpoint:
   actions:
     validate:
-      run: .venv/bin/itsup validate
+      run: itsup validate
       evidence:
         - itsup validate
       precedence: 50
@@ -23,9 +24,11 @@ checkpoint:
         - api/**
         - commands/**
         - itsup/**
+        - bin/**
+        - monitor/**
       exclude:
         - tests/**
-        - "**/*_test.py"
+        - '**/*_test.py'
   bindings:
     - scope:
         include:
