@@ -16,6 +16,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # carrying absolute repo paths; they must bind the canonical checkout.
 GUARD_OP="make install-runtime"
 . "${REPO_ROOT}/bin/lib/assert-canonical-checkout.sh"
+PYTHONPATH="${REPO_ROOT}" "${REPO_ROOT}/.venv/bin/python" -c "from lib.host_gate import require_host; require_host('make install-runtime')"
 
 ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
 ITSUP_GROUP="${ITSUP_GROUP:-$(id -gn "${ITSUP_USER}")}"

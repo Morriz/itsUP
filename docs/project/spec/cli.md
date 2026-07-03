@@ -50,7 +50,6 @@ in `project/spec/secrets-management`.
   failed individual rollout is logged and does not fail the deployment.
   (`lib/deploy.py:62`, `lib/deploy.py:257`)
 
-<!-- planned:itsup-host-command-gate -->
 ### Host-identity gate (runtime-mutating commands are host-only)
 
 The CLI group refuses runtime-mutating commands on any machine that is not the
@@ -73,7 +72,6 @@ refused.
 The gate is not self-grantable: there is no bypass flag or override env var, and
 the refusal message advertises no escape hatch. The allow/deny split lives in one
 place. (`itsup/cli.py`, `lib/host_gate.py`)
-<!-- /planned:itsup-host-command-gate -->
 
 ### Secret loading context
 
@@ -103,11 +101,9 @@ The CLI emits only these — there is no 2/3/130 contract.
 - Change detection compares the live `docker compose config` hash against the
   running container's `com.docker.compose.config-hash` label (container-label
   based), not a hash stored on disk.
-<!-- planned:itsup-host-command-gate -->
 - Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
   `monitor`, `logs`) are **host-only** and refuse fail-closed off-host (detected
   LAN IP ≠ `SSH_HOST`); see the host-identity gate above.
-<!-- /planned:itsup-host-command-gate -->
 
 ## See Also
 

@@ -3,3 +3,7 @@
 
 # Python environment
 # PYTHON_ENV=production
+
+# Container host identity for host-only runtime commands.
+# Set to this host's own LAN IP; itsUP compares it to the detected LAN IP.
+# SSH_HOST=192.168.1.10

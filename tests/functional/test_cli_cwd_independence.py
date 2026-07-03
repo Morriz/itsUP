@@ -23,6 +23,8 @@ CONSOLE_SCRIPT = REPO_ROOT / ".venv" / "bin" / "itsup"
 
 sys.path.insert(0, str(REPO_ROOT))
 
+from lib.host_gate import detect_lan_ip
+
 ALL_PROJECTS_VALID = "All projects valid"
 GIT_STATUS_HEADER = "Git Status"
 VERSION_LABEL = "version"
@@ -43,8 +45,8 @@ def _write_valid_project(projects_dir: Path, name: str, domain: str) -> None:
     )
 
 
-@pytest.fixture
-def valid_root(tmp_path: Path) -> Path:
+@pytest.fixture(name="install_root")
+def install_root_fixture(tmp_path: Path) -> Path:
     """A complete install tree: pyproject + schema-matched itsup.yml + one valid project.
 
     The subprocess runs the real CLI (no in-process monkeypatching), so the tree
@@ -78,15 +80,15 @@ def _run(args: list[str], cwd: str, itsup_root: Path | None) -> subprocess.Compl
     )
 
 
-def test_validate_reads_itsup_root_from_filesystem_root(valid_root: Path) -> None:
+def test_validate_reads_itsup_root_from_filesystem_root(install_root: Path) -> None:
     """A data-read command run from / resolves projects/ under ITSUP_ROOT, not cwd."""
-    result = _run(["validate"], cwd="/", itsup_root=valid_root)
+    result = _run(["validate"], cwd="/", itsup_root=install_root)
 
     assert result.returncode == 0, result.stderr
     assert ALL_PROJECTS_VALID in result.stdout
 
 
-def test_validate_ignores_cwd_projects(valid_root: Path, tmp_path_factory: pytest.TempPathFactory) -> None:
+def test_validate_ignores_cwd_projects(install_root: Path, tmp_path_factory: pytest.TempPathFactory) -> None:
     """A decoy projects/ in the cwd is ignored; ITSUP_ROOT wins."""
     decoy_cwd = tmp_path_factory.mktemp("decoy")
     # A broken project in the cwd that would fail validation if it were read.
@@ -94,7 +96,7 @@ def test_validate_ignores_cwd_projects(valid_root: Path, tmp_path_factory: pytes
     broken.mkdir(parents=True)
     (broken / "docker-compose.yml").write_text("not: [valid, compose")
 
-    result = _run(["validate"], cwd=str(decoy_cwd), itsup_root=valid_root)
+    result = _run(["validate"], cwd=str(decoy_cwd), itsup_root=install_root)
 
     assert result.returncode == 0, result.stderr
     assert ALL_PROJECTS_VALID in result.stdout
@@ -102,11 +104,11 @@ def test_validate_ignores_cwd_projects(valid_root: Path, tmp_path_factory: pytes
 
 
 def test_root_derived_command_runs_from_unrelated_dir(
-    valid_root: Path, tmp_path_factory: pytest.TempPathFactory
+    install_root: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
     """A root-derived-path command (status) resolves its repos under root(), runs from any cwd."""
     elsewhere = tmp_path_factory.mktemp("elsewhere")
-    result = _run(["status"], cwd=str(elsewhere), itsup_root=valid_root)
+    result = _run(["status"], cwd=str(elsewhere), itsup_root=install_root)
 
     assert result.returncode == 0, result.stderr
     assert GIT_STATUS_HEADER in result.stdout
@@ -120,15 +122,20 @@ def test_package_derived_root_when_env_unset() -> None:
     assert VERSION_LABEL in result.stdout.lower()
 
 
-def test_logs_resolves_logs_dir_under_root(valid_root: Path) -> None:
+def test_logs_resolves_logs_dir_under_root(install_root: Path) -> None:
     """itsup logs lists log files from root()/logs, not the caller's cwd."""
-    logs_dir = valid_root / "logs"
+    lan_ip = detect_lan_ip()
+    if lan_ip is None:
+        pytest.skip("LAN IP detection unavailable")
+
+    (install_root / ".env").write_text(f"SSH_HOST={lan_ip}\n")
+    logs_dir = install_root / "logs"
     logs_dir.mkdir()
     (logs_dir / f"{AVAILABLE_LOG}.log").write_text("{}\n")
 
     # A name that does not exist exits before the blocking `tail -F`, but the
     # "Available: …" list is read from root()/logs — empty if cwd were used.
-    result = _run(["logs", "no-such-log"], cwd="/", itsup_root=valid_root)
+    result = _run(["logs", "no-such-log"], cwd="/", itsup_root=install_root)
 
     assert result.returncode == 1
     assert AVAILABLE_LOG in (result.stderr + result.stdout)
@@ -166,15 +173,13 @@ def _run_console(args: list[str], cwd: str, itsup_root: Path) -> subprocess.Comp
     not CONSOLE_SCRIPT.exists(),
     reason="console-script absent — editable install not run (e.g. a bare CI venv)",
 )
-def test_console_script_runs_cwd_independently(
-    valid_root: Path, tmp_path_factory: pytest.TempPathFactory
-) -> None:
+def test_console_script_runs_cwd_independently(install_root: Path, tmp_path_factory: pytest.TempPathFactory) -> None:
     """The canonical .venv/bin/itsup console-script reads ITSUP_ROOT from any cwd."""
-    from_fs_root = _run_console(["validate"], cwd="/", itsup_root=valid_root)
+    from_fs_root = _run_console(["validate"], cwd="/", itsup_root=install_root)
     assert from_fs_root.returncode == 0, from_fs_root.stderr
     assert ALL_PROJECTS_VALID in from_fs_root.stdout
 
     elsewhere = tmp_path_factory.mktemp("elsewhere")
-    from_elsewhere = _run_console(["validate"], cwd=str(elsewhere), itsup_root=valid_root)
+    from_elsewhere = _run_console(["validate"], cwd=str(elsewhere), itsup_root=install_root)
     assert from_elsewhere.returncode == 0, from_elsewhere.stderr
     assert ALL_PROJECTS_VALID in from_elsewhere.stdout

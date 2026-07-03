@@ -29,13 +29,17 @@ from commands.sops_key import sops_key
 from commands.status import status
 from commands.svc import svc
 from commands.validate import validate
+from lib.host_gate import require_host
 from lib.logging_config import setup_logging
 
+HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor", "logs"})
 
-@click.group(context_settings=dict(allow_interspersed_args=False, help_option_names=["-h", "--help"]))
+
+@click.group(context_settings={"allow_interspersed_args": False, "help_option_names": ["-h", "--help"]})
 @click.version_option("2.1.1", "-V", "--version", prog_name="itsup")
 @click.option("--verbose", "-v", count=True, help="Verbosity: -v (DEBUG), -vv (TRACE)", is_eager=True)
-def cli(verbose: int) -> None:
+@click.pass_context
+def cli(ctx: click.Context, verbose: int) -> None:
     """itsUP - Infrastructure management CLI"""
     # itsup is a user-invoked, intent-bearing tool — every git subprocess it
     # spawns (commit/pull/status/etc.) is sanctioned. Set the bypass once here
@@ -55,6 +59,9 @@ def cli(verbose: int) -> None:
         level = "TRACE"
 
     setup_logging(level=level)
+
+    if ctx.invoked_subcommand in HOST_ONLY:
+        require_host(ctx.invoked_subcommand)
 
 
 # Register commands
@@ -82,4 +89,4 @@ cli.add_command(sops_key)
 
 def main() -> None:
     """Console-script entry point."""
-    cli()
+    cli.main()
