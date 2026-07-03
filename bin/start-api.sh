@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Repo-local, cwd-independent: resolve the repo root from this script's own
 # location and run the API with the venv python at an absolute path. The editable
-# install makes lib/commands importable without PYTHONPATH, and no env.sh sourcing
-# is needed on the runtime path.
+# install makes lib/commands importable without PYTHONPATH, and no sourcing or
+# venv activation is needed on the runtime path.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # The API resolves its install root from ITSUP_ROOT; set it for the launched

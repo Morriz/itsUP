@@ -196,7 +196,7 @@ See [itsup-projects](https://github.com/Morriz/itsUP-projects) for all the apps 
 
 The `itsup` CLI is the main interface for managing your infrastructure. It provides smart change detection and zero-downtime deployments.
 
-**Invoking it** — `make install` puts a global `itsup` on your PATH (`~/.local/bin/itsup` → the repo's venv console-script) and wires tab-completion into your shell rc, so `itsup <cmd>` runs from any directory with no sourcing and always operates on its own repo. `source env.sh` is an optional dev convenience (venv activation only) — the examples below use the bare `itsup`.
+**Invoking it** — `make install` puts a global `itsup` on your PATH (`~/.local/bin/itsup` → the repo's venv console-script), so `itsup <cmd>` runs from any directory with no sourcing and always operates on its own repo. Tab-completion is opt-in (bash + zsh): add `source /path/to/itsUP/bin/itsup-completion.sh` to your shell rc — `make install` never edits your dotfiles. The examples below use the bare `itsup`.
 
 **Main commands:**
 
@@ -437,7 +437,7 @@ make install-runtime    # only on the container host — go live
 
 **`make uninstall-runtime`** is the inverse: it disables the timers/agents, tears the whole stack down through the CLI's own primitives (`itsup down --clean` + `itsup monitor clear-iptables`) so no container, host process, or monitor firewall rule is left behind, then removes the host integration. It deliberately preserves Docker volumes/data, shared system packages, host DNS/dnsmasq state, and the dependency layer (`.venv`).
 
-After install, run the bare `itsup <cmd>` from any directory (via `~/.local/bin/itsup`); tab-completion is wired into your shell rc by `make install`, and `source env.sh` is optional (venv activation for an interactive shell).
+After install, run the bare `itsup <cmd>` from any directory (via `~/.local/bin/itsup`); tab-completion is opt-in — `source /path/to/itsUP/bin/itsup-completion.sh` from your shell rc.
 
 If you prefer to run only the CLI bootstrap, the `itsup init` command will:
 

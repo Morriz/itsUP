@@ -45,7 +45,7 @@ built by `get_env_with_secrets` at `docker compose up`.
 
 | Name | Required / default | Source (read site) | Consumer / purpose |
 |------|--------------------|--------------------|--------------------|
-| `ITSUP_ROOT` | optional; falls back to repo root derived from package location | `lib/paths.py:25` | Single source of truth for the install root used by every data path; fails closed if set to a missing dir or if derivation lands outside the repo tree (`lib/paths.py:26-39`). Also consumed by `bin/install-bringup.sh:17` and exported by `env.sh:6`. |
+| `ITSUP_ROOT` | optional; falls back to repo root derived from package location | `lib/paths.py:25` | Single source of truth for the install root used by every data path; fails closed if set to a missing dir or if derivation lands outside the repo tree (`lib/paths.py:26-39`). Also consumed by `bin/install-bringup.sh:17`. |
 | `PYTHON_ENV` | optional; `api/main.py` defaults to `"development"` | `lib/data.py:76`; `api/main.py:45,154` | When `== "production"`: warns on plaintext-secret use during deploy (`lib/data.py:76-77`) and enables `proxy_headers` for the API server (`api/main.py:154`). |
 | `LOG_LEVEL` | optional; default `INFO` | `lib/logging_config.py:123` | Default log level for non-CLI entrypoints (e.g. the API/library). The CLI ignores it and maps `-v`/`-vv` to DEBUG/TRACE instead (`itsup/cli.py:46-57`). |
 

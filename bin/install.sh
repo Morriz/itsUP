@@ -210,35 +210,19 @@ if [[ ":$PATH:" != *":${LOCAL_BIN}:"* ]]; then
     echo "     export PATH=\"${LOCAL_BIN}:\$PATH\"   # add to your shell profile"
 fi
 
-# Wire shell completion into the user's rc (idempotent). itsup is a Click CLI, so
-# completion is generated on the fly by bin/itsup-completion.sh; the installer only
-# ensures the rc sources it once. A guard marker keeps re-runs from duplicating it.
+# Shell completion is an opt-in convenience — we never edit the user's dotfiles
+# (matching how telec ships bin/telec-completion.zsh for the user to source). Just
+# print the one line to add; bin/itsup-completion.sh works on bash and zsh.
 COMPLETION_SCRIPT="${REPO_ROOT}/bin/itsup-completion.sh"
-COMPLETION_MARKER="# itsup shell completion (managed by make install)"
-case "$(basename "${SHELL:-}")" in
-    zsh)  COMPLETION_RC="${HOME}/.zshrc" ;;
-    bash) COMPLETION_RC="${HOME}/.bashrc" ;;
-    *)    COMPLETION_RC="" ;;
-esac
-if [ -z "${COMPLETION_RC}" ]; then
-    echo -e "${YELLOW}⚠${NC} Unrecognized shell (${SHELL:-unset}) — enable completion by sourcing:"
-    echo "     source \"${COMPLETION_SCRIPT}\""
-elif grep -qF "${COMPLETION_MARKER}" "${COMPLETION_RC}" 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} Shell completion already wired in ${COMPLETION_RC}"
-else
-    {
-        echo ""
-        echo "${COMPLETION_MARKER}"
-        echo "[ -r \"${COMPLETION_SCRIPT}\" ] && source \"${COMPLETION_SCRIPT}\""
-    } >> "${COMPLETION_RC}"
-    echo -e "${GREEN}✓${NC} Wired shell completion into ${COMPLETION_RC} (open a new shell to use it)"
-fi
+echo -e "${GREEN}✓${NC} Shell completion available (bash + zsh). To enable it, add to your shell rc"
+echo "  (zsh: after compinit — e.g. ~/.config/zsh/init.local.zsh or the end of ~/.zshrc):"
+echo "     source \"${COMPLETION_SCRIPT}\""
 
 echo ""
 echo -e "${GREEN}✅ Dependencies installed!${NC}"
 echo ""
 echo "itsup is global: run 'itsup <cmd>' from any directory (via ~/.local/bin/itsup)."
-echo "Shell completion is wired into your rc above. 'source env.sh' is optional — venv activation for development."
+echo "Shell completion is opt-in: add the 'source' line above to your rc."
 echo ""
 echo "Next steps:"
 echo ""

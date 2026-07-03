@@ -3,7 +3,7 @@ description: How the itsup CLI is distributed and invoked — a packaged console
   run with the venv interpreter intrinsically, exposed globally via a ~/.local/bin
   symlink, resolving its install root from ITSUP_ROOT or the package location rather
   than cwd, so the bare itsup runs from any directory while always operating on its
-  own repo and no runtime caller sources env.sh.
+  own repo, with no sourcing or venv activation required anywhere.
 ---
 
 # itsUP CLI Distribution — Design
@@ -14,10 +14,10 @@ itsup is invokable as a packaged console-script that always runs with the projec
 venv and works from any directory. It is exposed globally through a user-PATH
 symlink (`~/.local/bin/itsup` → `<repo>/.venv/bin/itsup`), so the bare `itsup` runs
 from anywhere on the machine — an agent or operator never has to `cd` into the repo
-or `source env.sh` to operate on the project's config and secrets. itsUP stays a
+or source anything to operate on the project's config and secrets. itsUP stays a
 single-root tool: the global handle always resolves back to, and operates on, its
 own repo. No runtime caller — systemd units, the API self-update, `start-api.sh` —
-sources `env.sh`.
+sources or activates anything.
 
 This exists because the prior `bin/itsup` (`#!/usr/bin/env python3`) bound the
 interpreter to whatever python was active, and read cwd-relative data paths, so
@@ -41,8 +41,9 @@ interpreter binding, root resolution, and PATH exposure.
 - A user-PATH symlink `~/.local/bin/itsup` → `<repo>/.venv/bin/itsup`, created by
   `make install` — the canonical global invocation: the bare `itsup` from any
   directory.
-- `source env.sh` is an optional developer convenience (venv activation + shell
-  completion); it no longer plays any role in putting `itsup` on `PATH`.
+- For development, activate the venv with `source .venv/bin/activate`; shell
+  completion is opt-in via `source bin/itsup-completion.sh` (bash + zsh). Neither
+  is required to run `itsup`.
 - All data access (`projects/`, `secrets/`, `upstream/`, `tpl/`,
   `projects/itsup.yml`, …) resolved beneath `root()`.
 
@@ -81,8 +82,9 @@ interpreter binding, root resolution, and PATH exposure.
 5. **No sourcing required, anywhere.** Runtime callers (systemd units,
    `start-api.sh`, the API self-update) invoke the absolute `<repo>/.venv/bin/itsup`
    (or the venv python) with `ITSUP_ROOT` set; interactive users and agents reach
-   the bare `itsup` through the global symlink. `env.sh` plays no PATH role — it is
-   a pure developer convenience (venv activation + shell completion).
+   the bare `itsup` through the global symlink. Developers activate the venv via
+   `source .venv/bin/activate` and opt into completion via
+   `source bin/itsup-completion.sh`.
 
 ## Primary flows
 
@@ -130,8 +132,6 @@ on entry-point changes) + `pip install -r requirements-prod.txt` → deploy stac
 - **`~/.local/bin` not on `PATH`.** The bare `itsup` is not found from outside the
   repo. The absolute `<repo>/.venv/bin/itsup` always works; `make install` surfaces
   when `~/.local/bin` is absent from `PATH` so the user can add it.
-- **A caller still sourcing `env.sh` and relying on cwd.** Tolerated but
-  unnecessary; the runtime path no longer depends on it.
 
 ## See Also
 

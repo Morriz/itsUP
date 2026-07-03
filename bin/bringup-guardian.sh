@@ -11,7 +11,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Repo-local, cwd-independent: resolve the root for itsup and invoke the venv
-# console-script at an absolute path — no sourcing of env.sh on the runtime path.
+# console-script at an absolute path — no sourcing/activation on the runtime path.
 export ITSUP_ROOT="${REPO_ROOT}"
 ITSUP="${REPO_ROOT}/.venv/bin/itsup"
 
