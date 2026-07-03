@@ -14,11 +14,29 @@
 set -euo pipefail
 
 SLUG="${1:?worktree-prepare: slug argument required}"
+
+# Confine the slug to the lifecycle's kebab-case grammar before it becomes a
+# filesystem path. This rejects `/`, `..`, and any pathlike value, so the target
+# below can only ever be a single segment directly under trees/ — no traversal
+# out of the worktree tree.
+if [[ ! "${SLUG}" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+    echo "✗ invalid slug (expected kebab-case, no path separators): ${SLUG}" >&2
+    exit 1
+fi
+
 CANONICAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKTREE="${CANONICAL_ROOT}/trees/${SLUG}"
 
 if [ ! -d "${WORKTREE}" ]; then
     echo "✗ worktree not found: ${WORKTREE}" >&2
+    exit 1
+fi
+
+# Assert the target is an actual linked git worktree before mutating it — a
+# linked worktree keeps .git as a FILE (a gitdir pointer), never a directory.
+# Belt-and-suspenders with the slug grammar: never run pip in an arbitrary dir.
+if [ ! -f "${WORKTREE}/.git" ]; then
+    echo "✗ not a linked git worktree: ${WORKTREE}" >&2
     exit 1
 fi
 
