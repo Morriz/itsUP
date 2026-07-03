@@ -8,18 +8,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# ── Guard: canonical checkout only ───────────────────────────────────────────
-# This binds global state to REPO_ROOT — the `~/.local/bin/itsup` symlink and
-# the editable install. Run from a linked git worktree (`.git` is a file, not a
-# directory) it would repoint the global `itsup` at that worktree's transient
-# venv. Refuse anywhere but the canonical checkout.
+# Refuse to run from a linked git worktree — this binds global state (the
+# ~/.local/bin/itsup symlink + editable install) to REPO_ROOT.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [ -f "${REPO_ROOT}/.git" ]; then
-    echo -e "${RED}✗ Refusing: run 'make install' from the canonical itsUP checkout, not a linked worktree.${NC}" >&2
-    echo -e "  here: ${REPO_ROOT} (this is a git worktree)" >&2
-    echo -e "  It binds the global ~/.local/bin/itsup symlink; from a worktree that points at a transient venv." >&2
-    exit 1
-fi
+GUARD_OP="make install"
+. "${REPO_ROOT}/bin/lib/assert-canonical-checkout.sh"
 
 echo -e "${BLUE}🔍 Detecting platform...${NC}"
 

@@ -12,6 +12,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Refuse to run from a linked git worktree — this installs systemd/launchd units
+# carrying absolute repo paths; they must bind the canonical checkout.
+GUARD_OP="make install-runtime"
+. "${REPO_ROOT}/bin/lib/assert-canonical-checkout.sh"
+
 ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
 ITSUP_GROUP="${ITSUP_GROUP:-$(id -gn "${ITSUP_USER}")}"
 ITSUP_ROOT="${ITSUP_ROOT:-${REPO_ROOT}}"

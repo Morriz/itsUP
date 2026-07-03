@@ -24,6 +24,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Refuse to run from a linked git worktree — runtime teardown operates on the
+# canonical checkout's stacks/units, never a transient worktree copy.
+GUARD_OP="make uninstall-runtime"
+. "${REPO_ROOT}/bin/lib/assert-canonical-checkout.sh"
+
 ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
 ITSUP_ROOT="${ITSUP_ROOT:-${REPO_ROOT}}"
 ITSUP_HOME="${HOME:-/Users/${ITSUP_USER}}"
