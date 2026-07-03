@@ -17,6 +17,11 @@ the itsUP GitOps Workflow procedure.
 
 Runs anywhere — GitOps, config, secrets, and read:
 
+<!-- planned:itsup-agent-authoring-surface -->
+- `itsup list-projects` — list the names of all configured projects.
+- `itsup list-project-files <name>` — list the files that constitute a project, as paths
+  usable from any working directory.
+<!-- /planned:itsup-agent-authoring-surface -->
 - `itsup pull` — rebase the `projects/` and `secrets/` repos onto their remotes.
 - `itsup status` — git status of both repos.
 - `itsup commit` — commit and push both repos.
