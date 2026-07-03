@@ -210,19 +210,39 @@ if [[ ":$PATH:" != *":${LOCAL_BIN}:"* ]]; then
     echo "     export PATH=\"${LOCAL_BIN}:\$PATH\"   # add to your shell profile"
 fi
 
-# Shell completion is an opt-in convenience — we never edit the user's dotfiles
-# (matching how telec ships bin/telec-completion.zsh for the user to source). Just
-# print the one line to add; bin/itsup-completion.sh works on bash and zsh.
+# Shell completion (bin/itsup-completion.sh; bash + zsh, self-inits compinit).
+# A human run never edits dotfiles — it prints the line to add. A non-interactive
+# run (an agent/provisioning) inspects the environment and wires it automatically,
+# idempotently: into ~/.config/zsh/init.local.zsh if that post-compinit hook exists,
+# else the shell rc.
 COMPLETION_SCRIPT="${REPO_ROOT}/bin/itsup-completion.sh"
-echo -e "${GREEN}✓${NC} Shell completion available (bash + zsh). To enable it, add to your shell rc"
-echo "  (zsh: after compinit — e.g. ~/.config/zsh/init.local.zsh or the end of ~/.zshrc):"
-echo "     source \"${COMPLETION_SCRIPT}\""
+if [ -t 0 ]; then
+    echo -e "${GREEN}✓${NC} Shell completion available (bash + zsh). To enable it, add to your shell rc:"
+    echo "     source \"${COMPLETION_SCRIPT}\""
+else
+    COMPLETION_RC="${HOME}/.config/zsh/init.local.zsh"
+    if [ ! -f "${COMPLETION_RC}" ]; then
+        case "$(basename "${SHELL:-}")" in
+            zsh)  COMPLETION_RC="${HOME}/.zshrc" ;;
+            bash) COMPLETION_RC="${HOME}/.bashrc" ;;
+            *)    COMPLETION_RC="" ;;
+        esac
+    fi
+    if [ -z "${COMPLETION_RC}" ]; then
+        echo -e "${YELLOW}⚠${NC} Enable completion by sourcing ${COMPLETION_SCRIPT} from your shell rc"
+    elif grep -qF "itsup-completion" "${COMPLETION_RC}" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} Shell completion already wired in ${COMPLETION_RC}"
+    else
+        printf '\n# itsup shell completion\n[ -r "%s" ] && source "%s"\n' "${COMPLETION_SCRIPT}" "${COMPLETION_SCRIPT}" >> "${COMPLETION_RC}"
+        echo -e "${GREEN}✓${NC} Wired shell completion into ${COMPLETION_RC} (open a new shell)"
+    fi
+fi
 
 echo ""
 echo -e "${GREEN}✅ Dependencies installed!${NC}"
 echo ""
 echo "itsup is global: run 'itsup <cmd>' from any directory (via ~/.local/bin/itsup)."
-echo "Shell completion is opt-in: add the 'source' line above to your rc."
+echo "Shell completion: see the note above (auto-wired for agent installs; opt-in line to add for interactive installs)."
 echo ""
 echo "Next steps:"
 echo ""

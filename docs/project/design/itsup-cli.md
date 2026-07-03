@@ -42,8 +42,11 @@ interpreter binding, root resolution, and PATH exposure.
   `make install` — the canonical global invocation: the bare `itsup` from any
   directory.
 - For development, activate the venv with `source .venv/bin/activate`; shell
-  completion is opt-in via `source bin/itsup-completion.sh` (bash + zsh). Neither
-  is required to run `itsup`.
+  completion lives in `bin/itsup-completion.sh` (bash + zsh, self-inits compinit).
+  An interactive `make install` prints the `source` line to add to a shell rc; a
+  non-interactive one (an agent/provisioning) inspects the environment and wires
+  it in automatically (into `~/.config/zsh/init.local.zsh` if present, else the
+  shell rc). Neither is required to run `itsup`.
 - All data access (`projects/`, `secrets/`, `upstream/`, `tpl/`,
   `projects/itsup.yml`, …) resolved beneath `root()`.
 
