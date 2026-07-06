@@ -4,6 +4,11 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+# The Let's Encrypt HTTP-01 challenge path. Traefik intercepts requests under
+# this prefix on the `web` entrypoint ahead of router matching, so ingress
+# rows serving it must never be redirected to HTTPS or required to be TCP.
+ACME_CHALLENGE_PATH_PREFIX = "/.well-known/acme-challenge/"
+
 
 class Env(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -108,7 +113,7 @@ class Ingress(BaseModel):
     @model_validator(mode="after")
     @classmethod
     def check_passthrough_tcp(cls, data: Any) -> Any:
-        if data.passthrough and data.port == 80 and not data.path_prefix == "/.well-known/acme-challenge/":
+        if data.passthrough and data.port == 80 and not data.path_prefix == ACME_CHALLENGE_PATH_PREFIX:
             raise ValueError("Passthrough is only allowed for ACME challenge on port 80.")
         return data
 

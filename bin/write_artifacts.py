@@ -28,7 +28,7 @@ from lib.data import (
     validate_all,
 )
 from lib.logging_config import setup_logging
-from lib.models import ProxyProtocol, TraefikConfig
+from lib.models import ACME_CHALLENGE_PATH_PREFIX, ProxyProtocol, TraefikConfig
 from lib.paths import root
 
 load_dotenv()
@@ -141,7 +141,7 @@ def inject_traefik_labels(
                 # can't interfere with certificate issuance/renewal — except for
                 # the narrow passthrough-ACME-forwarding carve-out, which must
                 # reach the backend unredirected.
-                if ingress.path_prefix != "/.well-known/acme-challenge/":
+                if ingress.path_prefix != ACME_CHALLENGE_PATH_PREFIX:
                     redirect_router = f"{router_name}-redirect"
                     labels.append(f"traefik.http.routers.{redirect_router}.entrypoints=web")
                     labels.append(f"traefik.http.routers.{redirect_router}.rule={rule}")

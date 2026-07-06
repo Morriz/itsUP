@@ -50,7 +50,13 @@ overrides. This snippet is the contract for that translation. Network assignment
 2. **HTTP label set** (`:102-131`): `traefik.enable=true`,
    `entrypoints=web-secure`, host rule from `tls.main+sans` else `domain`,
    `tls=true`, `tls.certresolver=letsencrypt`, SANs via `tls.domains[0]`, and
-   `loadbalancer.server.port`.
+   `loadbalancer.server.port`. A companion `{router_name}-redirect` router is
+   also emitted on the plain `web` entrypoint, same host rule, with
+   `middlewares=redirect@file` sending it to HTTPS — skipped only for the
+   `ACME_CHALLENGE_PATH_PREFIX` passthrough carve-out, which must reach its
+   backend unredirected. Traefik's ACME HTTP-01 handling on `web` intercepts
+   the challenge path ahead of router matching, so this redirect can't
+   interfere with certificate issuance/renewal.
 3. **Entrypoints.** Static `web:8080` / `web-secure:8443` always exist; dynamic
    entrypoints `{router}-{hostport|port}` are generated per TCP/UDP/hostport
    ingress (`traefik.yml.j2`). Passthrough **without** hostport reuses
