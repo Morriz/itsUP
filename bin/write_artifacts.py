@@ -135,6 +135,19 @@ def inject_traefik_labels(
                     for idx, san in enumerate(ingress.tls.sans):
                         labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].sans[{idx}]={san}")
 
+                # Companion plain-HTTP router: redirect to HTTPS. Traefik's ACME
+                # HTTP-01 challenge handling on the `web` entrypoint intercepts
+                # /.well-known/acme-challenge/* ahead of router matching, so this
+                # can't interfere with certificate issuance/renewal — except for
+                # the narrow passthrough-ACME-forwarding carve-out, which must
+                # reach the backend unredirected.
+                if ingress.path_prefix != "/.well-known/acme-challenge/":
+                    redirect_router = f"{router_name}-redirect"
+                    labels.append(f"traefik.http.routers.{redirect_router}.entrypoints=web")
+                    labels.append(f"traefik.http.routers.{redirect_router}.rule={rule}")
+                    labels.append(f"traefik.http.routers.{redirect_router}.service={router_name}")
+                    labels.append(f"traefik.http.routers.{redirect_router}.middlewares=redirect@file")
+
             # Service port
             labels.append(f"traefik.http.services.{router_name}.loadbalancer.server.port={ingress.port}")
 

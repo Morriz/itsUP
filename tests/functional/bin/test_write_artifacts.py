@@ -43,6 +43,10 @@ API_KEY = "api"
 EXTERNAL_HOST_RULE = "Host(`api.example.com`)"
 EXTERNAL_HOST_BACKEND = "http://127.0.0.1:8888/"
 
+# Companion plain-HTTP redirect router identity markers.
+REDIRECT_ENTRYPOINT_SUFFIX = "-redirect.entrypoints=web"
+REDIRECT_MIDDLEWARE_SUFFIX = "-redirect.middlewares=redirect@file"
+
 
 @pytest.fixture(autouse=True)
 def _itsup_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -160,6 +164,13 @@ ingress:
     rule_labels = [l for l in labels if RULE_MARKER in l]
     assert len(rule_labels) > 0, "Should have router rule"
     assert TEST_DOMAIN in rule_labels[0], "Should route to configured domain"
+
+    # Verify the companion plain-HTTP router redirects to HTTPS
+    redirect_entrypoint_labels = [l for l in labels if l.endswith(REDIRECT_ENTRYPOINT_SUFFIX)]
+    assert len(redirect_entrypoint_labels) == 1, "Should have one plain-HTTP redirect router"
+    assert any(
+        l.endswith(REDIRECT_MIDDLEWARE_SUFFIX) for l in labels
+    ), "Redirect router should use the redirect@file middleware"
 
     # Verify proxynet network was added
     assert NETWORKS_KEY in compose_data, "Should have networks"
@@ -428,3 +439,59 @@ ingress:
     ), f"external-host HTTP route missing from routers: {list(routers)}"
     backend_urls = [s["loadBalancer"]["servers"][0]["url"] for s in services.values()]
     assert EXTERNAL_HOST_BACKEND in backend_urls, f"backend not host:port: {backend_urls}"
+
+
+def test_acme_challenge_passthrough_skips_redirect_router(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ACME HTTP-01 passthrough carve-out (port 80, well-known challenge path)
+    must not get a companion HTTPS-redirect router — that would redirect the
+    challenge request before it reaches the backend serving it.
+    """
+    projects_dir = tmp_path / "projects"
+    projects_dir.mkdir()
+    (projects_dir / "itsup.yml").write_text("""
+routerIP: 192.168.1.1
+versions:
+  traefik: v3.2
+  crowdsec: v1.6.8
+traefikDomain: traefik.example.com
+crowdsec:
+  enabled: false
+  apikey: test-key
+  collections: []
+backup:
+  enabled: false
+""")
+
+    test_project = projects_dir / "acme-project"
+    test_project.mkdir()
+    (test_project / "docker-compose.yml").write_text("""
+services:
+  web:
+    image: nginx:alpine
+""")
+    (test_project / "itsup-project.yml").write_text("""
+enabled: true
+ingress:
+  - service: web
+    domain: test.example.com
+    port: 80
+    router: http
+    passthrough: true
+    path_prefix: /.well-known/acme-challenge/
+""")
+
+    (tmp_path / "upstream").mkdir()
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    (secrets_dir / "itsup.txt").write_text("TRAEFIK_ADMIN=admin:$apr1$xyz")
+
+    monkeypatch.chdir(tmp_path)
+    write_upstream("acme-project")
+
+    generated_compose = tmp_path / "upstream" / "acme-project" / "docker-compose.yml"
+    compose_data = yaml.safe_load(generated_compose.read_text())
+    labels = compose_data["services"]["web"]["labels"]
+
+    assert not any(
+        l.endswith(REDIRECT_ENTRYPOINT_SUFFIX) for l in labels
+    ), "ACME challenge passthrough must not be redirected to HTTPS"
