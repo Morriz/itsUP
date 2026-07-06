@@ -133,6 +133,47 @@ render_template() {
     "${template_file}"
 }
 
+# Writes the rendered template only if it differs from what's on disk.
+# Returns 0 if it wrote (changed), 1 if unchanged (skipped), 2 if the render
+# or write itself failed. Call sites must capture the exit status via
+# `write_if_changed ... || rc=$?` (not `if write_if_changed ...; then`) — the
+# bare/if-tested form exempts the whole function from `set -e`, so a
+# non-error rc=1 is fine, but wrapping it in `if` again silently swallows a
+# real rc=2 write failure.
+write_if_changed() {
+  local template_file="$1"
+  local dest_path="$2"
+  local use_sudo="${3:-false}"
+
+  if [ ! -r "${template_file}" ]; then
+    echo "ERROR: template not readable: ${template_file}" >&2
+    return 2
+  fi
+
+  if [ -f "${dest_path}" ] && render_template "${template_file}" | cmp -s - "${dest_path}"; then
+    echo "  ${dest_path} unchanged, skipping"
+    return 1
+  fi
+
+  echo "Writing ${dest_path}..."
+  local render_rc write_rc
+  if [ "${use_sudo}" = "true" ]; then
+    render_template "${template_file}" | sudo tee "${dest_path}" >/dev/null
+    render_rc=${PIPESTATUS[0]}
+    write_rc=${PIPESTATUS[1]}
+  else
+    render_template "${template_file}" > "${dest_path}"
+    render_rc=$?
+    write_rc=0
+  fi
+
+  if [ "${render_rc}" -ne 0 ] || [ "${write_rc}" -ne 0 ]; then
+    echo "ERROR: failed to write ${dest_path}" >&2
+    return 2
+  fi
+  return 0
+}
+
 # ── systemd (Linux) ────────────────────────────────────────────────────────
 
 install_systemd_units() {
@@ -146,16 +187,28 @@ install_systemd_units() {
     "pi-healthcheck.timer"
   )
 
+  local bringup_changed=false
   for unit in "${units[@]}"; do
-    echo "Writing ${SERVICE_DIR}/${unit}..."
-    render_template "${TEMPLATE_DIR}/${unit}" | sudo tee "${SERVICE_DIR}/${unit}" >/dev/null
+    local write_rc=0
+    write_if_changed "${TEMPLATE_DIR}/${unit}" "${SERVICE_DIR}/${unit}" true || write_rc=$?
+    if [ "${write_rc}" -eq 2 ]; then
+      echo "ERROR: aborting install — failed to write ${SERVICE_DIR}/${unit}" >&2
+      exit 1
+    fi
+    if [ "${write_rc}" -eq 0 ] && [ "${unit}" = "itsup-bringup.service" ]; then
+      bringup_changed=true
+    fi
   done
 
   echo "Reloading systemd..."
   sudo systemctl daemon-reload
 
   sudo systemctl enable itsup-bringup.service
-  sudo systemctl restart itsup-bringup.service
+  if [ "${bringup_changed}" = "true" ] || ! systemctl is-active --quiet itsup-bringup.service; then
+    sudo systemctl restart itsup-bringup.service
+  else
+    echo "  itsup-bringup.service unchanged and active, skipping restart"
+  fi
   sudo systemctl enable --now itsup-apply.timer
   sudo systemctl enable --now itsup-backup.timer
   sudo systemctl enable --now pi-healthcheck.timer
@@ -185,8 +238,23 @@ install_launchd_agents() {
   for label in "${agents[@]}"; do
     local plist="${SERVICE_DIR}/${label}.plist"
     local template="${TEMPLATE_DIR}/${label}.plist"
-    echo "Writing ${plist}..."
-    render_template "${template}" > "${plist}"
+
+    local write_rc=0
+    write_if_changed "${template}" "${plist}" || write_rc=$?
+    if [ "${write_rc}" -eq 2 ]; then
+      echo "ERROR: aborting install — failed to write ${plist}" >&2
+      exit 1
+    fi
+    local plist_changed=true
+    if [ "${write_rc}" -eq 1 ]; then
+      plist_changed=false
+    fi
+
+    if [ "${label}" = "ai.itsup.bringup" ] && [ "${plist_changed}" = "false" ] \
+      && launchctl print "${domain}/${label}" >/dev/null 2>&1; then
+      echo "  ${label} unchanged and loaded, skipping reload"
+      continue
+    fi
 
     # Reload: bootout (modern unload) || unload (legacy) || true; then bootstrap || load.
     launchctl bootout "${domain}" "${plist}" 2>/dev/null \
