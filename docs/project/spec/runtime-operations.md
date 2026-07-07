@@ -65,7 +65,6 @@ caveats).
   deploys from inside the repo on the host whose IP equals `SSH_HOST`. The
   nightly timer and bringup both assume this; running apply on any other machine
   spins the whole stack up locally.
-<!-- planned:install-runtime-idempotent -->
 - **`make install-runtime` is idempotent by content — a no-op re-run causes no
   stack downtime.** `bin/install-bringup.sh` only writes a rendered unit/plist
   when its content differs from what's already on disk, and only restarts
@@ -75,7 +74,6 @@ caveats).
   and `ExecStop=itsup down`, an unconditional restart would otherwise stop every
   upstream project before starting them back up on every install invocation,
   regardless of whether anything changed.
-<!-- /planned:install-runtime-idempotent -->
 
 ## See Also
 
