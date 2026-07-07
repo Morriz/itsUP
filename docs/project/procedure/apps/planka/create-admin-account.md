@@ -11,6 +11,7 @@ Give an agent its own attributable admin account on a Planka instance, not tied 
 
 - Planka instance is up and reachable.
 - The bootstrap admin credentials (`DEFAULT_ADMIN_EMAIL`/`DEFAULT_ADMIN_USERNAME` + `DEFAULT_ADMIN_PASSWORD`) are known — they are the project's own secrets, loaded per `project/spec/secrets-management`.
+- `DEFAULT_ADMIN_*` left wired in compose is a permanent pin, not a one-time bootstrap: Planka reasserts those values on every container restart, silently overwriting any password/name change made through its own UI. This is a deliberate design choice on Planka's part (most comparable tools bootstrap once and then ignore the vars) — decide whether the bootstrap admin's credential should stay pinned to the secret this way before assuming a UI-made change will persist.
 
 ## Steps
 
