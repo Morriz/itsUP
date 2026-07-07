@@ -37,6 +37,17 @@ operator-facing surface; container logs are ephemeral debugging output.
   `monitor/constants.py:17` (`LOG_FILE = .../logs/monitor.log`); the monitor
   entrypoint calls `setup_logging(log_file=LOG_FILE)` at `bin/monitor.py:208`.
 
+<!-- planned:adopt-logger-cli -->
+**CLI diagnostic log (`instrukt_ai_logging`, host-side):**
+
+- `$XDG_STATE_HOME/instrukt-ai/itsup/itsup.log` (fallback
+  `~/.local/state/instrukt-ai/itsup/itsup.log`) — the `itsup` CLI's diagnostic
+  record, plain-text logfmt. Written by
+  `instrukt_ai_logging.configure_logging("itsup")` (`itsup/cli.py`), which
+  installs a file-only handler with no console output. It lives outside the
+  shared `logs/` directory and is not part of the CrowdSec feed.
+<!-- /planned:adopt-logger-cli -->
+
 **Container logs (ephemeral):** every Docker container also writes to Docker's
 default json-file driver. Read via `docker logs` / `docker compose logs`. These
 are not part of the `logs/` directory contract.
@@ -53,6 +64,20 @@ are not part of the `logs/` directory contract.
 
 ## Invariants
 
+<!-- planned:adopt-logger-cli -->
+- **The `itsup` CLI splits emission into two channels by audience.** Human-facing
+  output — everything a person reads on screen — is emitted with `click` in the
+  command/entry layer (`commands/`), which keeps color and the `✓`/`⚠`/`✗` icons
+  and auto-strips them when stdout is not a TTY. A single shared helper in
+  `commands/common.py` (`ok`/`warn`/`fail`/`step`, via `click.secho`) renders
+  them; no command carries its own ANSI table. Diagnostic/audit output is emitted
+  with `instrukt_ai_logging` (`get_logger("itsup.<module>")`), plain-text logfmt,
+  to the CLI diagnostic file only — never to the terminal. `lib/` never writes to
+  the terminal: library functions return data or raise, and the calling command
+  echoes any human-facing result. `itsup/cli.py` calls `configure_logging("itsup")`
+  once; `-v`/`-vv` set `ITSUP_LOG_LEVEL` to `DEBUG`/`TRACE` before that call, and
+  loggers are acquired under the `itsup.` prefix so the app log level governs them.
+<!-- /planned:adopt-logger-cli -->
 - **Two formatters, selected by destination, not by service.**
   `lib.logging_config.setup_logging` (`lib/logging_config.py:110-149`) detects
   `sys.stdout.isatty()`. TTY → clean colored output with symbols (`✓ ⚠ ✗`,
@@ -65,8 +90,16 @@ are not part of the `logs/` directory contract.
   API process is configured entirely by `api-log.conf.yaml`. Its `default`
   formatter is `%(asctime)s.%(msecs)03dZ %(levelname)-8s %(message)s`; the
   `access` formatter adds `%(client_addr)s "%(request_line)s" %(status_code)s`
-  (`api-log.conf.yaml:3-9`). The monitor and other CLI entrypoints use
+  (`api-log.conf.yaml:3-9`).
+<!-- planned-change:adopt-logger-cli -->
+  The monitor and other CLI entrypoints use
   `lib.logging_config` instead.
+<!-- change:adopt-logger-cli -->
+  The monitor and the remaining daemon entrypoints (backup, migration, artifact
+  generation) use `lib.logging_config`; the `itsup` CLI configures diagnostics
+  through `instrukt_ai_logging` instead (see the two-channel invariant above).
+<!-- /planned-change:adopt-logger-cli -->
+
 - **`access.log` is JSON, every other file is plain text.** `commands/logs.py:16`
   hard-codes `JSON_LOGS = {"access"}`; only that file is piped through the
   formatter.
