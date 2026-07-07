@@ -5,17 +5,21 @@ description: Ongoing card/board conventions for agents operating any Planka boar
 
 ## Rules
 
-- **Epics use one card's task list, not many sibling cards.** When a label or list needs a multi-step goal broken down (step zero to the goal), add a task list (checklist) inside a single card rather than spawning a flat card per step. Progress then reads directly off the card face as a completed-of-total count, instead of requiring every sibling card to be opened to gauge progress.
-- **Description holds the current answer; comments hold the history.** A card's description is overwritten in place as understanding improves — it never grows into a log of what was tried or discussed. Anything that is timestamped narrative (what was considered, what changed, why) goes in comments instead. This is the same discipline the project's own description field already follows, applied one level down to every card.
-- **Title prefixes are a fixed, closed vocabulary: `URGENT:`, `Parked:`, `Blocked:`.** Planka has no native priority field (an open, unresolved upstream feature request), so a prefix is the only priority/status signal visible without opening the card. Nothing outside this fixed set is used — an open vocabulary turns into private notation only the agent that wrote it can decode.
-- **A "Waiting on..." card names its blocker in the title or the first line of the description.** The list itself only says a card is blocked, not on what; the blocker has to be legible from a scan of the list without opening every card in it.
-- **Position is the only priority-ordering signal inside a list.** Top of list is most urgent. Reprioritizing means moving the card to a new position — never a second, competing scheme (e.g. a separate priority label or field).
-- **Archive instead of delete when a card stops being relevant.** Planka's archive state is distinct from deletion and keeps the card's history retrievable; deleting a card destroys anything written into its description or comments.
-- **Long-form material goes in an attachment, with a one-line pointer left in the description.** A description is for the current answer, not for pasting a full document; if the material is genuinely long (a drafted questionnaire, a photo, a PDF), attach it and describe in one line what it is.
+- **Epics use one card's task list, not many sibling cards.** When a label or list needs a multi-step goal broken down (step zero to the goal), add a task list (checklist) inside a single card rather than spawning a flat card per step.
+- **Description holds the current answer; comments hold the history.** A card's description is overwritten in place as understanding improves. Timestamped narrative (what was considered, what changed) goes in comments instead.
+- **Title prefixes are a fixed, closed vocabulary: `URGENT:`, `Parked:`, `Blocked:`.** Nothing outside this set is used.
+- **A "Waiting on..." card names its blocker in the title or the first line of the description.**
+- **Position is the only priority-ordering signal inside a list.** Top of list is most urgent. Reprioritizing means moving the card to a new position, never a second, competing scheme.
+- **Archive instead of delete when a card stops being relevant.**
+- **Long-form material goes in an attachment, with a one-line pointer left in the description.**
 
 ## Rationale
 
-Planka has no card-dependency graph, no priority field, and no structural distinction between a card's current answer and its history — three gaps this convention set exists to paper over with a small number of fixed, legible signals. Without an agreed convention, different agents (and humans) touching the same board drift into inconsistent card shapes and information silently gets buried in descriptions that expand into logs nobody re-reads. These rules keep any Planka board an agent operates predictable to the next agent or human who opens it cold, without requiring them to have been part of the conversation that set the convention.
+Planka has no card-dependency graph, no priority field, and no structural distinction between a card's current answer and its history — three gaps this convention set exists to paper over with a small number of fixed, legible signals.
+
+The closed title-prefix vocabulary substitutes for Planka's missing priority field (an open, unresolved upstream feature request); an open vocabulary would decay into private notation only the agent that wrote it can decode. A blocker is named inline because a "Waiting on..." list name alone only says a card is blocked, not on what — the list has to stay scannable without opening every card in it. Archiving instead of deleting keeps a card's description and comment history retrievable, since deletion destroys both. Long-form material goes to an attachment because a description is for the current answer, not for pasting a full document. Epics get one card with a task list, not a card per step, so progress reads directly off the card face as a completed-of-total count instead of requiring every sibling card to be opened. The description-vs-comment split is the same discipline the project's own description field already follows, applied one level down to every card.
+
+Without an agreed convention, different agents (and humans) touching the same board drift into inconsistent card shapes and information silently gets buried in descriptions that expand into logs nobody re-reads. These rules keep any Planka board an agent operates predictable to the next agent or human who opens it cold, without requiring them to have been part of the conversation that set the convention.
 
 ## Scope
 
