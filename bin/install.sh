@@ -97,6 +97,15 @@ if [ "$PLATFORM" = "Mac" ]; then
         echo -e "${GREEN}✓${NC} sops-diff already installed"
     fi
 
+    # uv (Python dependency/environment manager)
+    if ! command_exists uv; then
+        echo -e "${YELLOW}  ⬇️  Installing uv...${NC}"
+        brew install uv
+        echo -e "${GREEN}✓${NC} uv installed"
+    else
+        echo -e "${GREEN}✓${NC} uv already installed"
+    fi
+
 elif [ "$PLATFORM" = "Linux" ]; then
     echo -e "${BLUE}📦 Installing Linux dependencies...${NC}"
 
@@ -169,6 +178,15 @@ elif [ "$PLATFORM" = "Linux" ]; then
         echo -e "${GREEN}✓${NC} sops-diff already installed"
     fi
 
+    # uv (Python dependency/environment manager)
+    if ! command_exists uv; then
+        echo -e "${RED}✗${NC} uv not found"
+        echo "  Install from: https://docs.astral.sh/uv/getting-started/installation/"
+        exit 1
+    else
+        echo -e "${GREEN}✓${NC} uv already installed"
+    fi
+
 else
     echo -e "${RED}✗${NC} Unsupported platform: ${PLATFORM}"
     exit 1
@@ -181,21 +199,13 @@ echo ""
 # Python environment setup
 echo -e "${BLUE}🐍 Setting up Python environment...${NC}"
 
-# Create Python virtual environment if needed
-if [ ! -d .venv ]; then
-    echo "Creating Python virtual environment..."
-    python3 -m venv .venv
-    echo -e "${GREEN}✓${NC} Created .venv"
-else
-    echo -e "${GREEN}✓${NC} .venv already exists"
-fi
-
-# Editable install: resolves prod deps (pyproject dynamic dependencies) + the
-# `test` extra, and mints the repo-local `.venv/bin/itsup` console-script with
-# the venv interpreter baked into its shebang — runnable from any cwd, no sourcing.
-echo "Installing itsUP (editable) with test extras..."
-.venv/bin/pip install -q -e ".[test]"
-echo -e "${GREEN}✓${NC} Installed itsUP editable + test deps (minted .venv/bin/itsup)"
+# uv sync: creates/updates .venv, installs runtime + dev deps from uv.lock,
+# installs the project itself (mints the repo-local `.venv/bin/itsup`
+# console-script with the venv interpreter baked into its shebang — runnable
+# from any cwd, no sourcing), and prunes the venv to exactly the lock.
+echo "Syncing Python environment with uv..."
+uv sync
+echo -e "${GREEN}✓${NC} Synced itsUP + dev deps via uv (minted .venv/bin/itsup)"
 
 # Expose a global `itsup` on the user's PATH: ~/.local/bin/itsup -> the repo's
 # console-script. The target is cwd-independent (venv shebang + root() resolution),

@@ -17,9 +17,36 @@ classifiers = [
   "Topic :: Software Development :: Infrastructure",
 ]
 keywords = ["traefik", "docker-compose", "ingress", "egress", "fastapi"]
-dynamic = ["dependencies", "optional-dependencies"]
 requires-python = ">=3.11"
+dependencies = [
+  "boto3",
+  "click",
+  "fastapi",
+  "ipwhois",
+  "jinja2-cli",
+  "netifaces",
+  "python-dotenv",
+  "pyyaml",
+  "requests",
+  "ruamel.yaml",
+  "uvicorn[standard]",
+]
 
+[dependency-groups]
+dev = [
+  "black",
+  "mypy",
+  "pre-commit",
+  "pylint",
+  "pyproject-fmt",
+  "pytest",
+  "pytest-cov",
+  "pytest-timeout",
+  "pytest-xdist",
+  "qdrant-client",
+  "types-netifaces",
+  "types-PyYAML",
+]
 
 [project.scripts]
 itsup = "itsup.cli:main"
@@ -86,11 +113,6 @@ indent = 4
 keep_full_version = false
 max_supported_python = "3.13"
 
-
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements-prod.txt"] }
-optional-dependencies = { test = { file = ["requirements-test.txt"] } }
 
 [tool.pytest.ini_options]
 testpaths = ["api", "bin", "commands", "lib", "monitor", "tests"]

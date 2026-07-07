@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Auto-install Python requirements after a pull/merge if requirements files changed.
+# Auto-sync the Python environment after a pull/merge if the dependency
+# manifest (pyproject.toml/uv.lock) changed.
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -11,26 +12,20 @@ if [[ -z "$prev" ]]; then
   exit 0
 fi
 
-changed_reqs="$(git diff --name-only "$prev"..HEAD -- 'requirements*.txt')"
-if [[ -z "$changed_reqs" ]]; then
+changed_deps="$(git diff --name-only "$prev"..HEAD -- 'pyproject.toml' 'uv.lock')"
+if [[ -z "$changed_deps" ]]; then
   exit 0
 fi
 
-pip_bin="$root/.venv/bin/pip"
-if [[ ! -x "$pip_bin" ]]; then
-  echo "requirements changed, but .venv not found at $pip_bin; skipping auto-install" >&2
+if ! command -v uv >/dev/null 2>&1; then
+  echo "dependency manifest changed, but uv not found; skipping auto-sync" >&2
   exit 0
 fi
 
-echo "Detected updated requirements files:"
-printf '  - %s\n' $changed_reqs
+echo "Detected updated dependency manifest:"
+printf '  - %s\n' $changed_deps
 
-unique_files=$(printf '%s\n' $changed_reqs | sort -u)
-for req in $unique_files; do
-  if [[ -f "$req" ]]; then
-    echo "Installing updated dependencies from $req ..."
-    "$pip_bin" install -q -r "$req"
-  fi
-done
+echo "Syncing dependencies with uv..."
+uv sync
 
-echo "✓ requirements auto-install complete"
+echo "✓ uv sync complete"

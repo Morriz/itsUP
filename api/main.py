@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import shutil
 import subprocess
 import sys
 from functools import cache
@@ -24,6 +25,18 @@ from lib.reconcile import reconcile
 dotenv.load_dotenv()
 
 app = FastAPI(title="itsUP API", version="2.0")
+
+
+@cache
+def _uv_bin() -> str:
+    """Resolve uv's absolute path once. This process runs under systemd/launchd
+    supervision with a minimal PATH that may omit ~/.local/bin — the default
+    install location of the standalone Astral installer — so a bare "uv" name
+    is not reliable here, unlike every other subprocess call in this module."""
+    uv_path = shutil.which("uv")
+    if uv_path is None:
+        raise RuntimeError("uv not found on PATH; required to sync dependencies during self-update")
+    return uv_path
 
 
 def _handle_update_upstream(project: str, service: str = None) -> None:
@@ -54,18 +67,16 @@ def _handle_itsup_update() -> None:
             subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=str(root()), check=True)
             info("Repository updated successfully")
 
-            # git reset bypasses the post-merge hook that installs requirements,
-            # so install explicitly — a dependency-adding update otherwise leaves
+            # git reset bypasses the post-merge hook that syncs dependencies,
+            # so sync explicitly — a dependency-adding update otherwise leaves
             # the API importing a missing module on restart.
             info("Installing dependencies")
-            # Editable reinstall re-mints the .venv/bin/itsup console-script when the
-            # entry point or package layout changed in this update.
+            # uv sync --no-dev re-mints the .venv/bin/itsup console-script (entry
+            # point / package layout changes included) and installs runtime-only
+            # deps from uv.lock, pruning the venv to exactly that set.
             subprocess.run(
-                [str(root() / ".venv" / "bin" / "pip"), "install", "-q", "-e", str(root())],
-                check=True,
-            )
-            subprocess.run(
-                [str(root() / ".venv" / "bin" / "pip"), "install", "-q", "-r", str(root() / "requirements-prod.txt")],
+                [_uv_bin(), "sync", "--no-dev"],
+                cwd=str(root()),
                 check=True,
             )
 

@@ -9,4 +9,4 @@ git config core.hooksPath bin/hooks
 ```
 
 Hooks:
-- `post-merge`: if any `requirements*.txt` changed between previous and current HEAD, runs `.venv/bin/pip install -r ...` for the changed files.
+- `post-merge`: if `pyproject.toml` or `uv.lock` changed between previous and current HEAD, runs `uv sync`.

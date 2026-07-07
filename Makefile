@@ -22,10 +22,10 @@ test: ## Fast test gate (excludes the integration tier)
 	@./bin/test.sh
 
 test-integration: ## Integration tier — real sops/age/git, slower
-	@.venv/bin/pytest -m integration
+	@uv run pytest -m integration
 
 test-all: ## Every tier (fast + integration)
-	@.venv/bin/pytest -m 'integration or not integration'
+	@uv run pytest -m 'integration or not integration'
 
 format: ## Format code
 	@FILES_FROM="$(FILES_FROM)" ./bin/format.sh

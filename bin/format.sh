@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-. .venv/bin/activate
 
 echo "Formatting code"
 
@@ -19,7 +18,7 @@ else
 fi
 
 echo "Running isort"
-python -m isort "${files[@]}"
+uv run isort "${files[@]}"
 
 echo "Running black"
-black "${files[@]}"
+uv run black "${files[@]}"

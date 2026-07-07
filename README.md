@@ -183,6 +183,7 @@ See [itsup-projects](https://github.com/Morriz/itsUP-projects) for all the apps 
 
 - [docker](https://www.docker.com) daemon and client
 - docker [rollout](https://github.com/Wowu/docker-rollout) plugin
+- [uv](https://docs.astral.sh/uv/): Python dependency/environment manager (`make install` installs it on macOS via Homebrew; on Linux, install it first)
 - [openvpn](https://openvpn.net): for testing vpn access (optional)
 
 **Infra:**
@@ -315,7 +316,7 @@ itsUP automatically adapts its output based on context:
 ### Utility scripts
 
 - `bin/write_artifacts.py`: after updating project configurations in `projects/` you can run this script to generate new artifacts (or use `itsup apply` which does this automatically).
-- `bin/requirements-update.sh`: You may want to update requirements once in a while ;)
+- Dependencies are managed with [uv](https://docs.astral.sh/uv/): `uv add <pkg>` to add one, `uv lock --upgrade` to refresh all pins.
 
 ### Makefile
 
@@ -339,7 +340,7 @@ make clean             # Remove generated artifacts
 - `itsup-apply.timer` (enabled): runs `itsup apply` nightly at 03:00 (systemd timer).
 - `itsup-backup.timer` (enabled): runs `bin/backup.py` nightly at 05:00 (systemd timer).
 - `pi-healthcheck.timer` (enabled): runs `bin/pi-healthcheck.sh` every 5 minutes (systemd timer) with maintenance window logic (02:30–03:30 aggressive, otherwise strike-based).
-- `git hooks`: set `git config core.hooksPath bin/hooks` to enable auto-install of requirements after pulls when `requirements*.txt` changes.
+- `git hooks`: set `git config core.hooksPath bin/hooks` to enable auto-sync (`uv sync`) after pulls when `pyproject.toml`/`uv.lock` changes.
 
 ### DNS Honeypot
 
@@ -431,7 +432,7 @@ make install            # dependencies only — safe on any dev box
 make install-runtime    # only on the container host — go live
 ```
 
-**`make install`** installs the language deps, mints the `.venv/bin/itsup` console-script via an editable install (`pip install -e ".[test]"`), and links it onto your PATH as `~/.local/bin/itsup` so the bare `itsup` works from any directory. It never installs host integration and never starts the stack, so it is safe to run on any dev box and re-run anytime.
+**`make install`** installs the language deps via `uv sync` (creates `.venv`, installs from the committed `uv.lock`, mints the `.venv/bin/itsup` console-script, and prunes the venv to the lock), and links it onto your PATH as `~/.local/bin/itsup` so the bare `itsup` works from any directory. It never installs host integration and never starts the stack, so it is safe to run on any dev box and re-run anytime.
 
 **`make install-runtime`** turns the **container host** into a live deployment (run it after `make install`). It installs the host integration: launchd agents on macOS (`~/Library/LaunchAgents/ai.itsup.*.plist`), systemd units on Linux (`/etc/systemd/system/itsup-*.service` + timers). These invoke the absolute `<repo>/.venv/bin/itsup` with `ITSUP_ROOT` set to bring the stack up at load, plus nightly apply (03:00), nightly backup (05:00), and a 5-minute healthcheck. Linux hosts additionally get the public-DNS fallback (via systemd-resolved or resolvconf) and removal of conflicting `dnsmasq`.
 

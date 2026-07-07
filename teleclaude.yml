@@ -12,6 +12,9 @@ business:
 #   - validate: changing a deployment input (a tpl/*.j2 template that
 #     generates the compose/traefik artifacts) owes `itsup validate` — a config check
 #     with no rollout, distinct from the deploy path (make install-runtime / itsup apply).
+#   - bindings: pyproject.toml/uv.lock (the uv dependency manifest) owes the base
+#     `install` action (make install -> uv sync), the same way the base binds its
+#     own manifests.
 checkpoint:
   actions:
     validate:
@@ -37,3 +40,9 @@ checkpoint:
           - tpl/**
       actions:
         - validate
+    - scope:
+        include:
+          - pyproject.toml
+          - uv.lock
+      actions:
+        - install

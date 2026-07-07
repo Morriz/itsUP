@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-. .venv/bin/activate
 
 echo "Running lint checks"
 
@@ -19,7 +18,7 @@ else
 fi
 
 echo "Running pylint"
-pylint --enable=C0415 --fail-on=C0415 "${files[@]}"
+uv run pylint --enable=C0415 --fail-on=C0415 "${files[@]}"
 
 echo "Running mypy"
-mypy "${files[@]}"
+uv run mypy "${files[@]}"
