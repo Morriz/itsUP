@@ -1,6 +1,7 @@
 business:
   publishes:
     - infra
+    - apps
 
 # Checkpoint maintenance overlay (ProjectConfig.checkpoint).
 # Merged on top of the platform-universal base, which already covers
