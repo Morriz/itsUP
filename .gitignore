@@ -43,3 +43,23 @@ CLAUDE.md
 
 *.local.json
 itsup.tar.gz
+
+# TeleClaude blessed defaults
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.env.local
+*.log
+logs/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/

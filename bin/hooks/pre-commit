@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# teleclaude: raw git commit backstop - partial-staging guard only.
+set -euo pipefail
+
+_REPO_ROOT="$(git rev-parse --show-toplevel)"
+_VENV_PY="${_REPO_ROOT}/.venv/bin/python3"
+if ! command -v "$_VENV_PY" &>/dev/null; then
+  _VENV_PY=python3
+fi
+
+"$_VENV_PY" - <<'PYEOF'
+import subprocess
+import sys
+
+r = subprocess.run(
+    ["git", "status", "--porcelain=v1", "-uall", "-z"],
+    capture_output=True,
+    check=False,
+)
+if r.returncode != 0:
+    print("ERROR: git status failed - aborting commit for safety", file=sys.stderr)
+    sys.exit(1)
+
+tokens = r.stdout.split(b"\x00")
+staged, unstaged = set(), set()
+i = 0
+while i < len(tokens):
+    token = tokens[i]
+    i += 1
+    if not token or len(token) < 3:
+        continue
+    xy, path = token[:2].decode(), token[3:].decode()
+    if xy[0] in ("R", "C"):
+        i += 1
+    if xy[0] not in (" ", "?", "!"):
+        staged.add(path)
+    if xy[1] not in (" ", "?", "!"):
+        unstaged.add(path)
+
+overlap = sorted(staged & unstaged)
+if overlap:
+    print("ERROR: partially staged files detected:", file=sys.stderr)
+    for path in overlap:
+        print(f"  {path}", file=sys.stderr)
+    print("Fully restage via: telec code add <file>", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+
+exit 0
