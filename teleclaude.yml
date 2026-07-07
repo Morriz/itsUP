@@ -1,7 +1,7 @@
 business:
   publishes:
-    - infra
-    - apps
+  - infra
+  - apps
 
 # Checkpoint maintenance overlay (ProjectConfig.checkpoint).
 # Merged on top of the platform-universal base, which already covers
@@ -21,29 +21,30 @@ checkpoint:
     validate:
       run: itsup validate
       evidence:
-        - itsup validate
+      - itsup validate
       precedence: 50
   code:
     scope:
       include:
-        - lib/**
-        - api/**
-        - commands/**
-        - itsup/**
-        - bin/**
-        - monitor/**
+      - lib/**
+      - api/**
+      - commands/**
+      - itsup/**
+      - bin/**
+      - monitor/**
       exclude:
-        - tests/**
-        - '**/*_test.py'
+      - tests/**
+      - '**/*_test.py'
   bindings:
-    - scope:
-        include:
-          - tpl/**
-      actions:
-        - validate
-    - scope:
-        include:
-          - pyproject.toml
-          - uv.lock
-      actions:
-        - install
+  - scope:
+      include:
+      - tpl/**
+    actions:
+    - validate
+  - scope:
+      include:
+      - pyproject.toml
+      - uv.lock
+    actions:
+    - install
+project_slug: itsup
