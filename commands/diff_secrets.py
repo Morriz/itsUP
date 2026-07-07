@@ -11,17 +11,8 @@ import sys
 
 import click
 
+from commands.common import fail, warn
 from lib.paths import root as install_root
-
-
-class Colors:
-    """ANSI color codes for terminal output"""
-
-    RED = "\033[0;31m"
-    GREEN = "\033[0;32m"
-    YELLOW = "\033[1;33m"
-    BLUE = "\033[0;34m"
-    NC = "\033[0m"  # No Color
 
 
 def _check_sops_diff() -> bool:
@@ -42,7 +33,7 @@ def _check_sops_diff() -> bool:
 @click.argument("file2", required=False)
 @click.option("--summary", is_flag=True, help="Show summary instead of full diff")
 @click.option("--git", is_flag=True, help="Use git refs (e.g., HEAD:secrets/itsup.enc.txt)")
-def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
+def diff_secrets(file1: str, file2: str, summary: bool, git: bool) -> None:
     """🔍 Show meaningful diffs of encrypted secrets
 
     Compare SOPS-encrypted files to see actual content changes.
@@ -69,7 +60,7 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
         feature-branch:path/to/file.enc.txt
     """
     if not _check_sops_diff():
-        click.echo(f"{Colors.RED}✗{Colors.NC} sops-diff is not installed", err=True)
+        fail("sops-diff is not installed")
         click.echo()
         click.echo("Install sops-diff:")
         click.echo("  Run: bin/install.sh")
@@ -83,13 +74,13 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
         secrets_dir = repo_root / "secrets"
 
         if not secrets_dir.exists():
-            click.echo(f"{Colors.RED}✗{Colors.NC} secrets/ directory not found", err=True)
+            fail("secrets/ directory not found")
             sys.exit(1)
 
         encrypted_files = sorted(secrets_dir.glob("*.enc.txt"))
 
         if not encrypted_files:
-            click.echo(f"{Colors.YELLOW}⚠{Colors.NC} No encrypted files found in secrets/")
+            warn("No encrypted files found in secrets/")
             sys.exit(0)
 
         has_changes = False
@@ -99,30 +90,22 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
 
             # Check if file exists in git HEAD of secrets repo
             check_in_git = subprocess.run(
-                ["git", "cat-file", "-e", f"HEAD:{enc_file.name}"],
-                cwd=secrets_dir,
-                capture_output=True,
-                check=False
+                ["git", "cat-file", "-e", f"HEAD:{enc_file.name}"], cwd=secrets_dir, capture_output=True, check=False
             )
 
             if check_in_git.returncode != 0:
                 # File not in git yet - show decrypted content
-                click.echo(f"{Colors.BLUE}=== {rel_path} ==={Colors.NC}")
-                click.echo(f"{Colors.GREEN}+ New file (not yet in git){Colors.NC}")
+                click.echo(click.style(f"=== {rel_path} ===", fg="blue"))
+                click.echo(click.style("+ New file (not yet in git)", fg="green"))
                 click.echo()
 
                 # Decrypt and show content
                 try:
-                    result = subprocess.run(
-                        ["sops", "-d", str(enc_file)],
-                        capture_output=True,
-                        check=True,
-                        text=True
-                    )
+                    result = subprocess.run(["sops", "-d", str(enc_file)], capture_output=True, check=True, text=True)
                     for line in result.stdout.splitlines():
-                        click.echo(f"{Colors.GREEN}+ {line}{Colors.NC}")
+                        click.echo(click.style(f"+ {line}", fg="green"))
                 except subprocess.CalledProcessError:
-                    click.echo(f"{Colors.RED}✗ Failed to decrypt{Colors.NC}")
+                    fail("Failed to decrypt")
 
                 click.echo()
                 has_changes = True
@@ -133,8 +116,8 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
             if summary:
                 cmd.insert(1, "--summary")
 
-            click.echo(f"{Colors.BLUE}=== {rel_path} ==={Colors.NC}")
-            result = subprocess.run(cmd, cwd=secrets_dir, check=False)
+            click.echo(click.style(f"=== {rel_path} ===", fg="blue"))
+            result = subprocess.run(cmd, cwd=secrets_dir, check=False, text=True)
 
             if result.returncode != 0:
                 has_changes = True
@@ -158,10 +141,7 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
     else:
         # Regular file comparison requires both files
         if not file2:
-            click.echo(
-                f"{Colors.RED}✗{Colors.NC} FILE2 required (or use --git flag)",
-                err=True,
-            )
+            fail("FILE2 required (or use --git flag)")
             sys.exit(1)
 
         # Validate files exist
@@ -170,19 +150,19 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool):
         f2 = repo_root / file2
 
         if not f1.exists():
-            click.echo(f"{Colors.RED}✗{Colors.NC} File not found: {file1}", err=True)
+            fail(f"File not found: {file1}")
             sys.exit(1)
 
         if not f2.exists():
-            click.echo(f"{Colors.RED}✗{Colors.NC} File not found: {file2}", err=True)
+            fail(f"File not found: {file2}")
             sys.exit(1)
 
         cmd.extend([str(f1), str(f2)])
 
     # Run sops-diff
     try:
-        result = subprocess.run(cmd, check=False)
+        result = subprocess.run(cmd, check=False, text=True)
         sys.exit(result.returncode)
     except Exception as e:
-        click.echo(f"{Colors.RED}✗{Colors.NC} Failed to run sops-diff: {e}", err=True)
+        fail(f"Failed to run sops-diff: {e}")
         sys.exit(1)

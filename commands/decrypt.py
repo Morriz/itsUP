@@ -6,29 +6,18 @@ itsup decrypt command
 Decrypt SOPS-encrypted secrets for editing.
 """
 
-import logging
 import sys
 
 import click
 
+from commands.common import fail, ok, warn
 from lib.paths import root as install_root
 from lib.sops import decrypt_file, is_sops_available
-
-logger = logging.getLogger(__name__)
-
-
-class Colors:
-    """ANSI color codes for terminal output"""
-
-    RED = "\033[0;31m"
-    GREEN = "\033[0;32m"
-    YELLOW = "\033[1;33m"
-    NC = "\033[0m"  # No Color
 
 
 @click.command()
 @click.argument("name", required=False)
-def decrypt(name: str):
+def decrypt(name: str) -> None:
     """🔓 Decrypt secrets for editing [NAME]
 
     Decrypts SOPS-encrypted *.enc.txt files to plaintext *.txt files.
@@ -42,7 +31,7 @@ def decrypt(name: str):
         itsup decrypt itsup         # Decrypt only itsup.enc.txt
     """
     if not is_sops_available():
-        click.echo(f"{Colors.RED}✗{Colors.NC} SOPS is not installed", err=True)
+        fail("SOPS is not installed")
         click.echo()
         click.echo("Install SOPS:")
         click.echo("  macOS:   brew install sops")
@@ -53,7 +42,7 @@ def decrypt(name: str):
     secrets_dir = install_root() / "secrets"
 
     if not secrets_dir.exists():
-        click.echo(f"{Colors.RED}✗{Colors.NC} secrets/ directory not found", err=True)
+        fail("secrets/ directory not found")
         sys.exit(1)
 
     # Find files to decrypt
@@ -61,13 +50,13 @@ def decrypt(name: str):
         # Decrypt specific file
         encrypted_files = [secrets_dir / f"{name}.enc.txt"]
         if not encrypted_files[0].exists():
-            click.echo(f"{Colors.RED}✗{Colors.NC} File not found: secrets/{name}.enc.txt", err=True)
+            fail(f"File not found: secrets/{name}.enc.txt")
             sys.exit(1)
     else:
         # Decrypt all .enc.txt files
         encrypted_files = list(secrets_dir.glob("*.enc.txt"))
         if not encrypted_files:
-            click.echo(f"{Colors.YELLOW}⚠{Colors.NC} No encrypted secrets found in secrets/")
+            warn("No encrypted secrets found in secrets/")
             return
 
     click.echo("Decrypting secrets...")
@@ -89,12 +78,12 @@ def decrypt(name: str):
 
     # Summary
     if failed_files:
-        click.echo(f"{Colors.RED}✗{Colors.NC} Failed to decrypt: {', '.join(failed_files)}", err=True)
+        fail(f"Failed to decrypt: {', '.join(failed_files)}")
         sys.exit(1)
     else:
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} Decrypted {success_count} file(s)")
+        ok(f"Decrypted {success_count} file(s)")
         click.echo()
-        click.echo(f"{Colors.YELLOW}⚠  SECURITY WARNING:{Colors.NC}")
+        warn("SECURITY WARNING:")
         click.echo("   Plaintext secrets are now on disk and will persist until re-encrypted!")
         click.echo()
         click.echo("   Re-encrypt after editing:")

@@ -2,16 +2,17 @@
 
 """Orchestrated shutdown of complete itsUP stack"""
 
-import logging
 import subprocess
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 
 import click
+from instrukt_ai_logging import get_logger
 
+from commands.common import fail, ok, step, warn
 from lib.data import get_env_with_secrets, list_projects
 from lib.paths import root
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 def _stop_project(project: str) -> tuple[str, bool, str]:
@@ -32,7 +33,7 @@ def _stop_project(project: str) -> tuple[str, bool, str]:
 
 @click.command()
 @click.option("--clean", is_flag=True, help="Also remove stopped containers from itsUP-managed projects")
-def down(clean: bool):
+def down(clean: bool) -> None:
     """
     🛑 Stop ALL containers: DNS, proxy, AND all upstream projects
 
@@ -53,26 +54,26 @@ def down(clean: bool):
         itsup down           # Stop everything
         itsup down --clean   # Stop + remove stopped containers
     """
-    logger.info("🛑 Stopping EVERYTHING (all projects + infrastructure)...")
+    step("🛑 Stopping EVERYTHING (all projects + infrastructure)...")
 
     # Step 1: Stop monitor
-    logger.info("  🛡️  Stopping container security monitor...")
+    step("  🛡️  Stopping container security monitor...")
     try:
         subprocess.run(["pkill", "-f", "bin/monitor.py"], check=False)
-        logger.info("  ✓ Monitor stopped")
+        ok("  Monitor stopped")
     except subprocess.CalledProcessError:
-        logger.warning("  ⚠ Monitor may not have been running")
+        warn("  Monitor may not have been running")
 
     # Step 2: Stop API server
-    logger.info("  🌐 Stopping API server...")
+    step("  🌐 Stopping API server...")
     try:
         subprocess.run(["pkill", "-f", "api/main.py"], check=False)
-        logger.info("  ✓ API server stopped")
+        ok("  API server stopped")
     except subprocess.CalledProcessError:
-        logger.warning("  ⚠ API server may not have been running")
+        warn("  API server may not have been running")
 
     # Step 3: Stop ALL upstream projects IN PARALLEL
-    logger.info("  📦 Stopping all upstream projects (in parallel)...")
+    step("  📦 Stopping all upstream projects (in parallel)...")
     projects = list_projects()
 
     with ThreadPoolExecutor(max_workers=10) as executor:
@@ -83,39 +84,39 @@ def down(clean: bool):
         for future in as_completed(futures):
             project, success, error_msg = future.result()
             if error_msg == "No docker-compose.yml":
-                logger.debug(f"    ⊘ {project}: No docker-compose.yml, skipping")
+                logger.debug("%s: No docker-compose.yml, skipping", project)
             elif success:
-                logger.info(f"    ✓ {project} stopped")
+                ok(f"    {project} stopped")
             else:
-                logger.warning(f"    ⚠ Failed to stop {project}: {error_msg}")
+                warn(f"    Failed to stop {project}: {error_msg}")
 
     # Step 4: Stop proxy stack
-    logger.info("  🔀 Stopping proxy stack...")
+    step("  🔀 Stopping proxy stack...")
     env = get_env_with_secrets()
     try:
         subprocess.run(
             ["docker", "compose", "-f", str(root() / "proxy" / "docker-compose.yml"), "down"], env=env, check=True
         )
-        logger.info("  ✓ Proxy stack stopped")
+        ok("  Proxy stack stopped")
     except subprocess.CalledProcessError:
-        logger.error("  ✗ Failed to stop proxy stack")
+        fail("  Failed to stop proxy stack")
 
     # Step 5: Stop DNS stack
-    logger.info("  📡 Stopping DNS stack...")
+    step("  📡 Stopping DNS stack...")
     try:
         subprocess.run(
             ["docker", "compose", "-f", str(root() / "dns" / "docker-compose.yml"), "down"], env=env, check=True
         )
-        logger.info("  ✓ DNS stack stopped")
+        ok("  DNS stack stopped")
     except subprocess.CalledProcessError:
-        logger.error("  ✗ Failed to stop DNS stack")
+        fail("  Failed to stop DNS stack")
 
-    logger.info("✅ Everything stopped")
+    ok("Everything stopped")
 
     # Step 6: Clean up if requested (only itsup-managed resources, in parallel)
     if clean:
-        logger.info("")
-        logger.info("🗑️  Cleaning up stopped itsUP containers (in parallel)...")
+        click.echo()
+        step("🗑️  Cleaning up stopped itsUP containers (in parallel)...")
 
         def _cleanup_project(project: str) -> tuple[str, bool]:
             """Clean up a single project. Returns (project, success)"""
@@ -148,18 +149,18 @@ def down(clean: bool):
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             # Submit all cleanup tasks in parallel
-            futures = []
+            cleanup_futures: list[Future[tuple[str, bool]]] = []
 
             # Add project cleanups
             for project in projects:
-                futures.append(executor.submit(_cleanup_project, project))
+                cleanup_futures.append(executor.submit(_cleanup_project, project))
 
             # Add infrastructure cleanups
             for stack in ["proxy", "dns"]:
-                futures.append(executor.submit(_cleanup_stack, stack))
+                cleanup_futures.append(executor.submit(_cleanup_stack, stack))
 
             # Wait for all to complete
-            for future in as_completed(futures):
-                future.result()  # Just wait, don't log individual completions
+            for cleanup_future in as_completed(cleanup_futures):
+                cleanup_future.result()  # Just wait, don't log individual completions
 
-        logger.info("  ✅ Cleanup complete")
+        ok("  Cleanup complete")

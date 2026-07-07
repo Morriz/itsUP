@@ -2,21 +2,21 @@
 
 """Follow log files with smart formatting"""
 
-import logging
 import subprocess
 import sys
 
 import click
+from instrukt_ai_logging import get_logger
 
 from lib.paths import root
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 # Logs that contain JSON and need formatting
 JSON_LOGS = {"access"}
 
 
-def get_available_logs():
+def get_available_logs() -> list[str]:
     """Get list of available log files (without .log extension)."""
     logs_dir = root() / "logs"
     if not logs_dir.exists():
@@ -31,7 +31,7 @@ def get_available_logs():
     return sorted(logs)
 
 
-def complete_log_names(ctx, param, incomplete):
+def complete_log_names(ctx: click.Context, param: click.Parameter, incomplete: str) -> list[str]:
     """Autocomplete log names."""
     available = get_available_logs()
     return [name for name in available if name.startswith(incomplete)]
@@ -40,7 +40,7 @@ def complete_log_names(ctx, param, incomplete):
 @click.command()
 @click.argument("names", nargs=-1, shell_complete=complete_log_names)
 @click.option("-n", "--lines", default=100, type=int, help="Number of initial lines to show (default: 100)")
-def logs(names, lines):
+def logs(names: tuple[str, ...], lines: int) -> None:
     """
     📜 Follow log files with smart formatting
 
@@ -95,19 +95,11 @@ def logs(names, lines):
 
             # Start tail process
             tail_proc = subprocess.Popen(
-                tail_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,  # Suppress any error messages
-                text=True
+                tail_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True  # Suppress any error messages
             )
 
             # Start formatter process
-            format_proc = subprocess.Popen(
-                format_cmd,
-                stdin=tail_proc.stdout,
-                stdout=sys.stdout,
-                text=True
-            )
+            format_proc = subprocess.Popen(format_cmd, stdin=tail_proc.stdout, stdout=sys.stdout, text=True)
 
             # Close tail's stdout in parent to allow SIGPIPE
             tail_proc.stdout.close()
@@ -125,15 +117,11 @@ def logs(names, lines):
 
             logger.debug(f"Running: {' '.join(cmd)}")
 
-            subprocess.run(
-                cmd,
-                stderr=subprocess.DEVNULL,  # Suppress any error messages
-                check=True
-            )
+            subprocess.run(cmd, stderr=subprocess.DEVNULL, check=True)  # Suppress any error messages
 
     except KeyboardInterrupt:
         # Clean exit on Ctrl+C
         sys.exit(0)
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to tail logs: {e}")
+        click.echo(f"Failed to tail logs: {e}", err=True)
         sys.exit(e.returncode)

@@ -622,6 +622,15 @@ wheels = [
 ]
 
 [[package]]
+name = "instruktai-python-logger"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/9e/6b49c5344d0b5b0c605d1f3e9fc932d75b39e83cfe9da667937d7f8d89a0/instruktai_python_logger-0.6.1.tar.gz", hash = "sha256:d4ce0da1f0f00b3eb1379e693e862598f3b0ae0cae5161ed9bd6fbaa8ff022bb", size = 24867, upload-time = "2026-07-06T21:10:27.056Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/dc/3b310585e54c5834a89fe070508ac372118efe7e3d6e3660da3dbbeb9254/instruktai_python_logger-0.6.1-py3-none-any.whl", hash = "sha256:b599e9e05eec299470f879d99f5573ef256f83f02e9bcfef5c62cc1f54715f91", size = 16929, upload-time = "2026-07-06T21:10:26.104Z" },
+]
+
+[[package]]
 name = "ipwhois"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -651,6 +660,7 @@ dependencies = [
     { name = "boto3" },
     { name = "click" },
     { name = "fastapi" },
+    { name = "instruktai-python-logger" },
     { name = "ipwhois" },
     { name = "jinja2-cli" },
     { name = "netifaces" },
@@ -682,6 +692,7 @@ requires-dist = [
     { name = "boto3" },
     { name = "click" },
     { name = "fastapi" },
+    { name = "instruktai-python-logger", specifier = ">=0.6.1" },
     { name = "ipwhois" },
     { name = "jinja2-cli" },
     { name = "netifaces" },

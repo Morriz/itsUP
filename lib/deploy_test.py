@@ -19,7 +19,7 @@ class TestDeployUpstreamProject(unittest.TestCase):
 
     @patch("lib.deploy.subprocess.run")
     @patch("lib.deploy.write_upstream")
-    @patch("lib.data.load_project")
+    @patch("lib.deploy.load_project")
     def test_no_egress_skips_network_check(
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:
@@ -37,7 +37,7 @@ class TestDeployUpstreamProject(unittest.TestCase):
 
     @patch("lib.deploy.subprocess.run")
     @patch("lib.deploy.write_upstream")
-    @patch("lib.data.load_project")
+    @patch("lib.deploy.load_project")
     def test_existing_edge_network_deploys_normally(
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:
@@ -53,7 +53,7 @@ class TestDeployUpstreamProject(unittest.TestCase):
 
     @patch("lib.deploy.subprocess.run")
     @patch("lib.deploy.write_upstream")
-    @patch("lib.data.load_project")
+    @patch("lib.deploy.load_project")
     def test_missing_edge_network_raises_runtime_error(
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:
@@ -77,7 +77,7 @@ class TestDeployUpstreamProject(unittest.TestCase):
 
     @patch("lib.deploy.subprocess.run")
     @patch("lib.deploy.write_upstream")
-    @patch("lib.data.load_project")
+    @patch("lib.deploy.load_project")
     def test_multiple_egress_all_must_exist(
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:

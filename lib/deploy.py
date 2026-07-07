@@ -12,18 +12,17 @@ Key features:
 - Skip deployment if nothing changed
 """
 
-import logging
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import yaml
+from instrukt_ai_logging import get_logger
 
 from bin.write_artifacts import write_proxy_artifacts, write_upstream
-from lib.data import edge_network_name, get_env_with_secrets
+from lib.data import edge_network_name, get_env_with_secrets, load_project
 from lib.paths import root
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 def service_is_running(compose_dir: str, service: str) -> bool:
@@ -166,9 +165,9 @@ def rollout_service(compose_dir: str, service: str, env: Optional[Dict[str, str]
 
     try:
         subprocess.run(["docker", "rollout", service], cwd=compose_dir, env=env, check=True)
-        logger.info(f"✓ {service} rolled out successfully")
+        logger.debug("%s rolled out successfully", service)
     except subprocess.CalledProcessError as e:
-        logger.error(f"✗ {service} rollout failed: {e}")
+        logger.error("%s rollout failed: %s", service, e)
         raise
 
 
@@ -316,14 +315,12 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
         project: Project name
         service: Optional service name to deploy
     """
-    from lib.data import load_project
-
     # Load project config to check if it's host-only
     compose, traefik_config = load_project(project)
 
     # Skip deployment for host-only projects (no docker-compose.yml in projects/)
     if not compose or not compose.get("services"):
-        logger.info(f"✓ {project} is host-only (no services), skipping deployment")
+        logger.debug("%s is host-only (no services), skipping deployment", project)
         return
 
     # Regenerate artifacts
@@ -363,7 +360,7 @@ def deploy_upstream_project(project: str, service: Optional[str] = None) -> None
                 capture_output=True,
                 text=True,
             )
-            logger.info(f"✓ {project} stopped")
+            logger.debug("%s stopped", project)
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to stop {project}: {e.stderr}")
             raise

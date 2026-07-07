@@ -274,9 +274,9 @@ itsup migrate                        # Upgrade configuration schema
 
 **Smart Output:**
 
-itsUP automatically adapts its output based on context:
+itsUP separates what you read from what it records:
 
-- **Interactive terminal (TTY)**: Clean colored output with symbols
+- **Terminal output** is for you. Commands render color and status symbols in an interactive terminal:
 
   ```
   ✓ Migration complete!
@@ -284,12 +284,19 @@ itsUP automatically adapts its output based on context:
   ✗ Failed to rename project
   ```
 
-- **Pipes/logs/automation**: Full structured output with timestamps
+  When output is piped or redirected, the same wording and symbols are written without color
+  codes:
+
   ```
-  2025-11-04 00:11:48.166 INFO lib/migrations.py:97 Migration complete!
-  2025-11-04 00:11:48.166 WARNING lib/migrations.py:71 Config needs review
-  2025-11-04 00:11:48.166 ERROR lib/fixers/rename_ingress.py:62 Failed to rename project
+  ✓ Migration complete!
+  ⚠ Config needs review
+  ✗ Failed to rename project
   ```
+
+- **Diagnostic logs** are for later. Detailed audit records go to a per-app logfile at
+  `$XDG_STATE_HOME/instrukt-ai/itsup/itsup.log` (falling back to
+  `~/.local/state/instrukt-ai/itsup/itsup.log`), never to the terminal. Verbosity follows the
+  same `-v`/`-vv` flags (INFO → DEBUG → TRACE) described above.
 
 **Smart Behavior:**
 

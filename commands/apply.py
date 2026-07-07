@@ -2,22 +2,24 @@
 
 """Apply configurations (regenerate + deploy with smart rollout)"""
 
-import logging
 import sys
 
 import click
 
-from commands.common import complete_stack_or_project
+from commands.common import (
+    complete_stack_or_project,
+    fail,
+    guard_schema_version,
+    ok,
+    step,
+)
 from lib.data import list_projects, list_projects_topo, validate_all
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack, deploy_upstream_project
-from lib.version_check import check_schema_version
-
-logger = logging.getLogger(__name__)
 
 
 @click.command()
 @click.argument("project", required=False, shell_complete=complete_stack_or_project)
-def apply(project):
+def apply(project: str | None) -> None:
     """
     ⚙️ Apply configurations with smart zero-downtime rollout [PROJECT]
 
@@ -37,7 +39,7 @@ def apply(project):
         itsup apply proxy            # Deploy proxy stack
         itsup apply instrukt-ai      # Deploy single project
     """
-    check_schema_version()
+    guard_schema_version()
 
     # Design-by-contract gate: the whole config must hold its invariants before we
     # touch anything. Global and fail-closed — one invalid project or a cross-project
@@ -65,7 +67,7 @@ def apply(project):
 
     if project:
         # Apply single stack or project
-        logger.info(f"Deploying {project} with smart rollout...")
+        step(f"Deploying {project} with smart rollout...")
 
         # Validate exists (membership only — order doesn't matter here)
         valid_targets = ["dns", "proxy"] + list_projects()
@@ -77,14 +79,14 @@ def apply(project):
         # Deploy
         _, success, error_msg = _deploy_single(project)
         if success:
-            logger.info(f"✓ {project} deployed")
+            ok(f"{project} deployed")
         else:
-            logger.error(f"✗ {project} deployment failed: {error_msg}")
+            fail(f"{project} deployment failed: {error_msg}")
             sys.exit(1)
 
     else:
         # Apply all (dns + proxy + upstreams)
-        logger.info("Deploying all stacks with smart rollout...")
+        step("Deploying all stacks with smart rollout...")
 
         # Deploy ALL targets sequentially (dns, proxy, and all projects)
         all_targets = ["dns", "proxy"] + list_projects_topo()
@@ -93,13 +95,13 @@ def apply(project):
         for target in all_targets:
             target, success, error_msg = _deploy_single(target)
             if success:
-                logger.info(f"  ✓ {target}")
+                ok(f"  {target}")
             else:
-                logger.error(f"  ✗ {target} failed: {error_msg}")
+                fail(f"  {target} failed: {error_msg}")
                 failed.append(target)
 
         if failed:
-            logger.error(f"Failed: {', '.join(failed)}")
+            fail(f"Failed: {', '.join(failed)}")
             sys.exit(1)
 
-        logger.info("✓ Apply complete")
+        ok("Apply complete")

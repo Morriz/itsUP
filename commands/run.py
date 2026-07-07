@@ -2,22 +2,19 @@
 
 """Orchestrated startup of complete itsUP stack"""
 
-import logging
 import subprocess
 import sys
 
 import click
 
 from bin.write_artifacts import write_proxy_artifacts
+from commands.common import fail, guard_schema_version, ok, step
 from lib.data import get_env_with_secrets
 from lib.paths import root
-from lib.version_check import check_schema_version
-
-logger = logging.getLogger(__name__)
 
 
 @click.command()
-def run():
+def run() -> None:
     """
     🚀 Run itsUP stack: dns, proxy and monitor (needs sudo)
 
@@ -39,61 +36,61 @@ def run():
     Examples:
         itsup run    # Start everything including monitor (report-only)
     """
-    check_schema_version()
-    logger.info("🚀 Running itsUP complete stack...")
+    guard_schema_version()
+    step("🚀 Running itsUP complete stack...")
 
     # Step 0: Regenerate proxy artifacts (in case config changed)
-    logger.info("  🔧 Regenerating proxy artifacts...")
+    step("  🔧 Regenerating proxy artifacts...")
     try:
         write_proxy_artifacts()
-        logger.info("  ✓ Proxy artifacts regenerated")
+        ok("  Proxy artifacts regenerated")
     except Exception as e:
-        logger.error(f"  ✗ Failed to regenerate proxy artifacts: {e}")
+        fail(f"  Failed to regenerate proxy artifacts: {e}")
         sys.exit(1)
 
     # Get environment with infrastructure secrets (itsup.txt)
     env = get_env_with_secrets()
 
     # Step 1: Start DNS stack (creates network)
-    logger.info("  📡 Starting DNS stack...")
+    step("  📡 Starting DNS stack...")
     try:
         # No --pull at boot: the Pi's own DNS may not be working yet (chicken-and-egg
         # with AdGuard). Use cached images. Pulls happen via itsup-apply.timer / manual apply.
         subprocess.run(
             ["docker", "compose", "-f", str(root() / "dns" / "docker-compose.yml"), "up", "-d"], env=env, check=True
         )
-        logger.info("  ✓ DNS stack started")
+        ok("  DNS stack started")
     except subprocess.CalledProcessError as e:
-        logger.error("  ✗ Failed to start DNS stack")
+        fail("  Failed to start DNS stack")
         sys.exit(e.returncode)
 
     # Step 2: Start proxy stack
-    logger.info("  🔀 Starting proxy stack...")
+    step("  🔀 Starting proxy stack...")
     try:
         subprocess.run(
             ["docker", "compose", "-f", str(root() / "proxy" / "docker-compose.yml"), "up", "-d"], env=env, check=True
         )
-        logger.info("  ✓ Proxy stack started")
+        ok("  Proxy stack started")
     except subprocess.CalledProcessError as e:
-        logger.error("  ✗ Failed to start proxy stack")
+        fail("  Failed to start proxy stack")
         sys.exit(e.returncode)
 
     # Step 3: Start API server
-    logger.info("  🌐 Starting API server...")
+    step("  🌐 Starting API server...")
     try:
         subprocess.run([str(root() / "bin" / "start-api.sh")], check=True)
-        logger.info("  ✓ API server started")
+        ok("  API server started")
     except subprocess.CalledProcessError as e:
-        logger.error("  ✗ Failed to start API server")
+        fail("  Failed to start API server")
         sys.exit(e.returncode)
 
     # Step 4: Start container security monitor (report-only mode)
-    logger.info("  🛡️  Starting container security monitor (report-only mode)...")
+    step("  🛡️  Starting container security monitor (report-only mode)...")
     try:
         subprocess.run([str(root() / "bin" / "start-monitor.sh"), "--report-only"], check=True)
-        logger.info("  ✓ Monitor started in report-only mode")
+        ok("  Monitor started in report-only mode")
     except subprocess.CalledProcessError as e:
-        logger.error("  ✗ Failed to start monitor")
+        fail("  Failed to start monitor")
         sys.exit(e.returncode)
 
-    logger.info("✅ Complete stack running")
+    ok("Complete stack running")

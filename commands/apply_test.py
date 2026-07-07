@@ -16,7 +16,7 @@ from commands.apply import apply
 class TestApply(unittest.TestCase):
     """Tests for apply command"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures"""
         self.runner = CliRunner()
         # Apply runs a global, fail-closed validation gate first; keep it green by
@@ -25,7 +25,7 @@ class TestApply(unittest.TestCase):
         validate_patcher.start()
         self.addCleanup(validate_patcher.stop)
 
-    @patch("commands.apply.check_schema_version")
+    @patch("commands.apply.guard_schema_version")
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
     def test_apply_single_project_success(
@@ -39,7 +39,7 @@ class TestApply(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         mock_deploy.assert_called_once_with("myproject")
 
-    @patch("commands.apply.check_schema_version")
+    @patch("commands.apply.guard_schema_version")
     @patch("commands.apply.list_projects")
     def test_apply_single_project_not_found(self, mock_list_projects: Mock, mock_version_check: Mock) -> None:
         """Test applying a project that doesn't exist."""
@@ -51,7 +51,7 @@ class TestApply(unittest.TestCase):
         self.assertIn("'nonexistent' not found", result.output)
         self.assertIn("Available: dns, proxy, other, another", result.output)
 
-    @patch("commands.apply.check_schema_version")
+    @patch("commands.apply.guard_schema_version")
     @patch("commands.apply.list_projects")
     @patch("commands.apply.deploy_upstream_project")
     def test_apply_single_project_deployment_failure(
@@ -66,7 +66,7 @@ class TestApply(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
         mock_deploy.assert_called_once_with("myproject")
 
-    @patch("commands.apply.check_schema_version")
+    @patch("commands.apply.guard_schema_version")
     @patch("commands.apply.deploy_proxy_stack")
     @patch("commands.apply.deploy_dns_stack")
     @patch("commands.apply.list_projects_topo")
@@ -93,7 +93,7 @@ class TestApply(unittest.TestCase):
         mock_dns.assert_called_once()
         mock_proxy.assert_called_once()
 
-    @patch("commands.apply.check_schema_version")
+    @patch("commands.apply.guard_schema_version")
     @patch("commands.apply.deploy_proxy_stack")
     @patch("commands.apply.deploy_dns_stack")
     @patch("commands.apply.list_projects_topo")
@@ -117,16 +117,14 @@ class TestApply(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 1)
 
-    @patch("commands.apply.check_schema_version")
+    @patch("commands.apply.guard_schema_version")
     @patch("commands.apply.deploy_upstream_project")
     @patch("commands.apply.validate_all")
     def test_apply_refuses_on_validation_error(
         self, mock_validate_all: Mock, mock_deploy: Mock, mock_version_check: Mock
     ) -> None:
         """A validation failure (e.g. cross-project IP collision) blocks deploy, fail-closed."""
-        mock_validate_all.return_value = {
-            "adguard": ["ipv4_address '172.20.0.252' already claimed by project 'other'"]
-        }
+        mock_validate_all.return_value = {"adguard": ["ipv4_address '172.20.0.252' already claimed by project 'other'"]}
 
         result = self.runner.invoke(apply, ["adguard"])
 

@@ -8,6 +8,7 @@ the callable the ``bin/itsup`` shim imports.
 import os
 
 import click
+from instrukt_ai_logging import configure_logging
 
 from commands.apply import apply
 from commands.commit import commit
@@ -30,7 +31,6 @@ from commands.status import status
 from commands.svc import svc
 from commands.validate import validate
 from lib.host_gate import require_host
-from lib.logging_config import setup_logging
 
 HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor", "logs"})
 
@@ -58,7 +58,8 @@ def cli(ctx: click.Context, verbose: int) -> None:
     else:  # 2+
         level = "TRACE"
 
-    setup_logging(level=level)
+    os.environ["ITSUP_LOG_LEVEL"] = level
+    configure_logging("itsup")
 
     if ctx.invoked_subcommand in HOST_ONLY:
         require_host(ctx.invoked_subcommand)

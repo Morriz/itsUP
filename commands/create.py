@@ -6,22 +6,14 @@ import sys
 
 import click
 
+from commands.common import fail, guard_schema_version, ok
 from lib.paths import root as install_root
 from lib.projects import create_project
-from lib.version_check import check_schema_version
-
-
-class Colors:
-    """ANSI color codes for terminal output"""
-
-    RED = "\033[0;31m"
-    GREEN = "\033[0;32m"
-    NC = "\033[0m"
 
 
 @click.command()
 @click.argument("name")
-def create(name):
+def create(name: str) -> None:
     """Create a new project scaffold
 
     Creates a new project directory in projects/ with:
@@ -34,18 +26,18 @@ def create(name):
         itsup create my-app
         itsup create redis-cache
     """
-    check_schema_version()
+    guard_schema_version()
 
     repo_root = install_root()
 
     try:
         create_project(name, repo_root)
     except ValueError as e:
-        click.echo(f"{Colors.RED}✗ {e}{Colors.NC}", err=True)
+        fail(str(e))
         sys.exit(1)
 
     click.echo()
-    click.echo(f"{Colors.GREEN}✓ Project '{name}' created successfully!{Colors.NC}")
+    ok(f"Project '{name}' created successfully!")
     click.echo("Next steps:")
     click.echo(f"  1. Edit config:  projects/{name}/itsup-project.yml")
     click.echo(f"  2. Edit compose: projects/{name}/docker-compose.yml")

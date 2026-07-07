@@ -2,18 +2,57 @@
 
 """Common utilities for CLI commands"""
 
-import logging
 import subprocess
+import sys
+from collections.abc import Callable
 from pathlib import Path
 
+import click
 import yaml
+from instrukt_ai_logging import get_logger
 
-from lib.data import list_projects
+from lib.data import get_env_with_secrets, list_projects
+from lib.version_check import SchemaVersionError, check_schema_version
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
-def complete_project(ctx, param, incomplete):
+def ok(message: str) -> None:
+    """Print a success outcome to the terminal: green ✓ + message."""
+    click.secho(f"✓ {message}", fg="green")
+
+
+def warn(message: str) -> None:
+    """Print a warning outcome to the terminal: yellow ⚠ + message."""
+    click.secho(f"⚠ {message}", fg="yellow")
+
+
+def fail(message: str) -> None:
+    """Print a failure outcome to the terminal: red ✗ + message, on stderr."""
+    click.secho(f"✗ {message}", fg="red", err=True)
+
+
+def step(message: str) -> None:
+    """Print a plain progress line to the terminal (no icon)."""
+    click.echo(message)
+
+
+def guard_schema_version() -> None:
+    """Check the config schema version and print the outcome to the terminal.
+
+    Exits with status 1 if the schema is older than this itsUP version.
+    """
+    try:
+        newer_warning = check_schema_version()
+    except SchemaVersionError as e:
+        fail(str(e))
+        raise SystemExit(1) from e
+
+    if newer_warning:
+        warn(newer_warning)
+
+
+def complete_project(ctx: click.Context, param: click.Parameter, incomplete: str) -> list[str]:
     """
     Autocomplete project names.
 
@@ -28,7 +67,7 @@ def complete_project(ctx, param, incomplete):
     return [p for p in list_projects() if p.startswith(incomplete)]
 
 
-def complete_stack_or_project(ctx, param, incomplete):
+def complete_stack_or_project(ctx: click.Context, param: click.Parameter, incomplete: str) -> list[str]:
     """
     Autocomplete infrastructure stacks (dns, proxy) or project names.
 
@@ -40,13 +79,15 @@ def complete_stack_or_project(ctx, param, incomplete):
     Returns:
         List of stack names and project names matching the incomplete string
     """
-    stacks = ['dns', 'proxy']
+    stacks = ["dns", "proxy"]
     projects = list_projects()
     all_options = stacks + projects
     return [opt for opt in all_options if opt.startswith(incomplete)]
 
 
-def complete_docker_compose_command(compose_file_path: str, args_param_name: str = "args", project_param_name: str = None):
+def complete_docker_compose_command(
+    compose_file_path: str, args_param_name: str = "args", project_param_name: str | None = None
+) -> Callable[[click.Context, click.Parameter, str], list[str]]:
     """
     Create a completion function for docker compose commands and service names.
 
@@ -62,19 +103,15 @@ def complete_docker_compose_command(compose_file_path: str, args_param_name: str
     Returns:
         Completion function for use with Click's shell_complete parameter
     """
-    def _complete(ctx, param, incomplete):
+
+    def _complete(ctx: click.Context, param: click.Parameter, incomplete: str) -> list[str]:
         # Get already-typed arguments
         args = ctx.params.get(args_param_name) or []
 
         # First argument: get docker compose commands dynamically
         if len(args) == 0:
             try:
-                result = subprocess.run(
-                    ["docker", "compose", "--help"],
-                    capture_output=True,
-                    text=True,
-                    timeout=2
-                )
+                result = subprocess.run(["docker", "compose", "--help"], capture_output=True, text=True, timeout=2)
                 if result.returncode == 0:
                     commands = []
                     in_commands_section = False
@@ -124,7 +161,9 @@ def complete_docker_compose_command(compose_file_path: str, args_param_name: str
     return _complete
 
 
-def create_stack_command(stack_name: str, compose_dir: str, deploy_func, description: str):
+def create_stack_command(
+    stack_name: str, compose_dir: str, deploy_func: Callable[..., None], description: str
+) -> click.Command:
     """
     Create a standardized stack management command.
 
@@ -142,17 +181,8 @@ def create_stack_command(stack_name: str, compose_dir: str, deploy_func, descrip
     Returns:
         Click command function
     """
-    import logging
-    import subprocess
-    import sys
-    import click
-    from lib.data import get_env_with_secrets
-    from lib.version_check import check_schema_version
-
-    logger = logging.getLogger(__name__)
-
     # Extract first line of description for short help (before any newlines)
-    short_help = description.split('\n')[0] if description else f"{stack_name} stack management"
+    short_help = description.split("\n")[0] if description else f"{stack_name} stack management"
 
     # Build full help text
     full_help = f"""{description}
@@ -168,14 +198,20 @@ Examples:
     itsup {stack_name} ps                    # List containers
 """
 
-    @click.command(name=stack_name,
-                   short_help=short_help,
-                   help=full_help,
-                   context_settings=dict(ignore_unknown_options=True, allow_interspersed_args=False))
-    @click.argument("args", nargs=-1, type=click.UNPROCESSED,
-                    shell_complete=complete_docker_compose_command(f"{compose_dir}/docker-compose.yml"))
-    def stack_command(args):
-        check_schema_version()
+    @click.command(
+        name=stack_name,
+        short_help=short_help,
+        help=full_help,
+        context_settings=dict(ignore_unknown_options=True, allow_interspersed_args=False),
+    )
+    @click.argument(
+        "args",
+        nargs=-1,
+        type=click.UNPROCESSED,
+        shell_complete=complete_docker_compose_command(f"{compose_dir}/docker-compose.yml"),
+    )
+    def stack_command(args: tuple[str, ...]) -> None:
+        guard_schema_version()
 
         if not args:
             click.echo(stack_command.get_help(click.Context(stack_command)))
@@ -187,7 +223,7 @@ Examples:
             try:
                 deploy_func(service=service)
             except Exception as e:
-                logger.error(f"✗ Failed to deploy {stack_name} stack: {e}")
+                fail(f"Failed to deploy {stack_name} stack: {e}")
                 sys.exit(1)
             return
 

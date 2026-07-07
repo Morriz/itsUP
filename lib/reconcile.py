@@ -8,14 +8,15 @@ interleave. A single uvicorn process serves the API, so an in-process lock is
 sufficient (a file lock would only matter under multiple worker processes).
 """
 
-import logging
 import subprocess
 import threading
+
+from instrukt_ai_logging import get_logger
 
 from lib.paths import root
 from lib.sync import pull_repos
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 class ReconcileError(RuntimeError):
@@ -62,7 +63,7 @@ class _Reconciler:
                     self._dirty = False
                 logger.info("reconcile: pulling config repos and applying")
                 _pull_and_apply()
-                logger.info("✓ reconcile complete")
+                logger.debug("reconcile complete")
                 with self._lock:
                     if not self._dirty:
                         self._running = False

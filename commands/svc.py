@@ -2,19 +2,22 @@
 
 """Service operations (docker compose passthrough)"""
 
-import logging
 import subprocess
 import sys
 from pathlib import Path
 
 import click
+from instrukt_ai_logging import get_logger
 
-from commands.common import complete_docker_compose_command, complete_project
+from commands.common import (
+    complete_docker_compose_command,
+    complete_project,
+    guard_schema_version,
+)
 from lib.data import get_env_with_secrets, list_projects
 from lib.paths import root
-from lib.version_check import check_schema_version
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 @click.command(context_settings=dict(ignore_unknown_options=True, allow_interspersed_args=False))
@@ -30,7 +33,7 @@ logger = logging.getLogger(__name__)
         project_param_name="project",
     ),
 )
-def svc(project, command):
+def svc(project: str, command: tuple[str, ...]) -> None:
     """
     🔧 Service operations PROJECT COMMAND... (docker compose passthrough)
 
@@ -50,7 +53,7 @@ def svc(project, command):
         - Docker compose commands
         - Service names
     """
-    check_schema_version()
+    guard_schema_version()
 
     # Validate project exists
     projects = list_projects()

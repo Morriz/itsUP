@@ -12,16 +12,8 @@ from pathlib import Path
 
 import click
 
+from commands.common import ok, warn
 from lib.paths import root as install_root
-
-
-class Colors:
-    """ANSI color codes for terminal output"""
-
-    BLUE = "\033[0;34m"
-    GREEN = "\033[0;32m"
-    YELLOW = "\033[1;33m"
-    NC = "\033[0m"  # No Color
 
 
 def _run_git_status(path: Path, name: str) -> bool:
@@ -41,22 +33,22 @@ def _run_git_status(path: Path, name: str) -> bool:
         status_output = result.stdout.strip()
 
         if status_output:
-            click.echo(f"{Colors.YELLOW}{name}/ repo (has changes):{Colors.NC}")
+            click.echo(click.style(f"{name}/ repo (has changes):", fg="yellow"))
             click.echo(status_output)
             click.echo()
             return False
         else:
-            click.echo(f"{Colors.GREEN}{name}/ repo (clean){Colors.NC}")
+            click.echo(click.style(f"{name}/ repo (clean)", fg="green"))
             click.echo()
             return True
 
     except subprocess.CalledProcessError as e:
-        click.echo(f"{Colors.YELLOW}⚠{Colors.NC} Could not check {name}/ status: {e}", err=True)
+        warn(f"Could not check {name}/ status: {e}")
         return True
 
 
 @click.command()
-def status():
+def status() -> None:
     """📊 Show git status for "projects" and "secrets" repos
 
     Check for uncommitted changes in your configuration repositories.
@@ -78,9 +70,9 @@ def status():
 
     # Summary
     if projects_clean and secrets_clean:
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} All repos clean")
+        ok("All repos clean")
     else:
-        click.echo(f"{Colors.YELLOW}⚠{Colors.NC} Repos have uncommitted changes")
+        warn("Repos have uncommitted changes")
         click.echo()
         click.echo("To commit changes:")
         click.echo("  itsup commit 'Your commit message'")

@@ -7,22 +7,14 @@ import sys
 
 import click
 
+from commands.common import fail, guard_schema_version, ok
 from lib.paths import root as install_root
 from lib.sync import pull_repos
-from lib.version_check import check_schema_version
-
-
-class Colors:
-    """ANSI color codes for terminal output"""
-
-    RED = "\033[0;31m"
-    GREEN = "\033[0;32m"
-    NC = "\033[0m"
 
 
 @click.command()
 @click.option("--apply", "-a", "run_apply", is_flag=True, help="Run 'itsup apply' after successful pull")
-def pull(run_apply):
+def pull(run_apply: bool) -> None:
     """Pull changes from "projects" and "secrets" repos
 
     Updates local configuration from remote repositories.
@@ -33,26 +25,26 @@ def pull(run_apply):
         itsup pull
         itsup pull --apply
     """
-    check_schema_version()
+    guard_schema_version()
 
     repo_root = install_root()
 
     click.echo("Pulling changes...")
     results = pull_repos(repo_root)
 
-    for repo, ok in results.items():
-        if ok:
-            click.echo(f"{Colors.GREEN}✓{Colors.NC} {repo}/ updated")
+    for repo, success in results.items():
+        if success:
+            ok(f"{repo}/ updated")
         else:
-            click.echo(f"{Colors.RED}✗{Colors.NC} {repo}/ failed", err=True)
+            fail(f"{repo}/ failed")
 
     if not all(results.values()):
         click.echo()
-        click.echo(f"{Colors.RED}✗ Some updates failed. Fix conflicts manually.{Colors.NC}", err=True)
+        fail("Some updates failed. Fix conflicts manually.")
         sys.exit(1)
 
     click.echo()
-    click.echo(f"{Colors.GREEN}✓ All repos updated{Colors.NC}")
+    ok("All repos updated")
 
     if run_apply:
         click.echo()

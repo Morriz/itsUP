@@ -1,11 +1,13 @@
-import logging
 import tomllib
 
+from instrukt_ai_logging import get_logger
 from ruamel.yaml import YAML
 
+from lib.data import validate_all
+from lib.fixers import FIXERS_V2_1
 from lib.paths import root
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 def get_schema_version() -> str:
@@ -63,8 +65,6 @@ def migrate(dry_run: bool = False, list_only: bool = False) -> bool:
     Returns:
         True if migrations were applied, False if nothing to do
     """
-    from lib.fixers import FIXERS_V2_1
-
     schema_version = get_schema_version()
     app_version = get_app_version()
 
@@ -95,22 +95,20 @@ def migrate(dry_run: bool = False, list_only: bool = False) -> bool:
 
     if not dry_run:
         set_schema_version(app_version)
-        logger.info(f"✓ Updated schema version to {app_version}")
+        logger.debug("Updated schema version to %s", app_version)
 
         # Run validation after migration
-        from lib.data import validate_all
-
         logger.info("\nValidating migrated configurations...")
         all_errors = validate_all()
         if all_errors:
-            logger.error(f"✗ {len(all_errors)} project(s) with validation errors:")
+            logger.error("%d project(s) with validation errors:", len(all_errors))
             for proj, errors in all_errors.items():
                 logger.error(f"\n{proj}:")
                 for error in errors:
                     logger.error(f"  - {error}")
             return False
-        else:
-            logger.info("✓ All projects valid")
 
-    logger.info("Migration complete!")
+        logger.debug("All projects valid")
+
+    logger.debug("Migration complete")
     return True

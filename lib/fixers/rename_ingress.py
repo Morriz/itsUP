@@ -1,9 +1,10 @@
-import logging
 import os
 import subprocess
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from instrukt_ai_logging import get_logger
+
+logger = get_logger(f"itsup.{__name__}")
 
 
 def get_git_env() -> dict[str, str]:
@@ -65,10 +66,10 @@ def apply(projects_dir: Path, dry_run: bool = False) -> dict[str, list[str]]:
                 old_file.rename(new_file)
 
             renamed.append(project_dir.name)
-            logger.info(f"✓ Renamed: {project_dir.name}/ingress.yml → itsup-project.yml")
+            logger.debug("Renamed: %s/ingress.yml → itsup-project.yml", project_dir.name)
 
         except Exception as e:
             errors.append(f"{project_dir.name}: {e}")
-            logger.error(f"! Failed to rename {project_dir.name}: {e}")
+            logger.error("Failed to rename %s: %s", project_dir.name, e)
 
     return {"renamed": renamed, "skipped": skipped, "errors": errors}

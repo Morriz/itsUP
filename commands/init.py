@@ -13,32 +13,24 @@ from pathlib import Path
 
 import click
 
+from commands.common import fail, ok, warn
 from lib.paths import root
-
-
-class Colors:
-    """ANSI color codes for terminal output"""
-
-    RED = "\033[0;31m"
-    GREEN = "\033[0;32m"
-    YELLOW = "\033[1;33m"
-    NC = "\033[0m"  # No Color
 
 
 def _error(message: str) -> None:
     """Print error message and exit"""
-    click.echo(f"{Colors.RED}✗ {message}{Colors.NC}", err=True)
+    fail(message)
     sys.exit(1)
 
 
 def _success(message: str) -> None:
     """Print success message"""
-    click.echo(f"{Colors.GREEN}✓{Colors.NC} {message}")
+    ok(message)
 
 
 def _warning(message: str) -> None:
     """Print warning message"""
-    click.echo(f"{Colors.YELLOW}⚠{Colors.NC} {message}")
+    warn(message)
 
 
 def _get_project_root() -> Path:
@@ -187,7 +179,7 @@ def _copy_dir_if_missing(src: Path, dst: Path, description: str) -> None:
 
 @click.command()
 @click.option("--force", is_flag=True, help="Force re-initialization even if already initialized")
-def init(force: bool):
+def init(force: bool) -> None:
     """🎬 Initialize "projects" and "secrets" repos from samples
 
     Sets up your itsUP installation by cloning/creating configuration repos

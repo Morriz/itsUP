@@ -12,16 +12,8 @@ from pathlib import Path
 
 import click
 
+from commands.common import fail, ok, warn
 from lib.paths import root as install_root
-
-
-class Colors:
-    """ANSI color codes for terminal output"""
-
-    RED = "\033[0;31m"
-    GREEN = "\033[0;32m"
-    YELLOW = "\033[1;33m"
-    NC = "\033[0m"  # No Color
 
 
 def _has_changes(path: Path) -> bool:
@@ -54,7 +46,7 @@ def _commit_and_push(path: Path, name: str, message: str, force: bool = False) -
         subprocess.run(["git", "add", "-A"], cwd=path, check=True)
         subprocess.run(["git", "commit", "-m", message], cwd=path, check=True)
 
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ committed: {message}")
+        ok(f"{name}/ committed: {message}")
 
         # Pull with rebase to handle diverged branches (unless force)
         if not force:
@@ -63,7 +55,7 @@ def _commit_and_push(path: Path, name: str, message: str, force: bool = False) -
             except subprocess.CalledProcessError as e:
                 # Rebase conflict - abort and warn user
                 subprocess.run(["git", "rebase", "--abort"], cwd=path, check=False)
-                click.echo(f"{Colors.RED}✗{Colors.NC} {name}/ pull --rebase failed (conflicts)", err=True)
+                fail(f"{name}/ pull --rebase failed (conflicts)")
                 click.echo(f"  Run manually: cd {name} && git pull --rebase", err=True)
                 click.echo(f"  Or use --force to override remote", err=True)
                 return False
@@ -73,17 +65,17 @@ def _commit_and_push(path: Path, name: str, message: str, force: bool = False) -
         subprocess.run(push_cmd, cwd=path, check=True)
 
         push_msg = "force pushed" if force else "pushed"
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} {name}/ {push_msg} to origin")
+        ok(f"{name}/ {push_msg} to origin")
         return True
 
     except subprocess.CalledProcessError as e:
-        click.echo(f"{Colors.RED}✗{Colors.NC} {name}/ failed: {e}", err=True)
+        fail(f"{name}/ failed: {e}")
         return False
 
 
 @click.command()
 @click.option("--force", "-f", is_flag=True, help="Skip encryption prompts and commit as-is")
-def commit(force):
+def commit(force: bool) -> None:
     """💾 Commit and push changes to "projects" and "secrets" repos
 
     Commits changes to both configuration repos and pushes to origin.
@@ -106,22 +98,22 @@ def commit(force):
     secrets_dirty = _has_changes(secrets_path)
 
     if not projects_dirty and not secrets_dirty:
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} No changes to commit")
+        ok("No changes to commit")
         return
 
     # Show what will be committed
     click.echo("Changes detected in:")
     if projects_dirty:
-        click.echo(f"  - {Colors.YELLOW}projects/{Colors.NC}")
+        click.echo(f"  - {click.style('projects/', fg='yellow')}")
     if secrets_dirty:
-        click.echo(f"  - {Colors.YELLOW}secrets/{Colors.NC}")
+        click.echo(f"  - {click.style('secrets/', fg='yellow')}")
     click.echo()
 
     # Security check: Warn about plaintext secrets in secrets/
     if secrets_dirty:
         plaintext_secrets = [f for f in secrets_path.glob("*.txt") if not f.name.endswith(".enc.txt")]
         if plaintext_secrets:
-            click.echo(f"{Colors.YELLOW}⚠ Warning: Plaintext secrets detected in secrets/{Colors.NC}")
+            warn("Warning: Plaintext secrets detected in secrets/")
             for secret_file in plaintext_secrets:
                 click.echo(f"  - {secret_file.name}")
             click.echo()
@@ -136,7 +128,7 @@ def commit(force):
             if sops_available:
                 if force or not click.confirm("Encrypt secrets before committing?", default=True):
                     click.echo()
-                    click.echo(f"{Colors.YELLOW}⚠{Colors.NC} Proceeding without encryption")
+                    warn("Proceeding without encryption")
                     click.echo(f"  Note: Plaintext .txt files are in .gitignore and won't be committed")
                     click.echo()
                 else:
@@ -145,13 +137,13 @@ def commit(force):
                     # Run itsup encrypt --delete
                     try:
                         subprocess.run([str(repo_root / "bin" / "itsup"), "encrypt", "--delete"], check=True)
-                        click.echo(f"{Colors.GREEN}✓{Colors.NC} Secrets encrypted and plaintext removed")
+                        ok("Secrets encrypted and plaintext removed")
                         click.echo()
                     except subprocess.CalledProcessError as e:
-                        click.echo(f"{Colors.RED}✗{Colors.NC} Failed to encrypt secrets: {e}", err=True)
+                        fail(f"Failed to encrypt secrets: {e}")
                         sys.exit(1)
             else:
-                click.echo(f"{Colors.YELLOW}⚠{Colors.NC} SOPS not installed - cannot encrypt")
+                warn("SOPS not installed - cannot encrypt")
                 click.echo("  Install with: brew install sops")
                 click.echo(f"  Note: Plaintext .txt files are in .gitignore and won't be committed")
                 click.echo()
@@ -185,20 +177,20 @@ def commit(force):
 
     if projects_dirty:
         projects_msg = "Update configuration"
-        click.echo(f"projects/ message: {Colors.YELLOW}{projects_msg}{Colors.NC}")
+        click.echo(f"projects/ message: {click.style(projects_msg, fg='yellow')}")
         if not _commit_and_push(projects_path, "projects", projects_msg, force=force):
             success = False
 
     if secrets_dirty:
         secrets_msg = "Rotate SOPS encryption key" if key_rotation else "Update secrets"
-        click.echo(f"secrets/ message: {Colors.YELLOW}{secrets_msg}{Colors.NC}")
+        click.echo(f"secrets/ message: {click.style(secrets_msg, fg='yellow')}")
         if not _commit_and_push(secrets_path, "secrets", secrets_msg, force=force):
             success = False
 
     click.echo()
 
     if success:
-        click.echo(f"{Colors.GREEN}✓{Colors.NC} All repos committed and pushed")
+        ok("All repos committed and pushed")
     else:
-        click.echo(f"{Colors.RED}✗{Colors.NC} Some commits failed", err=True)
+        fail("Some commits failed")
         sys.exit(1)

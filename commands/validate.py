@@ -2,21 +2,17 @@
 
 """Validation commands"""
 
-import logging
 import sys
 
 import click
 
-from commands.common import complete_project
+from commands.common import complete_project, guard_schema_version
 from lib.data import validate_all, validate_project
-from lib.version_check import check_schema_version
-
-logger = logging.getLogger(__name__)
 
 
 @click.command()
 @click.argument("project", required=False, shell_complete=complete_project)
-def validate(project):
+def validate(project: str | None) -> None:
     """
     ✅ Validate project configurations [PROJECT]
 
@@ -27,7 +23,7 @@ def validate(project):
         itsup validate              # Validate all projects
         itsup validate instrukt-ai  # Validate single project
     """
-    check_schema_version()
+    guard_schema_version()
 
     if project:
         # Validate single project

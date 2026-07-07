@@ -7,12 +7,13 @@ Provides transparent encryption of secrets/*.txt files using SOPS.
 """
 
 import hashlib
-import logging
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 
-logger = logging.getLogger(__name__)
+from instrukt_ai_logging import get_logger
+
+logger = get_logger(f"itsup.{__name__}")
 
 
 def is_sops_available() -> bool:
@@ -87,11 +88,11 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False
         with open(encrypted_path, "w", encoding="utf-8") as outfile:
             subprocess.run(cmd, stdout=outfile, check=True, text=True)
 
-        logger.info("✓ Encrypted %s → %s", plaintext_path.name, encrypted_path.name)
+        logger.debug("Encrypted %s → %s", plaintext_path.name, encrypted_path.name)
         return (True, True)  # Success and encrypted
 
     except subprocess.CalledProcessError as e:
-        logger.error("✗ Failed to encrypt %s: %s", plaintext_path.name, e)
+        logger.error("Failed to encrypt %s: %s", plaintext_path.name, e)
         return (False, False)
 
 
@@ -124,11 +125,11 @@ def decrypt_file(encrypted_path: Path, plaintext_path: Path) -> bool:
         with open(plaintext_path, "w", encoding="utf-8") as outfile:
             subprocess.run(cmd, stdout=outfile, check=True, text=True)
 
-        logger.info("✓ Decrypted %s → %s", encrypted_path.name, plaintext_path.name)
+        logger.debug("Decrypted %s → %s", encrypted_path.name, plaintext_path.name)
         return True
 
     except subprocess.CalledProcessError as e:
-        logger.error("✗ Failed to decrypt %s: %s", encrypted_path.name, e)
+        logger.error("Failed to decrypt %s: %s", encrypted_path.name, e)
         return False
 
 
@@ -169,7 +170,7 @@ def decrypt_to_memory(encrypted_path: Path) -> Optional[str]:
         return result.stdout
 
     except subprocess.CalledProcessError as e:
-        logger.error("✗ Failed to decrypt %s: %s", encrypted_path.name, e)
+        logger.error("Failed to decrypt %s: %s", encrypted_path.name, e)
         return None
 
 

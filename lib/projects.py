@@ -1,10 +1,11 @@
 """Project scaffolding logic for 'itsup create'."""
 
-import logging
 import re
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from instrukt_ai_logging import get_logger
+
+logger = get_logger(f"itsup.{__name__}")
 
 RESERVED_NAMES = {"dns", "proxy", "traefik", "itsup", "monitor", "api"}
 

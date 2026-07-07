@@ -2,19 +2,18 @@
 
 """Container security monitor management"""
 
-import logging
+import os
 import subprocess
 import sys
 
 import click
 
+from commands.common import fail, ok, step
 from lib.paths import root
-
-logger = logging.getLogger(__name__)
 
 
 @click.group()
-def monitor():
+def monitor() -> None:
     """
     🛡️ Container security monitor management
 
@@ -35,7 +34,7 @@ def monitor():
 @click.option("--skip-sync", is_flag=True, help="Skip initial blacklist/whitelist sync")
 @click.option("--report-only", is_flag=True, help="Detection only, no blocking")
 @click.option("--use-opensnitch", is_flag=True, help="Cross-reference with OpenSnitch database")
-def start(skip_sync, report_only, use_opensnitch):
+def start(skip_sync: bool, report_only: bool, use_opensnitch: bool) -> None:
     """
     Start container security monitor
 
@@ -48,7 +47,7 @@ def start(skip_sync, report_only, use_opensnitch):
         itsup monitor start --use-opensnitch          # With OpenSnitch integration
         itsup monitor start --skip-sync --report-only # Quick start, no blocking
     """
-    flags = []
+    flags: list[str] = []
     if skip_sync:
         flags.append("--skip-sync")
     if report_only:
@@ -57,18 +56,18 @@ def start(skip_sync, report_only, use_opensnitch):
         flags.append("--use-opensnitch")
 
     flags_str = " ".join(flags)
-    logger.info(f"Starting container security monitor{' with flags: ' + flags_str if flags else ''}...")
+    step(f"Starting container security monitor{' with flags: ' + flags_str if flags else ''}...")
 
     try:
         env = {"FLAGS": flags_str} if flags else {}
-        subprocess.run([str(root() / "bin" / "start-monitor.sh")], env={**subprocess.os.environ, **env}, check=True)
+        subprocess.run([str(root() / "bin" / "start-monitor.sh")], env={**os.environ, **env}, check=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to start monitor")
+        fail("Failed to start monitor")
         sys.exit(e.returncode)
 
 
 @monitor.command()
-def stop():
+def stop() -> None:
     """
     Stop container security monitor
 
@@ -78,22 +77,22 @@ def stop():
     Examples:
         itsup monitor stop
     """
-    logger.info("Stopping container security monitor...")
+    step("Stopping container security monitor...")
 
     try:
         subprocess.run(["sudo", "pkill", "-f", "bin/monitor.py"], check=True)
-        logger.info("Monitor stopped")
+        ok("Monitor stopped")
     except subprocess.CalledProcessError as e:
         if e.returncode == 1:
             # pkill returns 1 if no process found
-            logger.info("Monitor is not running")
+            step("Monitor is not running")
         else:
-            logger.error("Failed to stop monitor")
+            fail("Failed to stop monitor")
             sys.exit(e.returncode)
 
 
 @monitor.command()
-def logs():
+def logs() -> None:
     """
     Tail monitor logs
 
@@ -106,15 +105,15 @@ def logs():
     try:
         subprocess.run(["tail", "-f", str(root() / "logs" / "monitor.log")], check=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to tail monitor logs")
+        fail("Failed to tail monitor logs")
         sys.exit(e.returncode)
     except KeyboardInterrupt:
-        logger.info("Stopped tailing logs")
+        step("Stopped tailing logs")
         sys.exit(0)
 
 
 @monitor.command()
-def cleanup():
+def cleanup() -> None:
     """
     Review and cleanup blacklist
 
@@ -124,17 +123,17 @@ def cleanup():
     Examples:
         itsup monitor cleanup
     """
-    logger.info("Running cleanup mode...")
+    step("Running cleanup mode...")
 
     try:
         subprocess.run(["sudo", "python3", str(root() / "bin" / "monitor.py"), "--cleanup"], check=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to run cleanup")
+        fail("Failed to run cleanup")
         sys.exit(e.returncode)
 
 
 @monitor.command(name="clear-iptables")
-def clear_iptables():
+def clear_iptables() -> None:
     """
     Clear iptables rules created by monitor
 
@@ -144,17 +143,17 @@ def clear_iptables():
     Examples:
         itsup monitor clear-iptables
     """
-    logger.info("Clearing iptables rules created by monitor...")
+    step("Clearing iptables rules created by monitor...")
 
     try:
         subprocess.run(["sudo", "python3", str(root() / "bin" / "monitor.py"), "--clear-iptables"], check=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to clear iptables rules")
+        fail("Failed to clear iptables rules")
         sys.exit(e.returncode)
 
 
 @monitor.command()
-def report():
+def report() -> None:
     """
     Generate threat intelligence report
 
@@ -164,10 +163,10 @@ def report():
     Examples:
         itsup monitor report
     """
-    logger.info("Generating threat intelligence report...")
+    step("Generating threat intelligence report...")
 
     try:
         subprocess.run(["python3", str(root() / "bin" / "analyze_threats.py")], check=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to generate report")
+        fail("Failed to generate report")
         sys.exit(e.returncode)

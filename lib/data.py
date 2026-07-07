@@ -2,7 +2,6 @@
 
 import hashlib
 import ipaddress
-import logging
 import os
 import re
 from datetime import datetime
@@ -10,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from instrukt_ai_logging import get_logger
 
 try:
     import netifaces
@@ -22,7 +22,7 @@ from lib.models import BackupConfig, TraefikConfig
 from lib.paths import root
 from lib.sops import load_encrypted_env, load_env_file
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 # proxynet subnet (created by the DNS stack in dns/docker-compose.yml).
 # Static ingress IPs must lie within it and avoid the gateway/honeypot.
@@ -75,7 +75,7 @@ def load_secrets(project_name: str | None = None) -> dict[str, str]:
             env_vars = load_env_file(plaintext_file)
             logger.debug("Loaded %d secrets from %s.txt (plaintext - development only)", len(env_vars), name)
             if os.environ.get("PYTHON_ENV") == "production":
-                logger.warning("⚠ Using plaintext secrets in production: %s.txt", name)
+                logger.warning("Using plaintext secrets in production: %s.txt", name)
             return env_vars
 
         return {}

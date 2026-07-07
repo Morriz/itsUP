@@ -1,12 +1,13 @@
 """Git sync logic for 'itsup pull'."""
 
-import logging
 import subprocess
 from pathlib import Path
 
+from instrukt_ai_logging import get_logger
+
 from lib.paths import root as install_root
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 def _pull_repo(path: Path, name: str) -> bool:
@@ -30,7 +31,7 @@ def _pull_repo(path: Path, name: str) -> bool:
             capture_output=True,
             text=True,
         )
-        logger.info("%s/ updated", name)
+        logger.debug("%s/ updated", name)
         return True
     except subprocess.CalledProcessError as e:
         # Abort the rebase to leave the repo in a clean state
