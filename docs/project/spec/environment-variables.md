@@ -47,7 +47,11 @@ built by `get_env_with_secrets` at `docker compose up`.
 |------|--------------------|--------------------|--------------------|
 | `ITSUP_ROOT` | optional; falls back to repo root derived from package location | `lib/paths.py:25` | Single source of truth for the install root used by every data path; fails closed if set to a missing dir or if derivation lands outside the repo tree (`lib/paths.py:26-39`). Also consumed by `bin/install-bringup.sh:17`. |
 | `PYTHON_ENV` | optional; `api/main.py` defaults to `"development"` | `lib/data.py:76`; `api/main.py:45,154` | When `== "production"`: warns on plaintext-secret use during deploy (`lib/data.py:76-77`) and enables `proxy_headers` for the API server (`api/main.py:154`). |
+<!-- planned-change:adopt-logger-daemons -->
 | `LOG_LEVEL` | optional; default `INFO` | `lib/logging_config.py:123` | Default log level for non-CLI entrypoints (e.g. the API/library). The CLI ignores it and maps `-v`/`-vv` to DEBUG/TRACE instead (`itsup/cli.py:46-57`). |
+<!-- change:adopt-logger-daemons -->
+| `LOG_LEVEL` | optional; default `INFO` | bridged to `ITSUP_LOG_LEVEL` at `bin/monitor.py`, `bin/backup.py`, `bin/migrate_to_v2.py`, `bin/write_artifacts.py`, then read by `instrukt_ai_logging.configure_logging` | Default log level for the monitor daemon, backup, and one-shot migration/artifact scripts — each bridges its existing `LOG_LEVEL` to `ITSUP_LOG_LEVEL` before calling `configure_logging`. The CLI ignores it and maps `-v`/`-vv` to DEBUG/TRACE instead, setting `ITSUP_LOG_LEVEL` directly (`itsup/cli.py:46-62`). |
+<!-- /planned-change:adopt-logger-daemons -->
 
 Verbosity for the `itsup` CLI is a flag, not an env var: `--verbose/-v` (`count`)
 on the CLI group (`itsup/cli.py:37-57`).
