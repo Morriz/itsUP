@@ -3,9 +3,6 @@
 # manifest (pyproject.toml/uv.lock) changed.
 set -euo pipefail
 
-root="$(git rev-parse --show-toplevel)"
-cd "$root"
-
 # Find previous HEAD ref
 prev="$(git rev-parse HEAD@{1} 2>/dev/null || true)"
 if [[ -z "$prev" ]]; then
@@ -16,6 +13,17 @@ changed_deps="$(git diff --name-only "$prev"..HEAD -- 'pyproject.toml' 'uv.lock'
 if [[ -z "$changed_deps" ]]; then
   exit 0
 fi
+
+# .git/hooks is shared by every linked worktree, so this hook fires on a merge
+# in any of them — but `uv sync` binds the shared venv's editable install to
+# whatever directory it runs in. Refuse outside the canonical checkout instead
+# of silently repointing shared state at a transient worktree path.
+root="$(git rev-parse --show-toplevel)"
+export REPO_ROOT="$root"
+export GUARD_OP="uv sync (dependency manifest changed)"
+source "${root}/bin/lib/assert-canonical-checkout.sh"
+
+cd "$root"
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "dependency manifest changed, but uv not found; skipping auto-sync" >&2
