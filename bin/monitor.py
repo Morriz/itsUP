@@ -6,6 +6,7 @@ Real-time monitoring of container network activity to detect and block malicious
 
 See monitor/ package for implementation details.
 """
+
 import os
 import re
 import sqlite3
@@ -16,11 +17,13 @@ from datetime import datetime
 # Add parent directory to path for monitor package import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.logging_config import setup_logging
+from instrukt_ai_logging import configure_logging
+
 from monitor import (
     BLACKLIST_FILE,
     HONEYPOT_CONTAINER,
     LOG_FILE,
+    LOG_LEVEL,
     OPENSNITCH_DB,
     WHITELIST_FILE,
 )
@@ -29,7 +32,7 @@ from monitor.iptables import IptablesManager
 from monitor.opensnitch import OpenSnitchIntegration
 
 
-def clear_iptables_rules():
+def clear_iptables_rules() -> None:
     """
     Clear all iptables rules created by this monitor.
 
@@ -47,7 +50,7 @@ def clear_iptables_rules():
     print("ℹ️  Note: Blacklist file unchanged, only iptables rules removed")
 
 
-def cleanup_blacklist():
+def cleanup_blacklist() -> None:
     """
     Cleanup mode: Identify false positives using OpenSnitch verification.
 
@@ -74,14 +77,12 @@ def cleanup_blacklist():
             cursor = conn.cursor()
 
             # Get all ARPA reverse DNS blocks
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT DISTINCT dst_host
                 FROM connections
                 WHERE rule = '0-deny-arpa-53'
                 AND dst_host LIKE '%.in-addr.arpa'
-            """
-            )
+            """)
 
             rows = cursor.fetchall()
             conn.close()
@@ -101,7 +102,7 @@ def cleanup_blacklist():
 
     # FALLBACK: Parse DNS logs
     print("🔍 SECONDARY: Parsing DNS logs from honeypot...")
-    dns_cache = {}
+    dns_cache: dict[str, set[str]] = {}
 
     try:
         result = subprocess.run(["docker", "logs", HONEYPOT_CONTAINER], capture_output=True, text=True, timeout=30)
@@ -198,14 +199,15 @@ def cleanup_blacklist():
         print("\n✅ No false positives found!")
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     if os.geteuid() != 0:
         print("Run as root: sudo python3 bin/monitor.py")
         sys.exit(1)
 
-    # Setup logging (with file output)
-    setup_logging(log_file=LOG_FILE)
+    # Setup logging (diagnostics route to instrukt-ai/itsup/monitor.log)
+    os.environ["ITSUP_LOG_LEVEL"] = LOG_LEVEL
+    configure_logging("itsup", source="monitor")
 
     # Parse command-line flags
     skip_sync = False
@@ -248,7 +250,7 @@ def main():
         with open(LOG_FILE, "a") as f:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             f.write(f"[{ts}] Started\n")
-        print(f"✓ Log: {LOG_FILE}")
+        print(f"✓ Restart marker: {LOG_FILE} (diagnostics: instrukt-ai-logs itsup --include monitor)")
     except Exception as e:
         print(f"Failed to create log: {e}")
         sys.exit(1)

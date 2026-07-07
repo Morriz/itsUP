@@ -5,21 +5,22 @@ This module handles all OpenSnitch database queries and monitoring.
 OpenSnitch is optional - the monitor can run standalone without it.
 """
 
-import logging
 import re
 import sqlite3
 import time
 from typing import Callable, Optional
 
+from instrukt_ai_logging import get_logger
+
 from .constants import OPENSNITCH_DB
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 class OpenSnitchIntegration:
     """Handles OpenSnitch database integration for threat detection."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize OpenSnitch integration."""
         self.db_path = OPENSNITCH_DB
 
@@ -78,13 +79,11 @@ class OpenSnitchIntegration:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT DISTINCT dst_host, dst_ip
                 FROM connections
                 WHERE rule = '0-deny-arpa-53'
-            """
-            )
+            """)
             rows = cursor.fetchall()
             conn.close()
             return rows

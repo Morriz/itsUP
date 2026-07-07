@@ -23,14 +23,11 @@ CONSOLE_SCRIPT = REPO_ROOT / ".venv" / "bin" / "itsup"
 
 sys.path.insert(0, str(REPO_ROOT))
 
-from lib.host_gate import detect_lan_ip
-
 ALL_PROJECTS_VALID = "All projects valid"
 GIT_STATUS_HEADER = "Git Status"
 VERSION_LABEL = "version"
 ITSUP_ROOT_ENV = "ITSUP_ROOT"
 DECOY_PROJECT = "broken-app"
-AVAILABLE_LOG = "access"
 
 
 def _write_valid_project(projects_dir: Path, name: str, domain: str) -> None:
@@ -120,25 +117,6 @@ def test_package_derived_root_when_env_unset() -> None:
 
     assert result.returncode == 0, result.stderr
     assert VERSION_LABEL in result.stdout.lower()
-
-
-def test_logs_resolves_logs_dir_under_root(install_root: Path) -> None:
-    """itsup logs lists log files from root()/logs, not the caller's cwd."""
-    lan_ip = detect_lan_ip()
-    if lan_ip is None:
-        pytest.skip("LAN IP detection unavailable")
-
-    (install_root / ".env").write_text(f"SSH_HOST={lan_ip}\n")
-    logs_dir = install_root / "logs"
-    logs_dir.mkdir()
-    (logs_dir / f"{AVAILABLE_LOG}.log").write_text("{}\n")
-
-    # A name that does not exist exits before the blocking `tail -F`, but the
-    # "Available: …" list is read from root()/logs — empty if cwd were used.
-    result = _run(["logs", "no-such-log"], cwd="/", itsup_root=install_root)
-
-    assert result.returncode == 1
-    assert AVAILABLE_LOG in (result.stderr + result.stdout)
 
 
 def test_fails_closed_on_missing_itsup_root(tmp_path: Path) -> None:

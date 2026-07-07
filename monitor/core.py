@@ -6,7 +6,6 @@ DNS correlation, threat detection, and container security monitoring.
 """
 
 import json
-import logging
 import os
 import re
 import signal
@@ -16,6 +15,8 @@ import time
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Optional
+
+from instrukt_ai_logging import get_logger
 
 from .constants import (
     BLACKLIST_FILE,
@@ -37,7 +38,7 @@ from .iptables import IptablesManager
 from .lists import IPList
 from .opensnitch import OpenSnitchIntegration
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 class ContainerMonitor:
@@ -67,17 +68,23 @@ class ContainerMonitor:
         self._startup_complete = False
 
         # Container mapping and compromise tracking
-        self._container_ips = {}  # IP → container name mapping
-        self._reported_compromises = set()  # (container:ip) pairs already alerted on
-        self._compromise_count_by_container = defaultdict(int)  # container → alert count
-        self._compromised_ips_by_container = defaultdict(list)  # container → [IPs]
+        self._container_ips: dict[str, str] = {}  # IP → container name mapping
+        self._reported_compromises: set[str] = set()  # (container:ip) pairs already alerted on
+        self._compromise_count_by_container: defaultdict[str, int] = defaultdict(int)  # container → alert count
+        self._compromised_ips_by_container: defaultdict[str, list[str]] = defaultdict(list)  # container → [IPs]
 
         # DNS correlation cache
-        self._dns_cache = {}  # {ip: [(domain, timestamp), ...]} - forward DNS lookups
+        self._dns_cache: dict[str, list[tuple[str, datetime]]] = (
+            {}
+        )  # {ip: [(domain, timestamp), ...]} - forward DNS lookups
 
         # Direct connection tracking (journalctl monitoring)
-        self._recent_direct_connections = deque(maxlen=RECENT_CONNECTIONS_BUFFER_SIZE)
-        self._seen_direct_connections = {}  # (src_ip, dst_ip, dst_port) → timestamp - deduplication
+        self._recent_direct_connections: deque[tuple[datetime, str, str, str]] = deque(
+            maxlen=RECENT_CONNECTIONS_BUFFER_SIZE
+        )
+        self._seen_direct_connections: dict[tuple[str, str, str], datetime] = (
+            {}
+        )  # (src_ip, dst_ip, dst_port) → timestamp - deduplication
 
         # Initialize modules
         self.iptables = IptablesManager()
@@ -105,7 +112,7 @@ class ContainerMonitor:
             self._load_dns_registry()
 
         # Initialize OpenSnitch integration if enabled
-        self._opensnitch_blocked_ips = set()  # Read-only validation set
+        self._opensnitch_blocked_ips: set[str] = set()  # Read-only validation set
         if use_opensnitch:
             self.opensnitch = OpenSnitchIntegration()
         else:
@@ -708,7 +715,7 @@ class ContainerMonitor:
             logger.error(f"⚠ Error parsing DNS logs: {e}")
             return 0
 
-    def _parse_connection_logs(self, since_arg: str = "") -> set:
+    def _parse_connection_logs(self, since_arg: str = "") -> set[tuple[str, str, str]]:
         """Parse journalctl logs and extract outbound connections.
 
         Args:
@@ -784,7 +791,7 @@ class ContainerMonitor:
             logger.error(f"⚠️  Could not read last timestamp: {e}")
             return None
 
-    def _detect_hardcoded_ips(self, connections: set) -> int:
+    def _detect_hardcoded_ips(self, connections: set[tuple[str, str, str]]) -> int:
         """Correlate connections with DNS cache to detect hardcoded IPs.
 
         Args:
@@ -808,7 +815,9 @@ class ContainerMonitor:
 
             if not has_dns:
                 # NO DNS HISTORY = HARDCODED IP (or VPN)
-                if self._handle_hardcoded_ip_detection(container_name, dst_ip, dst_port, log_blacklist=False, is_historical=True):
+                if self._handle_hardcoded_ip_detection(
+                    container_name, dst_ip, dst_port, log_blacklist=False, is_historical=True
+                ):
                     hardcoded_count += 1
 
         return hardcoded_count

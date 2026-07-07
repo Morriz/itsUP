@@ -12,23 +12,25 @@ This script is idempotent - run with --force to overwrite existing files.
 """
 
 import argparse
-import logging
+import os
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import yaml
 from dotenv import dotenv_values
+from instrukt_ai_logging import configure_logging, get_logger
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lib.logging_config import setup_logging
 from lib.paths import root
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
-def extract_literal_secrets(compose: dict, project_name: str) -> dict:
+# guard: loose-dict-func - arbitrary docker-compose mapping
+def extract_literal_secrets(compose: dict[str, Any], project_name: str) -> dict[str, Any]:
     """Extract literal environment variable values (not ${VAR} references)
 
     Returns: dict of {VAR_NAME: literal_value}
@@ -64,7 +66,8 @@ def extract_literal_secrets(compose: dict, project_name: str) -> dict:
     return secrets
 
 
-def replace_literals_with_vars(compose: dict, secrets: dict) -> dict:
+# guard: loose-dict-func - arbitrary docker-compose mapping
+def replace_literals_with_vars(compose: dict[str, Any], secrets: dict[str, Any]) -> dict[str, Any]:
     """Replace literal env values with ${VAR} references
 
     Args:
@@ -107,7 +110,8 @@ def replace_literals_with_vars(compose: dict, secrets: dict) -> dict:
     return clean_compose
 
 
-def strip_traefik_labels(compose: dict) -> dict:
+# guard: loose-dict-func - arbitrary docker-compose mapping
+def strip_traefik_labels(compose: dict[str, Any]) -> dict[str, Any]:
     """Remove all Traefik labels from docker-compose services"""
     clean_compose = compose.copy()
 
@@ -122,9 +126,9 @@ def strip_traefik_labels(compose: dict) -> dict:
                 else:
                     del service_config["labels"]
             elif isinstance(labels, dict):
-                non_traefik = {k: v for k, v in labels.items() if not k.startswith("traefik.")}
-                if non_traefik:
-                    service_config["labels"] = non_traefik
+                non_traefik_dict = {k: v for k, v in labels.items() if not k.startswith("traefik.")}
+                if non_traefik_dict:
+                    service_config["labels"] = non_traefik_dict
                 else:
                     del service_config["labels"]
 
@@ -155,9 +159,10 @@ def strip_traefik_labels(compose: dict) -> dict:
     return clean_compose
 
 
-def extract_ingress_from_labels(compose: dict, project_name: str) -> dict:
+# guard: loose-dict-func - arbitrary docker-compose mapping
+def extract_ingress_from_labels(compose: dict[str, Any], project_name: str) -> dict[str, Any]:
     """Extract ingress.yml config from Traefik labels"""
-    ingress_config = {"enabled": False, "ingress": []}
+    ingress_config: dict[str, Any] = {"enabled": False, "ingress": []}
 
     for service_name, service_config in compose.get("services", {}).items():
         labels = service_config.get("labels", [])
@@ -244,7 +249,8 @@ def extract_ingress_from_labels(compose: dict, project_name: str) -> dict:
     return ingress_config
 
 
-def extract_infrastructure_secrets(db: dict) -> dict:
+# guard: loose-dict-func - arbitrary db.yml mapping
+def extract_infrastructure_secrets(db: dict[str, Any]) -> dict[str, Any]:
     """Extract infrastructure secrets from db.yml to secrets/itsup.txt format"""
     secrets = {}
 
@@ -278,9 +284,10 @@ def extract_infrastructure_secrets(db: dict) -> dict:
     return secrets
 
 
-def extract_infrastructure_config(db: dict) -> dict:
+# guard: loose-dict-func - arbitrary db.yml mapping
+def extract_infrastructure_config(db: dict[str, Any]) -> dict[str, Any]:
     """Extract infrastructure config from db.yml to projects/traefik.yml"""
-    config = {}
+    config: dict[str, Any] = {}
 
     # CrowdSec plugin config (if enabled)
     if "plugins" in db and "crowdsec" in db["plugins"]:
@@ -335,13 +342,14 @@ def write_file(path: Path, content: str, force: bool = False) -> str:
     return "overwritten" if path.exists() else "created"
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Migrate V1 (upstream/ + db.yml) to V2 (projects/ + secrets/)")
     parser.add_argument("--force", action="store_true", help="Overwrite existing files")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done without doing it")
     args = parser.parse_args()
 
-    setup_logging()
+    os.environ["ITSUP_LOG_LEVEL"] = os.getenv("LOG_LEVEL", "INFO")
+    configure_logging("itsup")
 
     # Validate prerequisites
     upstream_dir = root() / "upstream"

@@ -4,23 +4,20 @@ IP list management for Container Security Monitor.
 This module provides the IPList class for managing blacklist and whitelist files.
 Each instance manages one IP list (one file, one in-memory set).
 """
-import logging
+
 import os
 import threading
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from instrukt_ai_logging import get_logger
+
+logger = get_logger(f"itsup.{__name__}")
 
 
 class IPList:
     """Manages a single IP list (one file, one in-memory set)."""
 
-    def __init__(
-        self,
-        filepath: str,
-        file_lock: threading.Lock,
-        header_comment: str = "# IP list - one IP per line"
-    ):
+    def __init__(self, filepath: str, file_lock: threading.Lock, header_comment: str = "# IP list - one IP per line"):
         """
         Initialize IP list manager.
 

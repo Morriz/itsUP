@@ -4,26 +4,28 @@ iptables management for Container Security Monitor.
 This module handles all iptables operations for monitoring and blocking
 container network traffic.
 """
-import logging
+
 import subprocess
 
+from instrukt_ai_logging import get_logger
+
 from .constants import (
+    DOCKER_NETWORK_CIDR,
     IPTABLES_CHAIN,
     IPTABLES_LOG_PREFIX,
-    DOCKER_NETWORK_CIDR,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 
 class IptablesManager:
     """Manages iptables rules for container traffic monitoring and blocking."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize iptables manager."""
         self.rule_added = False
 
-    def _run_command(self, cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
+    def _run_command(self, cmd: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
         """
         Run iptables command.
 
@@ -216,25 +218,21 @@ class IptablesManager:
 
         # List all DROP rules with source 172.0.0.0/8 and remove them
         try:
-            result = self._run_command(
-                ["iptables", "-L", IPTABLES_CHAIN, "-n", "--line-numbers"],
-                check=False
-            )
+            result = self._run_command(["iptables", "-L", IPTABLES_CHAIN, "-n", "--line-numbers"], check=False)
 
             # Parse output and find DROP rules with source DOCKER_NETWORK_CIDR
             lines = result.stdout.strip().split("\n")
-            drop_rules = []
+            drop_rules: list[int] = []
 
             for line in lines:
                 if "DROP" in line and DOCKER_NETWORK_CIDR in line:
                     parts = line.split()
                     if parts:
-                        line_num = parts[0]
-                        drop_rules.append(int(line_num))
+                        drop_rules.append(int(parts[0]))
 
             # Remove rules in reverse order (highest line number first)
-            for line_num in sorted(drop_rules, reverse=True):
-                cmd = ["iptables", "-D", IPTABLES_CHAIN, str(line_num)]
+            for rule_line_num in sorted(drop_rules, reverse=True):
+                cmd = ["iptables", "-D", IPTABLES_CHAIN, str(rule_line_num)]
                 self._run_command(cmd, check=False)
 
             if drop_rules:

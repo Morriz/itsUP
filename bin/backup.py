@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import logging
 import os
 import subprocess
 import sys
@@ -12,6 +11,7 @@ from typing import Any
 import boto3
 import botocore.exceptions
 from botocore.client import Config
+from instrukt_ai_logging import configure_logging, get_logger
 
 # Add parent directory to path to import lib modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -25,7 +25,7 @@ from lib.data import (
 )
 from lib.paths import root
 
-logger = logging.getLogger("backup")
+logger = get_logger("itsup.backup")
 
 DB_FILE = "itsup.tar.gz"
 
@@ -187,7 +187,9 @@ def build_s3_client() -> tuple[Any, str]:
     else:
         endpoint_url = aws_s3_host
 
-    print(f"AWS S3 Configuration: Host={aws_s3_host}, Region={secrets['AWS_S3_REGION']}, Bucket={secrets['AWS_S3_BUCKET']}")
+    print(
+        f"AWS S3 Configuration: Host={aws_s3_host}, Region={secrets['AWS_S3_REGION']}, Bucket={secrets['AWS_S3_BUCKET']}"
+    )
     print(f"Endpoint URL: {endpoint_url}")
 
     s3_client = boto3.client(
@@ -249,7 +251,8 @@ def upload_to_s3() -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    os.environ.setdefault("ITSUP_LOG_LEVEL", os.getenv("LOG_LEVEL", "INFO"))
+    configure_logging("itsup", source="backup")
 
     upstream_dir = root() / "upstream"
     if not upstream_dir.is_dir():

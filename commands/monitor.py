@@ -25,7 +25,6 @@ def monitor() -> None:
         itsup monitor start               # Start with blocking
         itsup monitor start --report-only # Detection only
         itsup monitor stop                # Stop monitor
-        itsup monitor logs                # View logs
     """
     pass
 
@@ -89,27 +88,6 @@ def stop() -> None:
         else:
             fail("Failed to stop monitor")
             sys.exit(e.returncode)
-
-
-@monitor.command()
-def logs() -> None:
-    """
-    Tail monitor logs
-
-    Shows real-time monitor logs.
-
-    \b
-    Examples:
-        itsup monitor logs
-    """
-    try:
-        subprocess.run(["tail", "-f", str(root() / "logs" / "monitor.log")], check=True)
-    except subprocess.CalledProcessError as e:
-        fail("Failed to tail monitor logs")
-        sys.exit(e.returncode)
-    except KeyboardInterrupt:
-        step("Stopped tailing logs")
-        sys.exit(0)
 
 
 @monitor.command()

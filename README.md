@@ -237,7 +237,7 @@ itsup svc <project> exec web sh      # Execute commands in containers
 # Container Security Monitor
 itsup monitor start [--flags]        # Start security monitor
 itsup monitor stop                   # Stop monitor
-itsup monitor logs                   # Tail monitor logs
+instrukt-ai-logs itsup --include monitor  # Tail monitor diagnostics
 itsup monitor cleanup                # Review blacklist
 itsup monitor report                 # Generate threat report
 
@@ -380,8 +380,8 @@ itsup monitor start --report-only --use-opensnitch
 # Stop monitor
 itsup monitor stop
 
-# View logs
-itsup monitor logs
+# View diagnostics
+instrukt-ai-logs itsup --include monitor
 
 # Generate threat intelligence report
 itsup monitor report

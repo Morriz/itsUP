@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import logging
 import os
 import sys
 from io import StringIO
@@ -9,6 +8,7 @@ from typing import Any
 
 import yaml
 from dotenv import load_dotenv
+from instrukt_ai_logging import configure_logging, get_logger
 from jinja2 import Template
 from ruamel.yaml import YAML
 
@@ -27,13 +27,12 @@ from lib.data import (
     load_traefik_overrides,
     validate_all,
 )
-from lib.logging_config import setup_logging
 from lib.models import ACME_CHALLENGE_PATH_PREFIX, ProxyProtocol, TraefikConfig
 from lib.paths import root
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(f"itsup.{__name__}")
 
 # DNS honeypot for logging (used by all containers)
 DNS_HONEYPOT = "172.20.0.253"
@@ -686,7 +685,8 @@ def write_proxy_artifacts() -> None:
 
 
 if __name__ == "__main__":
-    setup_logging()
+    os.environ["ITSUP_LOG_LEVEL"] = os.getenv("LOG_LEVEL", "INFO")
+    configure_logging("itsup")
 
     # Validate all projects first
     errors = validate_all()

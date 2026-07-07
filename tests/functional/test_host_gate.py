@@ -22,7 +22,7 @@ USAGE_LABEL = "Usage:"
 BYPASS_HINTS = ("bypass", "override")
 DIAGNOSTIC_COMMAND = "run"
 INSTALL_RUNTIME_LABEL = "make install-runtime"
-EXPECTED_HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor", "logs"})
+EXPECTED_HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor"})
 EXPECTED_ANYWHERE = frozenset(
     {
         "pull",
@@ -89,7 +89,7 @@ def test_host_only_command_allows_matching_host_identity(tmp_path: Path) -> None
         pytest.skip("LAN IP detection unavailable")
 
     _write_env(tmp_path, lan_ip)
-    result = _run_itsup(["logs", "--help"], tmp_path)
+    result = _run_itsup(["monitor", "--help"], tmp_path)
 
     assert result.returncode == 0, result.stderr
     assert USAGE_LABEL in result.stdout
