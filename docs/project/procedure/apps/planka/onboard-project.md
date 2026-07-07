@@ -14,15 +14,16 @@ Stand up a new Planka project ready for use, including zero or more initial memb
 
 ## Steps
 
-1. **Create the project:** `POST /api/projects` with `{"name", "type": "shared"}`. Default to `type: "shared"` — it grants every instance admin automatic visibility into the project with **no** effect on any non-admin member's access (verified: the shared/private flag only gates the admin auto-visibility bypass in `projects/index.js`; `projectOwner`/`boardUser` see only what they're explicitly added to, regardless of type). Use `private` only if explicitly asked to keep it invisible to the other admin too.
+1. **Create the project:** `POST /api/projects` with `{"name", "type": "shared"}` (the `type` field is required to create a project at all; `"shared"` vs `"private"` is accepted by the API, but empirically does **not** grant an admin automatic visibility into the project it wasn't otherwise added to — confirmed by testing the agent account's own project listing on a `shared` project it wasn't a member of: empty, until explicitly added. Don't trust the `projects/index.js` admin-bypass code path at face value; it does not appear to produce visible results in practice on this deployment. Treat `type` as required-but-inert until this is re-verified against a newer Planka version).
 2. **Create an initial board** inside it: `POST /api/projects/{id}/boards`.
-3. **Branch: were one or more initial members named, or just the bare project?** If just the project, stop here.
-4. **For each named person, ask one clarifying question rather than assuming a role** — the human should not need to already know Planka's model:
+3. **Add the agent's own account as a board member too** (`POST /boards/{boardId}/board-memberships`, `role: "editor"`) — this is the only confirmed way the agent (or any admin) retains visibility into a project going forward. Do this even if the human didn't ask for it; without it, the agent loses access to a project it just created.
+4. **Branch: were one or more initial members named, or just the bare project?** If just the project, stop here.
+5. **For each named person, ask one clarifying question rather than assuming a role** — the human should not need to already know Planka's model:
    - Should they be able to create and own their own projects later (`projectOwner`), or only ever work inside projects set up for them (`boardUser`)? Reserve global `admin` for instance operators only (you, the agent) — never assign it to a project member by default.
    - On this specific board, do they need to edit (`editor`) or only view/comment (`viewer`)?
-5. **Check for an existing account first** (`GET /api/users`, match by email) before creating a new one — don't duplicate a person across projects.
-6. For each new account: generate a password (`openssl rand -base64 24 | tr -d '/+='` — alphanumeric only, so it's always safe to embed unescaped in the JSON record below), create via `POST /api/users` with the chosen role, then add to the board via `POST /boards/{boardId}/board-memberships` with the chosen board role.
-7. **Record all of them together** in one project-keyed secret — never one variable per person, since the project outlives whoever currently holds a seat on it:
+6. **Check for an existing account first** (`GET /api/users`, match by email) before creating a new one — don't duplicate a person across projects.
+7. For each new account: generate a password (`openssl rand -base64 24 | tr -d '/+='` — alphanumeric only, so it's always safe to embed unescaped in the JSON record below), create via `POST /api/users` with the chosen role, then add to the board via `POST /boards/{boardId}/board-memberships` with the chosen board role.
+8. **Record all of them together** in one project-keyed secret — never one variable per person, since the project outlives whoever currently holds a seat on it:
    ```
    <PROJECT_NAME>_MEMBERS='[{"username":"...","password":"...","role":"...","email":"..."}, ...]'
    ```
