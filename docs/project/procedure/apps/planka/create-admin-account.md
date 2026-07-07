@@ -28,3 +28,7 @@ Give an agent its own attributable admin account on a Planka instance, not tied 
 ## Recovery
 
 - If step 4 stalls (human hasn't completed the browser step), don't keep guessing at the `signature` algorithm — it's a client-side hash of the terms content, not a documented API contract. Wait for confirmation instead.
+
+## See Also
+
+- docs/project/procedure/apps/planka/onboard-project.md
