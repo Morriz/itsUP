@@ -1,4 +1,7 @@
 ---
+id: third-party/instruktai-python-logger/logging-api
+type: third-party
+scope: project
 description: 'instruktai-python-logger (import module instrukt_ai_logging) 0.6.1 — the configure_logging/get_logger contract, the per-source file model, XDG log paths, level env vars, and the instrukt-ai-logs viewer. Verified against source at ~/Workspace/InstruktAI/python-logger.'
 ---
 
