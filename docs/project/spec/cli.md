@@ -62,9 +62,16 @@ keyed on `ctx.invoked_subcommand` against a single host-only set — so it prece
 per-command argument parsing, and off-host even `itsup <host-only-cmd> --help` is
 refused.
 
+<!-- planned-change:adopt-logger-daemons -->
 - **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
   `proxy`, `svc`, `monitor`, `logs`. `make install-runtime` refuses off-host
   before it touches systemd/launchd (`bin/install-bringup.sh`).
+<!-- change:adopt-logger-daemons -->
+- **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
+  `proxy`, `svc`, `monitor`. `make install-runtime` refuses off-host
+  before it touches systemd/launchd (`bin/install-bringup.sh`).
+<!-- /planned-change:adopt-logger-daemons -->
+
 - **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
   `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
   `diff-secrets`, `edit-secret`, `sops-key`.
@@ -101,9 +108,17 @@ The CLI emits only these — there is no 2/3/130 contract.
 - Change detection compares the live `docker compose config` hash against the
   running container's `com.docker.compose.config-hash` label (container-label
   based), not a hash stored on disk.
+<!-- planned-change:adopt-logger-daemons -->
 - Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
   `monitor`, `logs`) are **host-only** and refuse fail-closed off-host (detected
   LAN IP ≠ `SSH_HOST`); see the host-identity gate above.
+<!-- change:adopt-logger-daemons -->
+- Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
+  `monitor`) are **host-only** and refuse fail-closed off-host (detected
+  LAN IP ≠ `SSH_HOST`); see the host-identity gate above. (`itsup logs` is
+  removed; diagnostic logs are viewed with `instrukt-ai-logs itsup`.)
+<!-- /planned-change:adopt-logger-daemons -->
+
 
 ## See Also
 
