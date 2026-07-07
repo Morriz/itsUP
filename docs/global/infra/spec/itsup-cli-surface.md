@@ -45,13 +45,8 @@ Container host only — runtime-mutating (see itsUP Host Boundary):
 - `itsup down` — stop all containers.
 - `itsup dns` / `itsup proxy` — DNS and proxy stack management.
 - `itsup svc <project> <command>` — service operations for a project.
-<!-- planned-change:adopt-logger-daemons -->
-- `itsup monitor` — container security monitor management.
-- `itsup logs` — follow log files.
-<!-- change:adopt-logger-daemons -->
 - `itsup monitor` — container security monitor management. Diagnostics are viewed via
   `instrukt-ai-logs itsup --include monitor`, not a subcommand.
-<!-- /planned-change:adopt-logger-daemons -->
 
 ## Known caveats
 
