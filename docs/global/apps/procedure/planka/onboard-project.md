@@ -47,3 +47,4 @@ Stand up a new Planka project ready for use, with the one person it's being set 
 ## See Also
 
 - ~/.teleclaude/docs/apps/procedure/planka/create-admin-account.md
+- ~/.teleclaude/docs/apps/policy/planka/board-conventions.md
