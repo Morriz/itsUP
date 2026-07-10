@@ -129,30 +129,30 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.43.44"
+version = "1.43.45"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1f/bd/4d27e9002536dcf85cf97126d4fe93cc01f3a73000f14408ec51554231ca/boto3-1.43.44.tar.gz", hash = "sha256:035d73afe3e29bf271a5b27b30476ff8eefa5ae36f6702eada8e412d5c1420aa", size = 112697, upload-time = "2026-07-09T00:38:47.382Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/c0/bcbe0a924ed89f8982a87727cd0f88a73397fa423a60df17ae76aa013514/boto3-1.43.45.tar.gz", hash = "sha256:65e0ae541a9948ac41b706d5c7165d96ebf155812562b6518b862be027ee7347", size = 112666, upload-time = "2026-07-09T19:30:06.944Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/f2/48081d32e813b14ec03495737984208f193d9a102820b25844c61c94d827/boto3-1.43.44-py3-none-any.whl", hash = "sha256:621113f7850caec7c8405a07baa26075f700f78844a7f2fdf4d1f879bd3cc3c1", size = 140029, upload-time = "2026-07-09T00:38:45.63Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/cf/0d7d1e537d301cf0d079fa4a0765c9febf0eb74d65c115cababa6368c1b3/boto3-1.43.45-py3-none-any.whl", hash = "sha256:bb076647526c491ce75cab896543afcda5b81c97d3f8e8da08a033fc1ddb7429", size = 140031, upload-time = "2026-07-09T19:30:04.87Z" },
 ]
 
 [[package]]
 name = "botocore"
-version = "1.43.44"
+version = "1.43.45"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/31/9e/ad63ae4996794be10afef4e1b2f98901947da65c6c349be9c063ee73edbf/botocore-1.43.44.tar.gz", hash = "sha256:cc2a95a53efdcf0ce34a51bca28058e72fcc3b10dd625eb1ad900c5ca3eb8bef", size = 15685774, upload-time = "2026-07-09T00:38:36.71Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/fa/fb07ee4025ec257ff7b45d40411a922c86da3a4eaa98783da74404071d99/botocore-1.43.45.tar.gz", hash = "sha256:a2da80ff3caa2873769b9a32ae5f1fb18b3571ab63a981896639955611ca01e6", size = 15689068, upload-time = "2026-07-09T19:29:55.584Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/71/05/5c5de6ed23b5e1b01e36b9e52f056dc2b09b259daf3371e4b615ad9a1d4a/botocore-1.43.44-py3-none-any.whl", hash = "sha256:6afb846fd93815133a53baf1578f1d6016ddbeda247623360379758ca2e3f338", size = 15374229, upload-time = "2026-07-09T00:38:33.716Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/a5/ac3ca5d2d42456eb497a4aafc6b1b15502b0817299ca8fc7c9bd7969c301/botocore-1.43.45-py3-none-any.whl", hash = "sha256:a04871d814124e65daf429fb99640def23b8c4d3edc6438603b31f11116d7a67", size = 15376233, upload-time = "2026-07-09T19:29:52.312Z" },
 ]
 
 [[package]]
@@ -623,11 +623,11 @@ wheels = [
 
 [[package]]
 name = "instruktai-python-logger"
-version = "0.6.2"
+version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/4c/f2/eb15ee14ed6e1b0188ffd282912acfc1dda53ae78a3a6a00b191f956fea8/instruktai_python_logger-0.6.2.tar.gz", hash = "sha256:5834f0fe0c504f7caecb31ebe71af9da42e8daf7196c7a286b09c953995487a1", size = 24943, upload-time = "2026-07-08T21:13:07.884Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/77/1324967f2eb5f84735e397bc7470e2cd56b0adb7303e185486d1627bcd15/instruktai_python_logger-0.6.3.tar.gz", hash = "sha256:4080c62df6abc98f09ec5681f94994ddfa7453611d77eabd1f04a4356f7c5c66", size = 24972, upload-time = "2026-07-09T07:26:24.876Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/68/ae367c6b7eeae5a9c037dcc09e131a81dc77a529861cc82cabe5626dbe03/instruktai_python_logger-0.6.2-py3-none-any.whl", hash = "sha256:d0d997df5d80c66f7316a4c090a613481b9feb042d671b6a81d42f5e91f808fd", size = 17003, upload-time = "2026-07-08T21:13:06.91Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/92/b8f52142ff0f8dae553cda288d7d065c28354db41075abb2e4fd28d02a00/instruktai_python_logger-0.6.3-py3-none-any.whl", hash = "sha256:420f1f67b5453b0f59e5544ebd018f25978899da7a6d21c017203331df4196f1", size = 17004, upload-time = "2026-07-09T07:26:23.889Z" },
 ]
 
 [[package]]
@@ -692,7 +692,7 @@ requires-dist = [
     { name = "boto3" },
     { name = "click" },
     { name = "fastapi" },
-    { name = "instruktai-python-logger", specifier = ">=0.6.2" },
+    { name = "instruktai-python-logger", specifier = ">=0.6.3" },
     { name = "ipwhois" },
     { name = "jinja2-cli" },
     { name = "netifaces" },
