@@ -22,7 +22,7 @@ dependencies = [
   "boto3",
   "click",
   "fastapi",
-  "instruktai-python-logger>=0.6.2",
+  "instruktai-python-logger>=0.6.3",
   "ipwhois",
   "jinja2-cli",
   "netifaces",
