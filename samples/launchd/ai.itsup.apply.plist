@@ -31,8 +31,8 @@
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>StandardOutPath</key>
-    <string>/var/log/instrukt-ai/itsup/apply.log</string>
+    <string>{{HOME}}/Library/Logs/itsup.apply.log</string>
     <key>StandardErrorPath</key>
-    <string>/var/log/instrukt-ai/itsup/apply.log</string>
+    <string>{{HOME}}/Library/Logs/itsup.apply.log</string>
 </dict>
 </plist>

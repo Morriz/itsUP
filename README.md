@@ -515,7 +515,7 @@ Application logs (API server, monitor, CLI) are queried with the InstruktAI logs
 instrukt-ai-logs -f itsup
 ```
 
-Systemd-managed units (bringup, healthcheck, backup) log to stdout/stderr, captured by the journal: `journalctl -u <service>`.
+Systemd-managed units (bringup, healthcheck, backup) log to stdout/stderr, captured by the journal: `journalctl -u <service>`. On macOS, launchd captures agent output to `~/Library/Logs/itsup.<name>.log`.
 
 #### 6. Monitor
 

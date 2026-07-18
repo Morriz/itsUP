@@ -100,8 +100,8 @@ assert_dnsmasq_absent_linux() {
 
 ensure_host_prereqs() {
   if [ "${PLATFORM}" = "linux" ]; then
-    ensure_dns_fallback_linux
     assert_dnsmasq_absent_linux
+    ensure_dns_fallback_linux
   fi
   echo ""
 }
