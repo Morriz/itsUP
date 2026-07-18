@@ -43,14 +43,6 @@ fi
 # Host-level state itsUP services depend on. Idempotent and target-adaptive:
 # every step detects whether it applies on this host and no-ops cleanly when not.
 
-LOG_DIR="/var/log/instrukt-ai/itsup"
-
-ensure_log_dir() {
-  echo "Ensuring ${LOG_DIR}..."
-  sudo mkdir -p "${LOG_DIR}"
-  sudo chown -R "${ITSUP_USER}:${ITSUP_GROUP}" "${LOG_DIR}"
-}
-
 ensure_dns_fallback_linux() {
   # Adds a public-DNS fallback so the host keeps resolving when its primary
   # local DNS (AdGuard / dnsmasq / etc.) is down. The primary stays first;
@@ -94,29 +86,22 @@ ensure_dns_fallback_linux() {
   echo "  warning: no known resolver manager (systemd-resolved/resolvconf) detected — configure a DNS fallback manually per README"
 }
 
-ensure_dnsmasq_absent_linux() {
+assert_dnsmasq_absent_linux() {
   # Host dnsmasq is unused by current architecture (honeypot lives in proxynet;
   # AdGuard owns LAN :53 when deployed). Leaving it installed = boot failure
-  # against docker0 + misleading systemctl --failed marker. apt-aware; no-op
-  # on non-Debian hosts.
-  echo "Ensuring host dnsmasq is absent..."
-  if ! command -v dpkg >/dev/null 2>&1; then
-    echo "  not a Debian-family host; skipping"
-    return
-  fi
-  if dpkg -s dnsmasq >/dev/null 2>&1; then
-    sudo apt-get -y purge dnsmasq
-    echo "  purged"
-  else
-    echo "  not installed"
+  # against docker0 + misleading systemctl --failed marker. The installer only
+  # asserts the invariant; removal is an operator action.
+  if command -v dpkg >/dev/null 2>&1 && dpkg -s dnsmasq >/dev/null 2>&1; then
+    echo "ERROR: host dnsmasq is installed; it conflicts with the itsUP DNS architecture." >&2
+    echo "Remove it first: sudo apt-get -y purge dnsmasq" >&2
+    exit 1
   fi
 }
 
 ensure_host_prereqs() {
-  ensure_log_dir
   if [ "${PLATFORM}" = "linux" ]; then
     ensure_dns_fallback_linux
-    ensure_dnsmasq_absent_linux
+    assert_dnsmasq_absent_linux
   fi
   echo ""
 }

@@ -16,7 +16,7 @@ set -euo pipefail
 # unit/agent files are removed.
 #
 # Deliberately NOT reversed (printed at the end): Docker volumes / project data,
-# host DNS fallback, the purged dnsmasq, the log dir, and shared system packages.
+# host DNS fallback, and shared system packages.
 # Decommissioning the runtime is not destroying data or host policy.
 #
 # Env overrides (match install-bringup.sh): ITSUP_USER, ITSUP_ROOT, SERVICE_DIR.
@@ -254,6 +254,6 @@ echo "  • Docker volumes / project data — acme certs, CrowdSec state, upstre
 echo "  • Shared system packages — docker, sops, age, sops-diff"
 echo "  • Repo-local .venv and git hooks (developer layer — 'rm -rf .venv' to drop)"
 if [ "${PLATFORM}" = "linux" ]; then
-  echo "  • Host DNS fallback (resolved.conf), the purged dnsmasq, and /var/log/instrukt-ai/itsup"
+  echo "  • Host DNS fallback (resolved.conf)"
 fi
 echo ""

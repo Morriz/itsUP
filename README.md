@@ -293,9 +293,8 @@ itsUP separates what you read from what it records:
   ✗ Failed to rename project
   ```
 
-- **Diagnostic logs** are for later. Detailed audit records go to a per-app logfile at
-  `$XDG_STATE_HOME/instrukt-ai/itsup/itsup.log` (falling back to
-  `~/.local/state/instrukt-ai/itsup/itsup.log`), never to the terminal. Verbosity follows the
+- **Diagnostic logs** are for later. Detailed audit records go to a per-app logfile
+  (query with `instrukt-ai-logs itsup`), never to the terminal. Verbosity follows the
   same `-v`/`-vv` flags (INFO → DEBUG → TRACE) described above.
 
 **Smart Behavior:**
@@ -441,9 +440,9 @@ make install-runtime    # only on the container host — go live
 
 **`make install`** installs the language deps via `uv sync` (creates `.venv`, installs from the committed `uv.lock`, mints the `.venv/bin/itsup` console-script, and prunes the venv to the lock), and links it onto your PATH as `~/.local/bin/itsup` so the bare `itsup` works from any directory. It never installs host integration and never starts the stack, so it is safe to run on any dev box and re-run anytime.
 
-**`make install-runtime`** turns the **container host** into a live deployment (run it after `make install`). It installs the host integration: launchd agents on macOS (`~/Library/LaunchAgents/ai.itsup.*.plist`), systemd units on Linux (`/etc/systemd/system/itsup-*.service` + timers). These invoke the absolute `<repo>/.venv/bin/itsup` with `ITSUP_ROOT` set to bring the stack up at load, plus nightly apply (03:00), nightly backup (05:00), and a 5-minute healthcheck. Linux hosts additionally get the public-DNS fallback (via systemd-resolved or resolvconf) and removal of conflicting `dnsmasq`.
+**`make install-runtime`** turns the **container host** into a live deployment (run it after `make install`). It installs the host integration: launchd agents on macOS (`~/Library/LaunchAgents/ai.itsup.*.plist`), systemd units on Linux (`/etc/systemd/system/itsup-*.service` + timers). These invoke the absolute `<repo>/.venv/bin/itsup` with `ITSUP_ROOT` set to bring the stack up at load, plus nightly apply (03:00), nightly backup (05:00), and a 5-minute healthcheck. Linux hosts additionally get the public-DNS fallback (via systemd-resolved or resolvconf); the installer refuses to proceed while a conflicting host `dnsmasq` is installed.
 
-**`make uninstall-runtime`** is the inverse: it disables the timers/agents, tears the whole stack down through the CLI's own primitives (`itsup down --clean` + `itsup monitor clear-iptables`) so no container, host process, or monitor firewall rule is left behind, then removes the host integration. It deliberately preserves Docker volumes/data, shared system packages, host DNS/dnsmasq state, and the dependency layer (`.venv`).
+**`make uninstall-runtime`** is the inverse: it disables the timers/agents, tears the whole stack down through the CLI's own primitives (`itsup down --clean` + `itsup monitor clear-iptables`) so no container, host process, or monitor firewall rule is left behind, then removes the host integration. It deliberately preserves Docker volumes/data, shared system packages, host DNS fallback state, and the dependency layer (`.venv`).
 
 After install, run the bare `itsup <cmd>` from any directory (via `~/.local/bin/itsup`); tab-completion is opt-in — `source /path/to/itsUP/bin/itsup-completion.sh` from your shell rc.
 
@@ -510,13 +509,13 @@ On Linux hosts, `make install-runtime` (via `bin/install-bringup.sh`) configures
 
 ##### Runtime logs
 
-itsUP runtime scripts write logs to `/var/log/instrukt-ai/itsup/`, following the InstruktAI fleet convention. The directory and permissions are created by `bin/install-bringup.sh` (run by `make install-runtime`). Tail across the fleet with:
+Application logs (API server, monitor, CLI) are queried with the InstruktAI logs CLI:
 
 ```bash
 instrukt-ai-logs -f itsup
 ```
 
-Systemd-managed services additionally have their stdout/stderr captured by the journal (`journalctl -u <service>`).
+Systemd-managed units (bringup, healthcheck, backup) log to stdout/stderr, captured by the journal: `journalctl -u <service>`.
 
 #### 6. Monitor
 

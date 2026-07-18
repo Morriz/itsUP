@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Logs flow to two places: systemd journal (via stdout, view with
-# `journalctl -u pi-healthcheck.service`) and the InstruktAI fleet log path
-# (view across the fleet with `instrukt-ai-logs -f itsup`). The dir is
-# created with the right perms by bin/install-bringup.sh.
+# Logs go to stdout only; systemd captures them in the journal
+# (view with `journalctl -u pi-healthcheck.service`).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-LOG=/var/log/instrukt-ai/itsup/pi-healthcheck.log
 STAMP=/run/pi-healthcheck.fail
 NOW=$(date -Is)
 HOUR=$(date +%H%M)  # HHMM for maintenance window checks
@@ -39,7 +36,7 @@ if (( conn * 100 / conn_max > MAX_CONN_PCT )); then ok=0; reasons+=("conntrack:$
 if (( root_pct > MAX_ROOT_PCT )); then ok=0; reasons+=("disk:${root_pct}%"); fi
 if ! docker ps >/dev/null 2>&1; then ok=0; reasons+=("docker_down"); fi
 
-log() { echo "$NOW $*" | tee -a "$LOG"; }
+log() { echo "$NOW $*"; }
 
 if (( ok )); then
   rm -f "$STAMP"

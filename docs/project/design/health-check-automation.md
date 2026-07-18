@@ -47,8 +47,8 @@ each layer rather than one blunt host-level hammer.
 - `itsup health` — human-facing report + exit code (0 healthy, 1 failures, 2 error).
 - Workload remediation: targeted `itsup svc <project> restart`, strike-gated.
 - Endpoint findings: **alert only** (loud log line), never a restart.
-- Logs to the existing fleet path family (`/var/log/instrukt-ai/itsup/…`) and the
-  systemd journal via the unit — the same surfaces operators already watch.
+- Logs to stdout/stderr, captured by the systemd journal via the unit — the
+  surface operators already watch.
 
 ## Invariants
 
