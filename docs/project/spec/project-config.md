@@ -9,9 +9,16 @@ description: 'The per-project declarative configuration contract — itsup-proje
 A project lives in `projects/{project}/` and is described by two files:
 
 - **`docker-compose.yml`** — a standard Compose file (services, images, volumes,
+<!-- planned-change:itsup-validate-compose-schema -->
   env with `${VAR}` placeholders). itsUP loads it as a **raw mapping**
   (`yaml.safe_load`, `lib/data.py:168`), not through a model — any valid Compose
   is accepted; itsUP only injects networks/labels/DNS at generation time. The
+<!-- change:itsup-validate-compose-schema -->
+  env with `${VAR}` placeholders). itsUP loads it as a **raw mapping**
+  (`yaml.safe_load`, `lib/data.py:168`), not through a model; the validation
+  gate enforces Compose-schema validity (see Validation rules), and itsUP only
+  injects networks/labels/DNS at generation time. The
+<!-- /planned-change:itsup-validate-compose-schema -->
   author writes only the service definitions: ingress, Traefik labels, networks,
   and DNS are declared in `itsup-project.yml` and injected downstream, never
   hand-written here. Two authoring constraints the raw-mapping load does **not**
@@ -85,6 +92,15 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
   format; target project must exist; target service must exist in that project.
 - **Model validators** (`lib/models.py`) — `passthrough` on port 80 is allowed
   only for `/.well-known/acme-challenge/`; `ipv4_address` must parse as IPv4.
+<!-- planned:itsup-validate-compose-schema -->
+- **Compose schema** — a container project's `docker-compose.yml` must pass
+  Docker Compose's own schema/semantic validation (`docker compose config`,
+  non-mutating, no containers started); a well-formed-YAML file that is not a
+  valid Compose document is rejected with the Compose error surfaced. When the
+  `docker` CLI is unavailable on the machine, the check is skipped with a logged
+  warning — validation runs anywhere, and the gate holds wherever Docker is
+  present, including the deployment host.
+<!-- /planned:itsup-validate-compose-schema -->
 
 ## Allowed values
 
