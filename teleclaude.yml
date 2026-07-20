@@ -1,7 +1,9 @@
 business:
   publishes:
-  - infra
-  - apps
+    - slug: infra
+      trigger: Deploying or changing services on an itsUP deployment — GitOps config, secrets, or container-host operations
+    - slug: apps
+      trigger: Operating an already-deployed app (Planka boards, ERPNext bench sites) at the application level
 
 # Checkpoint maintenance overlay (ProjectConfig.checkpoint).
 # Merged on top of the platform-universal base, which already covers
