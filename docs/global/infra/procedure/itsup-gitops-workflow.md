@@ -48,11 +48,13 @@ from any machine, so the container host reconciles the running stack to the new 
    from the commit; `itsup commit` refuses when un-encrypted `secrets/*.txt` remain, so a
    forgotten re-encryption fails loud instead of silently losing the edit.
 
-7. **Commit and push.** Run `itsup commit` to commit and push both repos. The container host
-   reconciles from git on its nightly apply schedule; no push-triggered webhook is currently
-   configured. The change is live once the host applies it. This is the normal completion
-   point for desired-state authoring; do not follow a successful push with a manual apply
-   merely to accelerate or observe reconciliation.
+7. **Commit and push.** Run `itsup commit` to commit and push both repos. A push to the
+   projects or secrets repo triggers a host reconcile through the shared GitHub Actions
+   workflow (`Reconcile itsUP`), with the nightly apply as the scheduled backstop; the
+   change is live once the host applies it. Verify the triggered run succeeded (`gh run
+   list` on the config repo) rather than assuming it. This is the normal completion point
+   for desired-state authoring; do not follow a successful push with a manual apply merely
+   to accelerate or observe reconciliation.
 
 ## Outputs
 
