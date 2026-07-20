@@ -30,8 +30,10 @@ from any machine, so the container host reconciles the running stack to the new 
 3. **Edit the declarative files.** Edit `itsup-project.yml` (routing) and `docker-compose.yml`
    (services) directly. Define only services in compose — itsUP injects routing, labels,
    networks, and DNS. Multi-line container logic never lives inline in compose YAML: write it
-   to a script file in the project folder, mount it read-only into the service, and invoke
-   it — inline `command` strings are for one-liners only.
+   as an executable script under the project's `files/` directory, mount it read-only
+   (`./files/<name>.sh`), and invoke it — inline `command` strings are for one-liners only.
+   Artifact generation mirrors `files/` into the generated upstream stack, so deployable
+   payload belongs there and nowhere else.
 
 4. **Edit secrets non-interactively.** To change a secret, `itsup decrypt <name>` writes the
    plaintext `secrets/<name>.txt` and prints its path (usable from any working directory); edit

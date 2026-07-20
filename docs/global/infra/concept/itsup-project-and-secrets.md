@@ -13,6 +13,11 @@ for the project, holding a small, predictable set of files.
 - **`docker-compose.yml`** — the service definition(s) as raw Docker Compose. It defines only
   the services; itsUP injects routing, Traefik labels, networks, and DNS when it generates the
   deployable stack.
+- **`files/`** — deployable auxiliary payload the services mount: scripts, declarative data
+  files, and similar. Compose references them as `./files/<name>`; artifact generation mirrors
+  `projects/<project>/files/` into the generated upstream stack (preserving executable modes),
+  so the deployed artifact is self-contained. Multi-line container logic lives here as
+  executable `.sh` files, never inline in compose YAML.
 - **Optional bind-mount directories** (e.g. `config/`, `certs/`) — project-specific files the
   services mount. Service state is bind-mounted, never kept in named volumes.
 
