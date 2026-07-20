@@ -23,13 +23,15 @@ from any machine, so the container host reconciles the running stack to the new 
    reports it for manual resolution.
 
 2. **Create or locate the project.** For a new project, `itsup create <name>` scaffolds its
-   files and prints their paths. For an existing project, `itsup list-projects` lists the
-   configured project names and `itsup list-project-files <name>` prints that project's files as
-   paths usable from any working directory — edit those.
+   files and prints their paths. For an existing project, `itsup projects` lists the
+   configured project names and `itsup projects <name>` prints that project's files as paths
+   usable from any working directory — edit those.
 
 3. **Edit the declarative files.** Edit `itsup-project.yml` (routing) and `docker-compose.yml`
    (services) directly. Define only services in compose — itsUP injects routing, labels,
-   networks, and DNS.
+   networks, and DNS. Multi-line container logic never lives inline in compose YAML: write it
+   to a script file in the project folder, mount it read-only into the service, and invoke
+   it — inline `command` strings are for one-liners only.
 
 4. **Edit secrets non-interactively.** To change a secret, `itsup decrypt <name>` writes the
    plaintext `secrets/<name>.txt` and prints its path (usable from any working directory); edit
@@ -47,10 +49,10 @@ from any machine, so the container host reconciles the running stack to the new 
    forgotten re-encryption fails loud instead of silently losing the edit.
 
 7. **Commit and push.** Run `itsup commit` to commit and push both repos. The container host
-   reconciles from git (on its own schedule or via its reconcile webhook); the change is live
-   once the host applies it. This is the normal completion point for desired-state authoring;
-   do not follow a successful push with a manual apply merely to accelerate or observe
-   reconciliation.
+   reconciles from git on its nightly apply schedule; no push-triggered webhook is currently
+   configured. The change is live once the host applies it. This is the normal completion
+   point for desired-state authoring; do not follow a successful push with a manual apply
+   merely to accelerate or observe reconciliation.
 
 ## Outputs
 
