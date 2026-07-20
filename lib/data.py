@@ -4,6 +4,7 @@ import hashlib
 import ipaddress
 import os
 import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,9 @@ logger = get_logger(f"itsup.{__name__}")
 # Static ingress IPs must lie within it and avoid the gateway/honeypot.
 PROXYNET_SUBNET = "172.20.0.0/16"
 PROXYNET_RESERVED_IPS = {"172.20.0.1", "172.20.0.253"}
+
+COMPOSE_SCHEMA_CHECK_TIMEOUT = 30
+COMPOSE_SCHEMA_FAILURE_PREFIX = "docker compose schema validation failed"
 
 # === V2 API Functions (for projects/ structure) ===
 
@@ -371,14 +375,54 @@ def _validate_egress_targets(traefik: TraefikConfig) -> list[str]:
     return errors
 
 
+def _validate_compose_schema(project_name: str) -> list[str]:
+    """Validate docker-compose.yml against Docker Compose's own schema.
+
+    Keyed on file presence (the container-project discriminator), not on
+    parsed-content truthiness, so an empty or comments-only file is still
+    schema-checked. Docker ships no supported Python-native Compose schema
+    validator, so this shells out to the exact binary that would otherwise
+    reject the file first at deploy time.
+    """
+    compose_file = root() / "projects" / project_name / "docker-compose.yml"
+    if not compose_file.exists():
+        return []
+
+    try:
+        # --no-interpolate decouples the schema verdict from decrypted secrets,
+        # so validation stays runs-anywhere: a valid `${VAR:?required}` file
+        # cannot false-fail on a machine without decryption keys.
+        result = subprocess.run(
+            ["docker", "compose", "-f", str(compose_file), "config", "--no-interpolate", "--quiet"],
+            capture_output=True,
+            text=True,
+            timeout=COMPOSE_SCHEMA_CHECK_TIMEOUT,
+            check=False,
+        )
+    except FileNotFoundError:
+        # itsup validate is contractually runs-anywhere, including docker-less
+        # GitOps machines; degrade to a logged skip rather than failing closed,
+        # while the gate still holds wherever docker is present.
+        logger.warning("docker CLI not found; skipped Compose schema validation for '%s'", project_name)
+        return []
+    except subprocess.TimeoutExpired:
+        return [f"docker compose schema validation timed out for '{project_name}'"]
+
+    if result.returncode != 0:
+        return [f"{COMPOSE_SCHEMA_FAILURE_PREFIX}: {result.stderr.strip()}"]
+
+    return []
+
+
 def validate_project(project_name: str) -> list[str]:
     """Validate project configuration, return list of errors"""
-    errors = []
+    errors = _validate_compose_schema(project_name)
 
     try:
         compose, traefik = load_project(project_name)
     except Exception as e:
-        return [str(e)]
+        errors.append(str(e))
+        return errors
 
     # Skip service validation for external host passthroughs (no compose)
     if not compose:

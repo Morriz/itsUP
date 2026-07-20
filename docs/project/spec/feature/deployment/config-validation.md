@@ -1,10 +1,8 @@
 ---
 description: Acceptance scenarios for itsUP's pre-deploy configuration validation
   — the fail-closed gate that rejects project configuration Docker Compose itself
-  would refuse, before invalid desired state is committed or reaches the
-  deployment host.
-delivered_by:
-  - itsup-validate-compose-schema
+  would refuse, before invalid desired state is committed or reaches the deployment
+  host.
 ---
 
 # Config Validation — Spec
