@@ -46,8 +46,8 @@ project-specific shape:
 4. **Add the admin bootstrap password to the ERPNext secret set**: `itsup decrypt erpnext`,
    add the site-specific variable, `itsup encrypt erpnext --delete`. Desired-state files
    contain only the variable reference; the password value never lands in chat or logs.
-5. **`itsup validate`, then `itsup commit`.** The container host reconciles; the create-site
-   service re-runs idempotently and creates only missing sites.
+5. **`itsup validate`, then `itsup commit`.** The container host reconciles;
+   `erpnext-create-sites` re-runs idempotently and creates only missing sites.
 6. **Verify** the site answers at its FQDN (`/api/method/ping` and the login page) before
    handing it to any operating procedure.
 
