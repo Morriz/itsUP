@@ -14,6 +14,10 @@ Environment=ITSUP_ROOT={{ROOT}}
 # Start core infra then deploy all projects (apply may take time for pulls).
 # Type=oneshot runs ExecStartPost only after ExecStart succeeds — the systemd-native
 # form of the old `run && apply` (systemd does not interpret `&&`).
+# network-online.target can fire before a default route exists (observed on
+# Raspberry Pi OS), and the host-identity gate needs the default-route source
+# IP to match SSH_HOST — wait for the route (bounded) before starting.
+ExecStartPre=/bin/sh -c 'i=0; until ip route | grep -q ^default; do i=$((i+1)); [ $i -ge 60 ] && echo "no default route after 120s" >&2 && exit 1; sleep 2; done'
 ExecStart={{ROOT}}/.venv/bin/itsup run
 ExecStartPost={{ROOT}}/.venv/bin/itsup apply
 # On shutdown, stop containers in dependency order but DO NOT remove them —

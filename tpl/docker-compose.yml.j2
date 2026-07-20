@@ -12,6 +12,10 @@ services:
       - '-allowfrom=127.0.0.1'
       - '-listenip=0.0.0.0'
       - '-allowGET=/v1\..{1,2}/(version|containers/.*|events.*)'
+      # Traefik >= v3.6 probes the Docker API version with HEAD /_ping before
+      # any other call (traefik/traefik#12256); without this the docker
+      # provider never initializes and the proxy logs blocked-request warnings.
+      - '-allowHEAD=/_ping'
       - '-shutdowngracetime=5'
       - '-watchdoginterval=600'
       - '-stoponwatchdog'
