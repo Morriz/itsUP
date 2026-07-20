@@ -28,7 +28,7 @@ __pycache__
 **/index.yaml
 # Inflated per-domain baselines generated beside their source manifest and
 # exposed via the whole-tree docs symlink at ~/.teleclaude/docs/<domain>/.
-docs/global/*/domain-baseline.md
+docs/global/*/domain-baseline-bundle.md
 
 # Generated tool output (never tracked)
 graphify-out/
