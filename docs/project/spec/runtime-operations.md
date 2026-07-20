@@ -23,6 +23,24 @@ and the upstream tools' own docs.
 
 ## Canonical fields
 
+### Operator intervention
+
+- Normal desired-state delivery is GitOps reconciliation. A manual apply is not a routine
+  continuation of a successful commit.
+- A failed reconciliation opens an operational investigation: establish the failure from
+  pipeline or host evidence, inspect read-only state first, then address the verified cause.
+- `itsup apply <project>` is an available targeted recovery when automated reconciliation did
+  not bring the committed desired state live. It is not used pre-emptively.
+- Runtime mutation stays proportional: one project before the fleet, one service before a
+  stack, and no restart merely because a health status is red. Determine whether the service,
+  its dependency, or its healthcheck is actually defective.
+- Broad-blast-radius actions against shared proxy, DNS, database, Docker daemon, or the host
+  are not exploratory troubleshooting. After the cause is evidenced, they require explicit
+  human ratification unless an already-defined automatic recovery operation owns the action.
+- When manual mutation is required beyond normal GitOps reconciliation, record the failure,
+  intervention, and outcome. File a bug when the evidence exposes a platform defect or missing
+  recovery behavior.
+
 The triggers and frequencies below are read from the installed units/timers and
 the scripts they invoke; if a unit is edited, this table drifts (see Known
 caveats).

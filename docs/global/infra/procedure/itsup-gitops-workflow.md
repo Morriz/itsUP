@@ -68,7 +68,9 @@ from any machine, so the container host reconciles the running stack to the new 
 
 7. **Commit and push.** Run `itsup commit` to commit and push both repos. The container host
    reconciles from git (on its own schedule or via its reconcile webhook); the change is live
-   once the host applies it.
+   once the host applies it. This is the normal completion point for desired-state authoring;
+   do not follow a successful push with a manual apply merely to accelerate or observe
+   reconciliation.
 
 ## Outputs
 
@@ -84,3 +86,18 @@ from any machine, so the container host reconciles the running stack to the new 
   refuses to apply it.
 - **A secret edit did not take effect after deploy:** confirm the plaintext was re-encrypted
   (`itsup encrypt <name> --delete`) before the commit — an unencrypted edit is not committed.
+- **Automated reconciliation failed:** inspect the pipeline and host evidence before mutating
+  runtime state. A targeted `itsup apply <project>` on the container host may recover the
+  committed desired state when reconciliation has actually failed; it is not the routine next
+  step after a push.
+- **Recovery required manual mutation:** record the failed reconciliation, the intervention,
+  and its outcome. Report a bug when the intervention reveals a platform defect or missing
+  recovery behavior; read-only troubleshooting alone is not a bug signal.
+
+## Discipline
+
+GitOps is the normal deployment path, while live operations remain available for diagnosis and
+recovery. Do not confuse a reachable host with a reason to intervene, and do not confuse a
+delayed reconciliation with a failed one. Once failure is evidenced, diagnose first and use the
+narrowest action that addresses the verified cause. Manual mutation beyond the normal GitOps
+path is exceptional evidence that may belong in a bug report.
