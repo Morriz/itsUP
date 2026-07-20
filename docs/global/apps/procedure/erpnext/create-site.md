@@ -21,7 +21,8 @@ its own site with its own database on the bench's shared MariaDB service
   encrypted secrets.
 - The site FQDN is chosen under a zone the fleet already serves — DNS for
   `*.erpnext.instrukt.ai` resolves to the fleet via a wildcard A record, so per-site DNS
-  needs no separate action; routing still requires the per-site ingress entry below.
+  needs no separate action. TLS uses one exact-domain certificate whose SAN list contains
+  every configured site; the HTTP-01 resolver does not issue wildcard certificates.
 - An explicit human or procedure-level request names the tenant; site creation allocates a
   database and is not a casual operation.
 
@@ -32,21 +33,21 @@ project-specific shape:
 
 1. **`itsup pull`**, then locate the ERPNext desired-state files with
    `itsup projects erpnext`.
-2. **Add one site entry to the compose file.** Each site is a service entry based on the
-   shared create-site template. Set its `SITE_NAME` to the full FQDN and bind
-   `ADMIN_PASSWORD` to a secret variable used only by that site. Add the service to the
-   `erpnext-sites-ready` dependency list. The shared template runs guarded, idempotent
-   `bench new-site --install-app erpnext "$SITE_NAME"` and skips a site whose directory
-   already exists, then sets `host_name` to its HTTPS FQDN. Do not extend or duplicate the
-   shared command. The frontend needs no per-site change: it resolves sites from the Host
-   header (`FRAPPE_SITE_NAME_HEADER=$$host`).
-3. **Add the ingress entry** in `itsup-project.yml`: route the new FQDN to the
-   `erpnext-frontend` service on port 8080.
+2. **Add the site to the provisioning file.** Append its FQDN and dedicated
+   admin-password variable name to `sites.json`, then expose that variable to the existing
+   `erpnext-create-sites` service. The single service reads every entry and runs guarded,
+   idempotent `bench new-site --install-app erpnext "$SITE_NAME"` for sites whose directory
+   does not exist, then sets each site's `host_name` to its HTTPS FQDN.
+3. **Add the FQDN to the ingress certificate.** The ERPNext project has one HTTP ingress
+   row for `erpnext-frontend`. Keep its first site as `tls.main` and add every other site
+   under `tls.sans`. itsUP renders one router with a combined exact-domain Host rule, one
+   backend service, and one certificate covering those names. The frontend resolves the
+   selected site from the Host header (`FRAPPE_SITE_NAME_HEADER=$$host`).
 4. **Add the admin bootstrap password to the ERPNext secret set**: `itsup decrypt erpnext`,
    add the site-specific variable, `itsup encrypt erpnext --delete`. Desired-state files
    contain only the variable reference; the password value never lands in chat or logs.
 5. **`itsup validate`, then `itsup commit`.** The container host reconciles; the create-site
-   step re-runs idempotently and creates only the new site.
+   service re-runs idempotently and creates only missing sites.
 6. **Verify** the site answers at its FQDN (`/api/method/ping` and the login page) before
    handing it to any operating procedure.
 
@@ -59,7 +60,7 @@ project-specific shape:
 ## Recovery
 
 - **Reconciliation did not create the site:** follow the itsUP GitOps workflow's recovery
-  guidance (inspect pipeline and host evidence first); the create-site container's logs name
+  guidance (inspect pipeline and host evidence first); the create-sites container's logs name
   the failing `bench new-site` step.
 - **The FQDN routes but ERPNext serves the wrong site:** the Host header does not match a
   site directory name — confirm the ingress domain and the site name are identical strings.
@@ -68,10 +69,11 @@ project-specific shape:
 
 ## Discipline
 
-Which sites exist is itsUP desired state and nothing else's — no parallel source keeps a
-site list. One admin-password secret per site, never shared across tenants. Site creation is
-complete only when the FQDN verifiably answers; handing an unverified site to business
-onboarding wastes the next agent's session on infra diagnosis.
+Which sites exist is itsUP desired state and nothing else's. One provisioning service applies
+the declared site file; do not create a service or ingress row per tenant. One admin-password
+secret per site is never shared across tenants. Site creation is complete only when the FQDN
+verifiably answers; handing an unverified site to business onboarding wastes the next agent's
+session on infra diagnosis.
 
 ## See Also
 

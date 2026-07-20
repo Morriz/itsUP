@@ -22,11 +22,12 @@ the host.
 ## Steps
 
 1. **Remove the site from desired state** via the itsUP GitOps workflow
-   (`infra/procedure/itsup-gitops-workflow`): remove the site's create service, remove it
-   from the `erpnext-sites-ready` dependency list, remove its ingress entry, and remove its
-   dedicated admin-password variable from the ERPNext secret set. Then run `itsup validate`
-   and `itsup commit`. Doing this first prevents the reconciler from recreating the site
-   after the drop.
+   (`infra/procedure/itsup-gitops-workflow`): remove its entry from `sites.json`, remove its
+   admin-password passthrough from `erpnext-create-sites`, remove its exact domain from the
+   ingress certificate, and remove its dedicated variable from the ERPNext secret set. If
+   the removed site is `tls.main`, promote an existing SAN before removing it. Then run
+   `itsup validate` and `itsup commit`. Doing this first prevents the reconciler from
+   recreating the site after the drop.
 2. **Drop the site on the host.** Inside the bench container: `bench drop-site <fqdn>
    --db-root-password <root>` (root credentials come from the ERPNext secret set). This
    removes the site's database and site directory.
