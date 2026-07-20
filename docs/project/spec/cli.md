@@ -93,9 +93,9 @@ place. (`itsup/cli.py`, `lib/host_gate.py`)
 - `itsup projects` prints the configured project names, one per line, to
   stdout — the discovery entry point before listing or editing a project's
   files. `itsup projects <name>` prints the files that constitute the project:
-  the files in `projects/<name>/` plus the project's
-  `secrets/<name>.{enc.txt|txt}` when present, one per line. An unknown name
-  exits 1. Both forms are read-only and sit on the anywhere-allowed side of
+  every regular file recursively below `projects/<name>/`, deterministically
+  sorted, plus the project's `secrets/<name>.{enc.txt|txt}` when present, one
+  per line. An unknown name exits 1. Both forms are read-only and sit on the anywhere-allowed side of
   the host gate.
 - Every file location the CLI reports is usable from the caller's cwd: printed
   absolute when the process cwd is not the install root, and may stay relative
