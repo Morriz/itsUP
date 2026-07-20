@@ -29,8 +29,9 @@ VALID = "valid"
 
 @pytest.fixture(autouse=True)
 def _itsup_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Resolve itsUP's install root to the per-test fixture tree."""
+    """Resolve itsUP's install root to a tree that satisfies the real schema-version check."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
+    (tmp_path / "pyproject.toml").write_text('[project]\nversion = "1.0.0"\n')
 
 
 def test_validate_all_projects_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

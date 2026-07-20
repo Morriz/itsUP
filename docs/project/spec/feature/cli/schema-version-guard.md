@@ -1,10 +1,7 @@
 ---
 description: Acceptance scenario for the CLI schema-version guard at the validate
   boundary — a config-reading command resolves its version files under the install
-  root and refuses to run when the config schema is older than the running app
-  version.
-delivered_by:
-  - fix-tests-functional-commands-test-validate
+  root and refuses to run when the config schema is older than the running app version.
 ---
 
 # Schema Version Guard — Spec

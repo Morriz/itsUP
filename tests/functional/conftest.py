@@ -53,20 +53,6 @@ def real_git_binary(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-@pytest.fixture(autouse=True)
-def neutralize_schema_check(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make the schema-version guard a no-op for command tests.
-
-    Config-reading commands call check_schema_version() at startup, which compares the
-    app version against the fixture config's schema version. These tests exercise command
-    behavior, not version compatibility (covered in lib/migrations_test.py), so equalize
-    the two versions. check_schema_version imports these lazily, so patching here covers
-    every command without per-module patches.
-    """
-    monkeypatch.setattr("lib.migrations.get_app_version", lambda: "0.0.0")
-    monkeypatch.setattr("lib.migrations.get_schema_version", lambda: "0.0.0")
-
-
 @pytest.fixture(scope="session")
 def real_age_key(tmp_path_factory: pytest.TempPathFactory) -> AgeKeyInfo:
     """Generate REAL age encryption key for tests.
