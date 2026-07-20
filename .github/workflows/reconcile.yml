@@ -35,7 +35,14 @@ jobs:
           ca: '${{ secrets.OVPN_CA }}'
           cert: '${{ secrets.OVPN_CERT }}'
           client_key: '${{ secrets.OVPN_USER_KEY }}'
+          # Only consulted for callers whose client key is encrypted (itsUP's
+          # own); the action skips askpass entirely when the secret is empty.
+          client_pass: '${{ secrets.OVPN_USER_PASS }}'
           tls_auth_key: '${{ secrets.OVPN_TLS_AUTH_KEY }}'
+
+      - name: Dump OpenVPN log on failure
+        if: failure()
+        run: sudo cat openvpn.log
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
