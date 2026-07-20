@@ -19,7 +19,9 @@ its own site with its own database on the bench's shared MariaDB service
 
 - The `itsup` CLI is installed and on PATH, with access to the `projects/` and `secrets/`
   repos.
-- The site FQDN is chosen and routable to the fleet (e.g. `<tenant>.erpnext.instrukt.ai`).
+- The site FQDN is chosen under a zone the fleet already serves — DNS for
+  `*.erpnext.instrukt.ai` resolves to the fleet via a wildcard A record, so per-site DNS
+  needs no separate action; routing still requires the per-site ingress entry below.
 - An explicit human or procedure-level request names the tenant; site creation allocates a
   database and is not a casual operation.
 
