@@ -43,8 +43,8 @@ project-specific shape:
 3. **Add the ingress entry** in `itsup-project.yml`: route the new FQDN to the
    `erpnext-frontend` service on port 8080.
 4. **Add the admin bootstrap password to the ERPNext secret set**: `itsup decrypt erpnext`,
-   add the site-specific variable, `itsup encrypt erpnext --delete`. The password never
-   lands in compose files, argv, chat, or logs.
+   add the site-specific variable, `itsup encrypt erpnext --delete`. Desired-state files
+   contain only the variable reference; the password value never lands in chat or logs.
 5. **`itsup validate`, then `itsup commit`.** The container host reconciles; the create-site
    step re-runs idempotently and creates only the new site.
 6. **Verify** the site answers at its FQDN (`/api/method/ping` and the login page) before
