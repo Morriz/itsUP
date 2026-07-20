@@ -66,9 +66,15 @@ refused.
   `proxy`, `svc`, `monitor`. `make install-runtime` refuses off-host
   before it touches systemd/launchd (`bin/install-bringup.sh`).
 
+<!-- planned-change:itsup-agent-authoring-surface -->
 - **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
   `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
   `diff-secrets`, `edit-secret`, `sops-key`.
+<!-- change:itsup-agent-authoring-surface -->
+- **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
+  `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
+  `diff-secrets`, `edit-secret`, `sops-key`, `projects`.
+<!-- /planned-change:itsup-agent-authoring-surface -->
 
 The gate is not self-grantable: there is no bypass flag or override env var, and
 the refusal message advertises no escape hatch. The allow/deny split lives in one
@@ -80,6 +86,33 @@ place. (`itsup/cli.py`, `lib/host_gate.py`)
   secrets for a project deploy; `itsup` infra secrets otherwise) — they are never
   merged — and prefers `*.enc.txt` over `*.txt`. Full contract:
   `project/spec/secrets-management`. (`lib/data.py:34`)
+
+<!-- planned:itsup-agent-authoring-surface -->
+### Discovery & authoring (agent GitOps)
+
+- `itsup projects` prints the configured project names, one per line, to
+  stdout — the discovery entry point before listing or editing a project's
+  files. `itsup projects <name>` prints the files that constitute the project:
+  the files in `projects/<name>/` plus the project's
+  `secrets/<name>.{enc.txt|txt}` when present, one per line. An unknown name
+  exits 1. Both forms are read-only and sit on the anywhere-allowed side of
+  the host gate.
+- Every file location the CLI reports is usable from the caller's cwd: printed
+  absolute when the process cwd is not the install root, and may stay relative
+  when it is (`commands/common.py`). This includes `decrypt`, which reports
+  each plaintext file it writes.
+- `commit` is non-interactive: plaintext `secrets/*.txt` files present at
+  commit time are encrypted in-process (plaintext deleted on success) before
+  committing; when SOPS is unavailable while plaintext exists, `commit` fails
+  with exit 1 instead of committing — a plaintext edit is never silently
+  dropped by the `secrets/` gitignore. `--force` only skips the rebase and
+  force-pushes; it never skips encryption.
+- `edit-secret` is interactive and human-only: without a TTY on stdin it
+  refuses (exit 1) and prints the non-interactive round-trip
+  (`decrypt` → edit → `encrypt --delete` → `commit`).
+- The intended agent workflow is discoverable from the CLI itself: the group
+  help names the GitOps flow (pull before editing; re-encrypt before commit).
+<!-- /planned:itsup-agent-authoring-surface -->
 
 ## Allowed values
 
