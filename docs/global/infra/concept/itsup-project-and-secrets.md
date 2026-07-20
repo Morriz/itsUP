@@ -15,9 +15,10 @@ for the project, holding a small, predictable set of files.
   deployable stack.
 - **`files/`** — deployable auxiliary payload the services mount: scripts, declarative data
   files, and similar. Compose references them as `./files/<name>`; artifact generation mirrors
-  `projects/<project>/files/` into the generated upstream stack (preserving executable modes),
-  so the deployed artifact is self-contained. Multi-line container logic lives here as
-  executable `.sh` files, never inline in compose YAML.
+  `projects/<project>/files/` into the generated upstream stack, so the deployed artifact is
+  self-contained. Multi-line container logic lives here as `.sh` source files invoked
+  explicitly through the container's interpreter — readable (`0644`), never marked
+  executable, and never inline in compose YAML.
 - **Optional bind-mount directories** (e.g. `config/`, `certs/`) — project-specific files the
   services mount. Service state is bind-mounted, never kept in named volumes.
 
