@@ -93,11 +93,15 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
 - **Model validators** (`lib/models.py`) — `passthrough` on port 80 is allowed
   only for `/.well-known/acme-challenge/`; `ipv4_address` must parse as IPv4.
 <!-- planned:itsup-validate-compose-schema -->
-- **Compose schema** — a container project's `docker-compose.yml` must pass
-  Docker Compose's own schema/semantic validation (`docker compose config`,
+- **Compose schema** — a container project's `docker-compose.yml` (decided by
+  file presence, the project-type discriminator) must pass Docker Compose's own
+  schema/semantic validation (`docker compose config --no-interpolate`,
   non-mutating, no containers started); a well-formed-YAML file that is not a
-  valid Compose document is rejected with the Compose error surfaced. When the
-  `docker` CLI is unavailable on the machine, the check is skipped with a logged
+  valid Compose document is rejected with the Compose error surfaced. The check
+  is interpolation-independent: it never loads project secrets and its verdict
+  is identical on machines without decryption keys — `${VAR}` values, including
+  required-variable syntax, do not affect schema validity. When the `docker`
+  CLI is unavailable on the machine, the check is skipped with a logged
   warning — validation runs anywhere, and the gate holds wherever Docker is
   present, including the deployment host.
 <!-- /planned:itsup-validate-compose-schema -->
