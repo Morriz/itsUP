@@ -1,6 +1,6 @@
 ---
 description: Single entry point for operating any already-deployed app — recognize the app, pull whatever knowledge exists for it, then act or ask.
-activation_trigger: Asked to perform any administrative, configuration, maintenance, troubleshooting, or upgrade task on a specific application already running in the fleet — user/access management, backup or restore, diagnosing a failure, applying a version change, provisioning or removing a tenant/site/project inside the running app (e.g. an ERPNext site, a Planka project), or any other operational task against a live instance. Not while first deploying a new app.
+activation_trigger: Asked to perform any administrative, configuration, maintenance, troubleshooting, or upgrade task on a specific application already running in the fleet — user/access management, diagnosing a failure, applying a version change, provisioning or removing a tenant/site/project inside the running app (e.g. an ERPNext site, a Planka project), or any other operational task against a live instance. Not while first deploying a new app.
 ---
 # Operate A Deployed App — Procedure
 

@@ -4,6 +4,10 @@ description: Add a tenant site to the itsUP-operated ERPNext bench — desired-s
 
 # Create An ERPNext Site — Procedure
 
+## Required reads
+
+- @~/.teleclaude/docs/infra/procedure/itsup-gitops-workflow.md
+
 ## Goal
 
 A new Frappe site exists on the ERPNext bench, answers at its FQDN, and its administrator
