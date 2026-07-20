@@ -8,12 +8,38 @@ NO MOCKING.
 import os
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 
 import pytest
 
+AGE_PUBLIC_KEY_PREFIX = "Public key: "
+
+
+class AgeKeyInfo(TypedDict):
+    private_key_file: Path
+    public_key: str
+
+
+class EncryptedFileInfo(TypedDict):
+    file: Path
+    plaintext: str
+    age_key: AgeKeyInfo
+
+
+class SecretsRepoInfo(TypedDict):
+    dir: Path
+    committed_file: Path
+    plaintext: str
+    age_key: AgeKeyInfo
+
+
+class ItsupRepoInfo(TypedDict):
+    root: Path
+    secrets: SecretsRepoInfo
+
 
 @pytest.fixture(autouse=True)
-def real_git_binary(monkeypatch):
+def real_git_binary(monkeypatch: pytest.MonkeyPatch) -> None:
     """Strip the teleclaude commit-governance wrapper from PATH.
 
     Functional fixtures build throwaway /tmp git repos with real git (init/add/commit).
@@ -28,7 +54,7 @@ def real_git_binary(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def neutralize_schema_check(monkeypatch):
+def neutralize_schema_check(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make the schema-version guard a no-op for command tests.
 
     Config-reading commands call check_schema_version() at startup, which compares the
@@ -42,7 +68,7 @@ def neutralize_schema_check(monkeypatch):
 
 
 @pytest.fixture(scope="session")
-def real_age_key(tmp_path_factory):
+def real_age_key(tmp_path_factory: pytest.TempPathFactory) -> AgeKeyInfo:
     """Generate REAL age encryption key for tests.
 
     Returns:
@@ -65,8 +91,8 @@ def real_age_key(tmp_path_factory):
     # Extract public key from stderr (format: "Public key: age1...")
     public_key = None
     for line in result.stderr.splitlines():
-        if line.startswith("Public key:"):
-            public_key = line.split(": ", 1)[1].strip()
+        if line.startswith(AGE_PUBLIC_KEY_PREFIX):
+            public_key = line[len(AGE_PUBLIC_KEY_PREFIX) :].strip()
             break
 
     assert public_key, f"Failed to generate age key. Output: {result.stderr}"
@@ -75,7 +101,7 @@ def real_age_key(tmp_path_factory):
 
 
 @pytest.fixture
-def sops_config_dir(tmp_path, real_age_key):
+def sops_config_dir(tmp_path: Path, real_age_key: AgeKeyInfo) -> Path:
     """Create directory with .sops.yaml config for testing.
 
     Returns:
@@ -83,11 +109,9 @@ def sops_config_dir(tmp_path, real_age_key):
     """
     # Create .sops.yaml config
     sops_config = tmp_path / ".sops.yaml"
-    sops_config.write_text(
-        f"""creation_rules:
+    sops_config.write_text(f"""creation_rules:
   - age: {real_age_key["public_key"]}
-"""
-    )
+""")
 
     # Set age key environment variable
     os.environ["SOPS_AGE_KEY_FILE"] = str(real_age_key["private_key_file"])
@@ -96,7 +120,7 @@ def sops_config_dir(tmp_path, real_age_key):
 
 
 @pytest.fixture
-def real_encrypted_file(tmp_path, real_age_key):
+def real_encrypted_file(tmp_path: Path, real_age_key: AgeKeyInfo) -> EncryptedFileInfo:
     """Create REAL encrypted file using REAL sops.
 
     Returns:
@@ -137,7 +161,7 @@ def real_encrypted_file(tmp_path, real_age_key):
 
 
 @pytest.fixture
-def real_secrets_repo(tmp_path, real_encrypted_file):
+def real_secrets_repo(tmp_path: Path, real_encrypted_file: EncryptedFileInfo) -> SecretsRepoInfo:
     """Create REAL git repo with REAL encrypted secrets.
 
     Returns:
@@ -188,7 +212,7 @@ def real_secrets_repo(tmp_path, real_encrypted_file):
 
 
 @pytest.fixture
-def itsup_repo_with_secrets(tmp_path, real_secrets_repo):
+def itsup_repo_with_secrets(tmp_path: Path, real_secrets_repo: SecretsRepoInfo) -> ItsupRepoInfo:
     """Create itsUP repo structure with real secrets repo.
 
     Returns:
