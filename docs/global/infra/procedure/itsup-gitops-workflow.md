@@ -33,10 +33,9 @@ from any machine, so the container host reconciles the running stack to the new 
    as a script under the project's `files/` directory, mount it read-only
    (`./files/<name>.sh`), and invoke it explicitly through the container's interpreter
    (`bash /opt/.../<name>.sh`) — inline `command` strings are for one-liners only. Container
-   payload is readable source (`0644`), never marked executable: it cannot run anywhere but
-   inside the container, and an executable bit would falsely advertise a host-runnable
-   interface. Artifact generation mirrors `files/` into the generated upstream stack, so
-   deployable payload belongs there and nowhere else.
+   payload is readable source (`0644`), never marked executable, and is not a directly
+   executable host command. Artifact generation mirrors `files/` into the generated upstream
+   stack, so deployable payload belongs there and nowhere else.
 
 4. **Edit secrets non-interactively.** To change a secret, `itsup decrypt <name>` writes the
    plaintext `secrets/<name>.txt` and prints its path (usable from any working directory); edit
