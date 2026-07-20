@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 import sys
 
 _VENV = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".venv"))
@@ -74,6 +75,18 @@ def write_file_if_changed(file_path: Path, content: str, description: str = None
 
     logger.info(f"Generated {desc}")
     return True
+
+
+def sync_project_files(project_name: str) -> None:
+    """Mirror a project's deployable files into its generated upstream directory."""
+    source = root() / "projects" / project_name / "files"
+    destination = root() / "upstream" / project_name / "files"
+
+    if destination.exists():
+        shutil.rmtree(destination)
+
+    if source.exists():
+        shutil.copytree(source, destination)
 
 
 def inject_traefik_labels(
@@ -322,8 +335,14 @@ def write_upstream(project_name: str, reverse_graph: dict[str, list[tuple[str, s
     # Write docker-compose.yml (only if changed to avoid triggering unnecessary deployments)
     compose_file = root() / "upstream" / project_name / "docker-compose.yml"
     content = yaml.dump(
-        compose, indent=2, allow_unicode=True, default_flow_style=False, sort_keys=False, width=float("inf")
+        compose,
+        indent=2,
+        allow_unicode=True,
+        default_flow_style=False,
+        sort_keys=False,
+        width=float("inf"),
     )
+    sync_project_files(project_name)
     write_file_if_changed(compose_file, content)
 
 
