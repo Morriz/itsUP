@@ -56,7 +56,6 @@ Generated files keep `${VAR}` literally (`lib/data.py:157,201`); Docker Compose
 substitutes them at `up`/`rollout` time from the injected env. Missing variables
 surface as Compose-time errors, not itsUP errors.
 
-<!-- planned:itsup-agent-authoring-surface -->
 ### Non-interactive round-trip (decrypt → edit → encrypt → commit)
 
 The editing path for non-interactive callers: `itsup decrypt <name>` writes
@@ -69,7 +68,6 @@ time are encrypted in-process (plaintext deleted on success) before the commit,
 and when SOPS is unavailable while plaintext exists the commit refuses (exit 1)
 — an edit left in plaintext is never silently lost to the `secrets/` gitignore.
 `edit-secret` is the interactive human equivalent and refuses without a TTY.
-<!-- /planned:itsup-agent-authoring-surface -->
 
 
 ## Known caveats

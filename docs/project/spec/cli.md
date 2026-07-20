@@ -66,15 +66,9 @@ refused.
   `proxy`, `svc`, `monitor`. `make install-runtime` refuses off-host
   before it touches systemd/launchd (`bin/install-bringup.sh`).
 
-<!-- planned-change:itsup-agent-authoring-surface -->
-- **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
-  `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
-  `diff-secrets`, `edit-secret`, `sops-key`.
-<!-- change:itsup-agent-authoring-surface -->
 - **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
   `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
   `diff-secrets`, `edit-secret`, `sops-key`, `projects`.
-<!-- /planned-change:itsup-agent-authoring-surface -->
 
 The gate is not self-grantable: there is no bypass flag or override env var, and
 the refusal message advertises no escape hatch. The allow/deny split lives in one
@@ -87,7 +81,6 @@ place. (`itsup/cli.py`, `lib/host_gate.py`)
   merged — and prefers `*.enc.txt` over `*.txt`. Full contract:
   `project/spec/secrets-management`. (`lib/data.py:34`)
 
-<!-- planned:itsup-agent-authoring-surface -->
 ### Discovery & authoring (agent GitOps)
 
 - `itsup projects` prints the configured project names, one per line, to
@@ -112,7 +105,6 @@ place. (`itsup/cli.py`, `lib/host_gate.py`)
   (`decrypt` → edit → `encrypt --delete` → `commit`).
 - The intended agent workflow is discoverable from the CLI itself: the group
   help names the GitOps flow (pull before editing; re-encrypt before commit).
-<!-- /planned:itsup-agent-authoring-surface -->
 
 ## Allowed values
 
