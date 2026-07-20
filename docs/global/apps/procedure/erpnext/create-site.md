@@ -17,8 +17,8 @@ its own site with its own database on the bench's shared MariaDB service
 
 ## Preconditions
 
-- The `itsup` CLI is installed and on PATH, with access to the `projects/` and `secrets/`
-  repos.
+- The `itsup` CLI is installed and on PATH, with access to the ERPNext desired state and
+  encrypted secrets.
 - The site FQDN is chosen under a zone the fleet already serves — DNS for
   `*.erpnext.instrukt.ai` resolves to the fleet via a wildcard A record, so per-site DNS
   needs no separate action; routing still requires the per-site ingress entry below.
@@ -30,20 +30,21 @@ its own site with its own database on the bench's shared MariaDB service
 Follow the itsUP GitOps workflow (`infra/procedure/itsup-gitops-workflow`) with this
 project-specific shape:
 
-1. **`itsup pull`**, then locate the project files with `itsup list-project-files erpnext`.
-2. **Extend site creation in the compose file.** The `erpnext-create-site` service runs a
-   guarded, idempotent `bench new-site --install-app erpnext "$SITE_NAME"` (it skips a site
-   whose directory already exists) followed by `bench --site "$SITE_NAME" set-config
-   host_name "https://$SITE_NAME"`. Add the new site by extending that command with a second
-   guarded `bench new-site` + `set-config` block for the new FQDN, using a dedicated
-   admin-password variable (e.g. `ADMIN_PASSWORD_<TENANT>`) rather than reusing another
-   site's secret. The frontend needs no per-site change: it resolves sites from the Host
+1. **`itsup pull`**, then locate the ERPNext desired-state files with
+   `itsup projects erpnext`.
+2. **Add one site entry to the compose file.** Each site is a service entry based on the
+   shared create-site template. Set its `SITE_NAME` to the full FQDN and bind
+   `ADMIN_PASSWORD` to a secret variable used only by that site. Add the service to the
+   `erpnext-sites-ready` dependency list. The shared template runs guarded, idempotent
+   `bench new-site --install-app erpnext "$SITE_NAME"` and skips a site whose directory
+   already exists, then sets `host_name` to its HTTPS FQDN. Do not extend or duplicate the
+   shared command. The frontend needs no per-site change: it resolves sites from the Host
    header (`FRAPPE_SITE_NAME_HEADER=$$host`).
 3. **Add the ingress entry** in `itsup-project.yml`: route the new FQDN to the
    `erpnext-frontend` service on port 8080.
-4. **Add the admin bootstrap password to the project's secrets**: `itsup decrypt <name>`,
-   add the new variable, `itsup encrypt <name> --delete`. The password never lands in
-   compose files, argv, chat, or logs.
+4. **Add the admin bootstrap password to the ERPNext secret set**: `itsup decrypt erpnext`,
+   add the site-specific variable, `itsup encrypt erpnext --delete`. The password never
+   lands in compose files, argv, chat, or logs.
 5. **`itsup validate`, then `itsup commit`.** The container host reconciles; the create-site
    step re-runs idempotently and creates only the new site.
 6. **Verify** the site answers at its FQDN (`/api/method/ping` and the login page) before
@@ -67,10 +68,10 @@ project-specific shape:
 
 ## Discipline
 
-Which sites exist is itsUP desired state and nothing else's — no other repo or registry
-keeps a site list. One admin-password secret per site, never shared across tenants. Site
-creation is complete only when the FQDN verifiably answers; handing an unverified site to
-business onboarding wastes the next agent's session on infra diagnosis.
+Which sites exist is itsUP desired state and nothing else's — no parallel source keeps a
+site list. One admin-password secret per site, never shared across tenants. Site creation is
+complete only when the FQDN verifiably answers; handing an unverified site to business
+onboarding wastes the next agent's session on infra diagnosis.
 
 ## See Also
 
