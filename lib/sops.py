@@ -8,12 +8,22 @@ Provides transparent encryption of secrets/*.txt files using SOPS.
 
 import hashlib
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
 from instrukt_ai_logging import get_logger
 
 logger = get_logger(f"itsup.{__name__}")
+
+
+@dataclass(frozen=True)
+class SecretsEncryptResult:
+    """Outcome of an `encrypt_plaintext_secrets` run, partitioned by file."""
+
+    encrypted: tuple[Path, ...] = ()
+    skipped: tuple[Path, ...] = ()
+    failed: tuple[Path, ...] = ()
 
 
 def is_sops_available() -> bool:
@@ -85,8 +95,18 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False
         cmd = ["sops", "--config", str(config_file), "-e", str(plaintext_path)]
         logger.debug("Encrypting: %s → %s", plaintext_path, encrypted_path)
         logger.debug("Command: %s", " ".join(cmd))
-        with open(encrypted_path, "w", encoding="utf-8") as outfile:
-            subprocess.run(cmd, stdout=outfile, check=True, text=True)
+
+        # Encrypt to a temp sibling first: opening encrypted_path directly
+        # would truncate the existing encrypted file before SOPS confirms
+        # success, corrupting it on a nonzero SOPS run. Replace only after
+        # the subprocess succeeds; always clean up the temp file.
+        tmp_path = encrypted_path.with_name(f".{encrypted_path.name}.tmp")
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as outfile:
+                subprocess.run(cmd, stdout=outfile, check=True, text=True)
+            tmp_path.replace(encrypted_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
         logger.debug("Encrypted %s → %s", plaintext_path.name, encrypted_path.name)
         return (True, True)  # Success and encrypted
@@ -94,6 +114,57 @@ def encrypt_file(plaintext_path: Path, encrypted_path: Path, force: bool = False
     except subprocess.CalledProcessError as e:
         logger.error("Failed to encrypt %s: %s", plaintext_path.name, e)
         return (False, False)
+
+
+def encrypt_plaintext_secrets(
+    secrets_dir: Path, *, name: Optional[str] = None, delete: bool = False, force: bool = False
+) -> SecretsEncryptResult:
+    """
+    Encrypt plaintext secrets under `secrets_dir` in-process (no shell-out).
+
+    Selection is explicit: with `name` given, selects exactly
+    `secrets_dir/<name>.txt`; with `name=None`, selects every plaintext
+    `*.txt` (excluding `*.enc.txt`). Each selected file is encrypted via
+    `encrypt_file` (whose unchanged-content skip populates `skipped`);
+    plaintext is deleted only for that file's own success when
+    `delete=True`. Never raises for a per-file failure — callers inspect
+    `result.failed` and decide how to react.
+
+    Args:
+        secrets_dir: Directory containing plaintext/encrypted secret pairs.
+        name: When given, encrypt only `<name>.txt`; otherwise all plaintext.
+        delete: If True, delete each file's plaintext after its own success.
+        force: If True, always re-encrypt even if content is unchanged.
+
+    Returns:
+        SecretsEncryptResult partitioning the selected files by outcome.
+    """
+    if name is not None:
+        plaintext_files = [secrets_dir / f"{name}.txt"]
+    else:
+        plaintext_files = [f for f in secrets_dir.glob("*.txt") if not f.name.endswith(".enc.txt")]
+
+    encrypted: list[Path] = []
+    skipped: list[Path] = []
+    failed: list[Path] = []
+
+    for plaintext_path in plaintext_files:
+        encrypted_path = plaintext_path.with_suffix(".enc.txt")
+        success, was_encrypted = encrypt_file(plaintext_path, encrypted_path, force=force)
+
+        if not success:
+            failed.append(plaintext_path)
+            continue
+
+        if was_encrypted:
+            encrypted.append(plaintext_path)
+        else:
+            skipped.append(plaintext_path)
+
+        if delete:
+            plaintext_path.unlink()
+
+    return SecretsEncryptResult(encrypted=tuple(encrypted), skipped=tuple(skipped), failed=tuple(failed))
 
 
 def decrypt_file(encrypted_path: Path, plaintext_path: Path) -> bool:

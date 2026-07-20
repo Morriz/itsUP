@@ -10,7 +10,7 @@ import sys
 
 import click
 
-from commands.common import fail, ok, warn
+from commands.common import display_path, fail, ok, warn
 from lib.paths import root as install_root
 from lib.sops import decrypt_file, is_sops_available
 
@@ -71,6 +71,7 @@ def decrypt(name: str) -> None:
 
         if decrypt_file(encrypted_path, plaintext_path):
             success_count += 1
+            click.echo(f"  {display_path(plaintext_path)}")
         else:
             failed_files.append(encrypted_path.name)
 

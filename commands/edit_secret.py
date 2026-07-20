@@ -22,16 +22,27 @@ from lib.sops import decrypt_file, encrypt_file, is_sops_available
 @click.command()
 @click.argument("name", required=True)
 def edit_secret(name: str) -> None:
-    """✏️  Edit encrypted secret seamlessly NAME
+    """✏️  Edit encrypted secret seamlessly NAME (interactive, human-only)
 
     Ultimate UX: Decrypts secret, opens in editor, re-encrypts on save.
-    You never touch the encrypted file directly!
+    You never touch the encrypted file directly! Requires a real terminal —
+    agents use the non-interactive decrypt/encrypt/commit round trip instead.
 
     \b
     Examples:
         itsup edit-secret itsup         # Edit itsup.enc.txt
         itsup edit-secret my-project    # Edit my-project.enc.txt
     """
+    if not sys.stdin.isatty():
+        fail("itsup edit-secret is interactive and human-only")
+        click.echo()
+        click.echo("Non-interactive round trip:")
+        click.echo(f"  itsup decrypt {name}")
+        click.echo(f"  <edit secrets/{name}.txt>")
+        click.echo(f"  itsup encrypt {name} --delete")
+        click.echo("  itsup commit")
+        sys.exit(1)
+
     if not is_sops_available():
         fail("SOPS is not installed")
         click.echo()

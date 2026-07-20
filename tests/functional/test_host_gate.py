@@ -37,6 +37,7 @@ EXPECTED_ANYWHERE = frozenset(
         "decrypt",
         "diff-secrets",
         "sops-key",
+        "projects",
     }
 )
 

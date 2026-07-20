@@ -12,8 +12,9 @@ from pathlib import Path
 
 import click
 
-from commands.common import fail, ok, warn
+from commands.common import fail, ok
 from lib.paths import root as install_root
+from lib.sops import encrypt_plaintext_secrets, is_sops_available
 
 
 def _has_changes(path: Path) -> bool:
@@ -74,24 +75,48 @@ def _commit_and_push(path: Path, name: str, message: str, force: bool = False) -
 
 
 @click.command()
-@click.option("--force", "-f", is_flag=True, help="Skip encryption prompts and commit as-is")
+@click.option("--force", "-f", is_flag=True, help="Skip rebase and force-push")
 def commit(force: bool) -> None:
     """💾 Commit and push changes to "projects" and "secrets" repos
 
     Commits changes to both configuration repos and pushes to origin.
     Commit message is always auto-generated. Detects key rotation.
-    Auto-encrypts plaintext secrets before committing for security.
+    Auto-encrypts plaintext secrets before committing; fails closed (no
+    commit) rather than silently dropping an un-encrypted edit when SOPS
+    is unavailable.
 
     \b
     Examples:
         itsup commit          # Auto-generated message
-        itsup commit -f       # Force commit, skip encryption prompts
+        itsup commit -f       # Skip rebase, force-push
     """
     # Get project root
     repo_root = install_root()
 
     projects_path = repo_root / "projects"
     secrets_path = repo_root / "secrets"
+
+    # Preflight: encrypt any plaintext secrets before deciding what's dirty.
+    # secrets/*.txt is gitignored, so a plaintext-only edit leaves git clean
+    # and would otherwise be silently dropped by the dirty check below.
+    if secrets_path.exists():
+        plaintext_secrets = [f for f in secrets_path.glob("*.txt") if not f.name.endswith(".enc.txt")]
+        if plaintext_secrets:
+            if not is_sops_available():
+                fail("Plaintext secrets present but SOPS is not installed")
+                for secret_file in plaintext_secrets:
+                    click.echo(f"  - {secret_file.name}")
+                click.echo("  Install SOPS (brew install sops) or encrypt manually before committing")
+                sys.exit(1)
+
+            click.echo("Encrypting secrets...")
+            result = encrypt_plaintext_secrets(secrets_path, delete=True)
+            if result.failed:
+                fail(f"Failed to encrypt: {', '.join(p.name for p in result.failed)}")
+                sys.exit(1)
+            if result.encrypted:
+                ok(f"Encrypted {len(result.encrypted)} file(s)")
+            click.echo()
 
     # Check for changes
     projects_dirty = _has_changes(projects_path)
@@ -109,58 +134,19 @@ def commit(force: bool) -> None:
         click.echo(f"  - {click.style('secrets/', fg='yellow')}")
     click.echo()
 
-    # Security check: Warn about plaintext secrets in secrets/
-    if secrets_dirty:
-        plaintext_secrets = [f for f in secrets_path.glob("*.txt") if not f.name.endswith(".enc.txt")]
-        if plaintext_secrets:
-            warn("Warning: Plaintext secrets detected in secrets/")
-            for secret_file in plaintext_secrets:
-                click.echo(f"  - {secret_file.name}")
-            click.echo()
-
-            # Check if SOPS is available
-            try:
-                subprocess.run(["sops", "--version"], capture_output=True, check=True, timeout=5)
-                sops_available = True
-            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-                sops_available = False
-
-            if sops_available:
-                if force or not click.confirm("Encrypt secrets before committing?", default=True):
-                    click.echo()
-                    warn("Proceeding without encryption")
-                    click.echo(f"  Note: Plaintext .txt files are in .gitignore and won't be committed")
-                    click.echo()
-                else:
-                    click.echo()
-                    click.echo("Encrypting secrets...")
-                    # Run itsup encrypt --delete
-                    try:
-                        subprocess.run([str(repo_root / "bin" / "itsup"), "encrypt", "--delete"], check=True)
-                        ok("Secrets encrypted and plaintext removed")
-                        click.echo()
-                    except subprocess.CalledProcessError as e:
-                        fail(f"Failed to encrypt secrets: {e}")
-                        sys.exit(1)
-            else:
-                warn("SOPS not installed - cannot encrypt")
-                click.echo("  Install with: brew install sops")
-                click.echo(f"  Note: Plaintext .txt files are in .gitignore and won't be committed")
-                click.echo()
-
     # Detect key rotation for secrets repo
     key_rotation = False
     if secrets_dirty:
         sops_yaml_changed = False
         try:
-            result = subprocess.run(
+            diff_result = subprocess.run(
                 ["git", "diff", "--name-only", "HEAD"],
                 cwd=secrets_path,
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            if ".sops.yaml" in result.stdout:
+            if ".sops.yaml" in diff_result.stdout:
                 sops_yaml_changed = True
         except subprocess.CalledProcessError:
             pass

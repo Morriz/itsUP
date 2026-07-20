@@ -12,6 +12,7 @@ import yaml
 from instrukt_ai_logging import get_logger
 
 from lib.data import get_env_with_secrets, list_projects
+from lib.paths import root as install_root
 from lib.version_check import SchemaVersionError, check_schema_version
 
 logger = get_logger(f"itsup.{__name__}")
@@ -35,6 +36,23 @@ def fail(message: str) -> None:
 def step(message: str) -> None:
     """Print a plain progress line to the terminal (no icon)."""
     click.echo(message)
+
+
+def display_path(path: Path) -> str:
+    """Format a file location so it is usable from the caller's actual cwd.
+
+    Returns the path relative to the install root when the caller is
+    standing in the install root, absolute otherwise — so an agent invoking
+    itsup from anywhere gets a location it can act on without knowing where
+    the install root lives. Resolves both sides before comparing: `cwd()`
+    returns the OS-resolved path (e.g. macOS `/var` -> `/private/var`), which
+    a literal `ITSUP_ROOT` would otherwise never match.
+    """
+    root = install_root().resolve()
+    resolved_path = path.resolve()
+    if Path.cwd().resolve() == root:
+        return str(resolved_path.relative_to(root))
+    return str(resolved_path)
 
 
 def guard_schema_version() -> None:

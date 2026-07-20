@@ -12,7 +12,7 @@ import click
 
 from commands.common import fail, ok, warn
 from lib.paths import root as install_root
-from lib.sops import encrypt_file, is_sops_available
+from lib.sops import encrypt_plaintext_secrets, is_sops_available
 
 
 @click.command()
@@ -49,15 +49,12 @@ def encrypt(name: str, delete: bool, force: bool) -> None:
         fail("secrets/ directory not found")
         sys.exit(1)
 
-    # Find files to encrypt
+    # Pre-check existence so a missing NAME fails before encryption runs
     if name:
-        # Encrypt specific file
-        plaintext_files = [secrets_dir / f"{name}.txt"]
-        if not plaintext_files[0].exists():
+        if not (secrets_dir / f"{name}.txt").exists():
             fail(f"File not found: secrets/{name}.txt")
             sys.exit(1)
     else:
-        # Encrypt all .txt files (exclude .enc.txt)
         plaintext_files = [f for f in secrets_dir.glob("*.txt") if not f.name.endswith(".enc.txt")]
         if not plaintext_files:
             warn("No plaintext secrets found in secrets/")
@@ -66,38 +63,23 @@ def encrypt(name: str, delete: bool, force: bool) -> None:
     click.echo("Encrypting secrets...")
     click.echo()
 
-    encrypted_count = 0
-    skipped_count = 0
-    failed_files = []
+    result = encrypt_plaintext_secrets(secrets_dir, name=name, delete=delete, force=force)
 
-    for plaintext_path in plaintext_files:
-        encrypted_path = plaintext_path.with_suffix(".enc.txt")
-
-        success, was_encrypted = encrypt_file(plaintext_path, encrypted_path, force=force)
-        if success:
-            if was_encrypted:
-                encrypted_count += 1
-            else:
-                skipped_count += 1
-
-            # Optionally delete plaintext
-            if delete:
-                plaintext_path.unlink()
-                click.echo(f"  {click.style('↳', fg='yellow')} Deleted {plaintext_path.name}")
-        else:
-            failed_files.append(plaintext_path.name)
+    if delete:
+        for plaintext_path in result.encrypted + result.skipped:
+            click.echo(f"  {click.style('↳', fg='yellow')} Deleted {plaintext_path.name}")
 
     click.echo()
 
     # Summary
-    if failed_files:
-        fail(f"Failed to encrypt: {', '.join(failed_files)}")
+    if result.failed:
+        fail(f"Failed to encrypt: {', '.join(p.name for p in result.failed)}")
         sys.exit(1)
     else:
-        if encrypted_count > 0:
-            ok(f"Encrypted {encrypted_count} file(s)")
-        if skipped_count > 0:
-            ok(f"Skipped {skipped_count} file(s) (unchanged)")
+        if result.encrypted:
+            ok(f"Encrypted {len(result.encrypted)} file(s)")
+        if result.skipped:
+            ok(f"Skipped {len(result.skipped)} file(s) (unchanged)")
 
         if not delete:
             click.echo()

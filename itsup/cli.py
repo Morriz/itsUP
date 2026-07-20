@@ -22,6 +22,7 @@ from commands.encrypt import encrypt
 from commands.init import init
 from commands.migrate import migrate_cmd
 from commands.monitor import monitor
+from commands.projects import projects
 from commands.proxy import proxy
 from commands.pull import pull
 from commands.run import run
@@ -39,7 +40,21 @@ HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor"}
 @click.option("--verbose", "-v", count=True, help="Verbosity: -v (DEBUG), -vv (TRACE)", is_eager=True)
 @click.pass_context
 def cli(ctx: click.Context, verbose: int) -> None:
-    """itsUP - Infrastructure management CLI"""
+    """itsUP - Infrastructure management CLI
+
+    \b
+    Agent GitOps workflow:
+      itsup pull                    # Sync projects/ and secrets/ before editing
+      itsup projects [NAME]         # Discover project names, or a project's files
+      <edit files with your own tools>
+      itsup decrypt NAME            # Decrypt a secret to plaintext for editing
+      itsup encrypt NAME --delete   # Re-encrypt and remove plaintext
+      itsup commit                  # Auto-encrypts remaining plaintext, commits, pushes
+
+    \b
+    itsup edit-secret is interactive and human-only; agents use the round
+    trip above instead.
+    """
     # itsup is a user-invoked, intent-bearing tool — every git subprocess it
     # spawns (commit/pull/status/etc.) is sanctioned. Set the bypass once here
     # so the TeleClaude git wrapper passes our calls through, instead of
@@ -84,6 +99,7 @@ cli.add_command(decrypt)
 cli.add_command(diff_secrets)
 cli.add_command(edit_secret)
 cli.add_command(sops_key)
+cli.add_command(projects)
 
 
 def main() -> None:
