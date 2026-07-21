@@ -6,9 +6,9 @@ description: Verified configuration semantics of the maxlerebourg crowdsec-bounc
 
 Curated from the official plugin repository
 (`github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin`, read 2026-07-21).
-itsUP pins plugin `v1.4.5` (`tpl/traefik.yml.j2` `experimental.plugins.bouncer`
-and the middleware's `version` field); the upstream latest is v1.6.0. The
-options below are stable across that range.
+itsUP pins plugin `v1.6.0` (`tpl/traefik.yml.j2` `experimental.plugins.bouncer`
+and the middleware's `version` field). The options below are stable across
+recent plugin versions.
 
 ## Client-IP trust and bypass
 
