@@ -53,6 +53,41 @@ inverting the test.
 Consequence for guard steps: assert on emptiness only. Never echo the value, and
 never include it in an error message.
 
+## `appleboy/ssh-action` — passing secrets to a remote script
+
+A secret written into the `script:` input is resolved by GitHub **before** the
+action runs, so it becomes part of the command block the action prints and is a
+command-injection input besides. The action's own boundary for this is the
+`envs:` input paired with the step's `env:` map:
+
+```yaml
+- uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+  env:
+    API_KEY: ${{ secrets.API_KEY }}
+  with:
+    host: ${{ secrets.SSH_HOST }}
+    envs: API_KEY
+    script: |
+      curl -f "http://127.0.0.1:8888/reconcile" -H "Authorization: Bearer $API_KEY"
+```
+
+- **`envs:` takes variable NAMES, not `key=value` pairs.** The action's
+  `action.yml` describes it as `key=value,key2=value2`; the README's documented
+  usage — `envs: FOO,BAR,SHA` with the values supplied by the step's `env:` map —
+  is the authoritative contract. Following the `action.yml` description would put
+  the secret value back into a resolved input, defeating the purpose.
+- Quote every remote reference (`"$API_KEY"`) so an empty or space-bearing value
+  cannot split into extra arguments.
+- Action *inputs* such as `host`, `username`, `key` and `passphrase` are outside
+  this concern: they are passed as inputs, not interpolated into shell source.
+- `curl -v` inside the remote script defeats the whole arrangement by tracing the
+  outbound `Authorization` header into the log. Use `-f` alone.
+
+**Pin the action when relying on this seam.** `@master` lets the
+credential-transfer semantics change without review. `v1.2.5` resolves to commit
+`0ff4204d59e8e51228ff73bce53f80d53301dee2`; a commit pin makes any change to the
+contract an explicit, reviewable update.
+
 ## `Morriz/github-openvpn-connect-action@v3` — optional inputs fail open
 
 Verified against the action's source, not its README:
