@@ -56,6 +56,15 @@ Then the response is 200
 And the body carries no configuration, project, or secret data
 ```
 
+#### UC-DCV5: verify confirms the last applied target
+
+```gherkin
+Given an applied-state receipt recorded by a successful apply of project P
+When itsup verify --target P runs
+Then the command exits 0
+And when the receipt's applied target is not P, or no receipt exists, the command exits nonzero showing the recorded state
+```
+
 ## Canonical fields
 
 The receipt fields, verify exit codes, and probe endpoint are contract-specified

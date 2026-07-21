@@ -73,11 +73,14 @@ in `project/spec/secrets-management`.
   and restarts the API (via its systemd unit when supervised). It shares its
   implementation with the API's `/update-upstream/itsUP` background path and
   exits nonzero on the first failing step.
-- `itsup verify <sha>` reads the applied-state receipt and exits **0** when the
-  given SHA equals any of the recorded repo SHAs, **1** when the receipt is
-  missing or no recorded SHA matches — printing the receipt so a mismatch shows
-  what the host actually converged to. It is read-only, needs no secrets, and
-  is the assertion the reconcile workflow runs after its synchronous deploy.
+- `itsup verify` reads the applied-state receipt and is the assertion the
+  reconcile workflow runs after its synchronous deploy. Two forms:
+  `itsup verify <sha>` exits **0** when the given SHA equals any recorded repo
+  SHA (config-repo and itsUP pushes); `itsup verify --target <name>` exits
+  **0** when the receipt's applied target equals `<name>` (app-image deploys,
+  whose pushed SHA no host repo tracks). Both exit **1** when the receipt is
+  missing or does not match — printing the recorded state so a mismatch shows
+  what the host actually converged to. Read-only, needs no secrets.
 <!-- /planned:verifiable-deploy-chain -->
 
 ### Host-identity gate (runtime-mutating commands are host-only)
