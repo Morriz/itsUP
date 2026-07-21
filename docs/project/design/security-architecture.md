@@ -30,8 +30,14 @@ Six layers compose, each closing a gap the others leave open:
 5. **Secrets at rest** — SOPS/age encryption with per-context, non-merged
    loading, so a compromised project never sees infra or sibling secrets
    (`docs/project/spec/secrets-management.md`).
+<!-- planned-change:api-public-surface-scoping -->
 6. **API authentication** — the deploy webhook surface is apikey-guarded
    (`docs/project/spec/api-surface.md`).
+<!-- change:api-public-surface-scoping -->
+6. **API authentication and exposure** — the deploy webhook surface is
+   apikey-guarded and carries no public route; only `GET /redirect` is routed
+   from the internet (`docs/project/spec/api-surface.md`).
+<!-- /planned-change:api-public-surface-scoping -->
 
 This snippet is the overview and threat model only; each layer's mechanism lives
 in its own snippet. It restates a layer only where the **interaction between
@@ -96,9 +102,18 @@ promise.
    project container's env contains its own secrets and nothing else. Encrypted
    `.enc.txt` is preferred and decrypted to memory only. (Secrets-management spec.)
 
+<!-- planned-change:api-public-surface-scoping -->
 5. **Mutating API calls are apikey-gated.** Every deploy/webhook endpoint depends
    on `verify_apikey`; an absent key returns 503, a wrong key 401. The key is a
    deploy credential. (API-surface spec.)
+<!-- change:api-public-surface-scoping -->
+5. **Mutating API calls are apikey-gated and unrouted from the internet.** Every
+   deploy/webhook endpoint depends on `verify_apikey`; an absent key returns 503,
+   a wrong key 401. The key is a deploy credential. The proxy additionally routes
+   none of these endpoints publicly, so reaching them at all requires a position
+   on the host, the LAN, or the VPN — the API key alone is not a remote deploy
+   credential. (API-surface spec.)
+<!-- /planned-change:api-public-surface-scoping -->
 
 ## Primary flows
 
@@ -163,9 +178,18 @@ complete.
 - **Secrets — plaintext fallback.** A `.txt` file shadowing a missing `.enc.txt`
   is loaded (with a production warning) — encryption at rest is lost if operators
   leave plaintext in place.
+<!-- planned-change:api-public-surface-scoping -->
 - **API auth — single shared key.** One `API_KEY` guards all deploy endpoints; a
   leaked key is a full deploy credential, and webhook deploys are `GET`s with side
   effects.
+<!-- change:api-public-surface-scoping -->
+- **API auth — single shared key, network-bounded.** One `API_KEY` guards all
+  deploy endpoints, and webhook deploys are `GET`s with side effects. A leaked key
+  is a full deploy credential to anyone already on the host, the LAN, or the VPN;
+  from the internet it reaches no deploy endpoint, because none is routed. The
+  residual is therefore an insider or a client that has already crossed the
+  network boundary, not an anonymous remote caller.
+<!-- /planned-change:api-public-surface-scoping -->
 - **Unresolved residual.** The originally compromised container was never
   positively identified; the architecture *contains* the exfiltration rather than
   removing the implant. The threat is assumed still present.
