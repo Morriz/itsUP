@@ -90,15 +90,25 @@ contract an explicit, reviewable update.
 
 ## `Morriz/github-openvpn-connect-action@v3` — optional inputs fail open
 
-Verified against the action's source, not its README:
+Verified at commit `728a3c0657b657ab483cbcbdab7d8f5099d70601` (tag `v3`) against
+both the manifest and the bundle it actually executes:
 
 - `action.yml` declares `host` (and `port`, `protocol`, and every credential
-  input) as `required: false`. Only `config_file` is required.
-- `src/main.js` gates the peer line on all three being truthy:
-  `if (host && port && protocol)` — when satisfied it appends
-  `remote ${host} ${port} ${protocol}` to the client config.
+  input) as `required: false`. Only `config_file` is required. It runs
+  `dist/index.js` under `node20`.
+- The executed `dist/index.js` contains `getInput("host")`, the
+  `host && port && protocol` guard, and the `remote ${host} ${port} ${protocol}`
+  append — the same semantics as `src/main.js`.
 - An unset secret evaluates to the empty string, so the guard is skipped and the
   `remote` line is simply never written. No error is raised by the action.
+
+**Ground behavior in `dist/`, not `src/`.** `action.yml`'s `main:` names the
+committed bundle; the sources are not what runs. A repository whose bundle has
+drifted from its sources would behave as the bundle says, so a source-only
+reading is unverified.
+
+**Pin this action too.** `@v3` is a movable tag; the pin above makes both the
+resolved commit and its bundle contents reviewable.
 
 The failure therefore surfaces late and obscurely inside OpenVPN's own connect
 attempt rather than at the misconfigured boundary. Any repository whose committed
