@@ -101,3 +101,7 @@ must be re-encrypted before it is committed, or it is silently lost.
 ## Baseline index — load via `telec docs get <id>` when relevant
 
 - `infra/policy/itsup-host-boundary` — Which itsUP CLI commands may run on which machine — runtime-mutating commands only on the container host, GitOps and read commands anywhere.
+
+## Activatable Procedures — load via `telec docs get <id>` before acting
+
+- `infra/procedure/itsup-gitops-workflow` — The safe sequence for an agent to change itsUP deployment config — pull, edit projects/secrets, validate, re-encrypt, commit — after which the container host reconciles. — Use when asked to create, edit, or remove an itsUP project or secret, or otherwise change what itsUP deploys.
