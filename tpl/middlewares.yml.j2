@@ -33,9 +33,16 @@ http:
     crowdsec:
       plugin:
         bouncer:
-          version: v1.4.5
+          version: v1.6.0
           enabled: {{ crowdsec.enabled }}
           forwardedHeadersTrustedIPs: {{ trusted_ips_cidrs }}
+          clientTrustedIPs:
+{%- for ip in trusted_ips_cidrs %}
+            - {{ ip }}
+{%- endfor %}
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
           crowdsecMode: live
           crowdsecAppsecEnabled: true
           crowdsecAppsecFailureBlock: true

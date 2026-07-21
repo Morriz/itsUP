@@ -108,6 +108,7 @@ max-line-length = 120
 
 [tool.pylint.'MASTER']
 extension-pkg-allow-list = ["netifaces"]
+source-roots = ["."]
 
 [tool.pyproject-fmt]
 indent = 4

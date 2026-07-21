@@ -395,6 +395,7 @@ def write_traefik_config() -> None:
 
     # Get trusted IPs for template
     trusted_ips_cidrs = get_trusted_ips()
+    crowdsec_enabled = load_itsup_config().get("crowdsec", {}).get("enabled", False)
 
     # Load all projects to collect TCP/UDP entrypoints
     projects_data = []
@@ -434,6 +435,7 @@ def write_traefik_config() -> None:
     config_content = template.render(
         trusted_ips_cidrs=trusted_ips_cidrs,
         projects=projects_data,
+        crowdsec_enabled=crowdsec_enabled,
     )
 
     # Parse generated base config using ruamel.yaml to preserve comments

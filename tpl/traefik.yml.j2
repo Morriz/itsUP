@@ -26,7 +26,7 @@ experimental:
   plugins:
     bouncer:
       moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
-      version: v1.4.5
+      version: v1.6.0
 
 ping:
   entryPoint: web
@@ -49,6 +49,11 @@ entryPoints:
       trustedIPs: {{ trusted_ips_cidrs }}
     proxyProtocol:
       trustedIPs: {{ trusted_ips_cidrs }}
+{%- if crowdsec_enabled %}
+    http:
+      middlewares:
+        - crowdsec@file
+{%- endif %}
 
   web-secure:
     address: ':8443'
@@ -57,6 +62,13 @@ entryPoints:
       trustedIPs: {{ trusted_ips_cidrs }}
     proxyProtocol:
       trustedIPs: {{ trusted_ips_cidrs }}
+    http:
+      middlewares:
+        - default-headers@file
+        - rate-limit@file
+{%- if crowdsec_enabled %}
+        - crowdsec@file
+{%- endif %}
 
 {%- for project in projects %}
   {%- for ingress in project.ingress %}

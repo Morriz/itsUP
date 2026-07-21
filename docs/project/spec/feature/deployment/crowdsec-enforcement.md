@@ -1,11 +1,8 @@
 ---
-description: Acceptance scenario for CrowdSec enforcement attachment — when
-  crowdsec.enabled is set, the generated Traefik static config attaches the
-  crowdsec bouncer middleware at the HTTP entrypoints so every HTTP router
-  inherits enforcement, with the router IP and private LAN ranges exempt from
-  bans.
-delivered_by:
-  - crowdsec-enforcement-detached
+description: Acceptance scenario for CrowdSec enforcement attachment — when crowdsec.enabled
+  is set, the generated Traefik static config attaches the crowdsec bouncer middleware
+  at the HTTP entrypoints so every HTTP router inherits enforcement, with the router
+  IP and private LAN ranges exempt from bans.
 ---
 
 # CrowdSec Enforcement — Spec
