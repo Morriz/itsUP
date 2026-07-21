@@ -1,6 +1,6 @@
 ---
 description: Acceptance scenario for the default HTTP security middlewares — the generated Traefik static config attaches default-headers and rate-limit at the web-secure entrypoint so every HTTPS router inherits security headers and rate limiting.
-delivered_by: [fix-traefik-default-headers-and-rate-limit-m]
+delivered_by: [crowdsec-enforcement-detached]
 ---
 
 # HTTP Security Middlewares — Spec
