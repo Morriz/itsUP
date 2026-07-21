@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+
+# Re-exec under the project venv so direct invocation works from any interpreter.
+import os as _os
+import sys as _sys
+
+_VENV = _os.path.normpath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", ".venv"))
+_VENV_PYTHON = _os.path.join(_VENV, "bin", "python")
+if (
+    __name__ == "__main__"
+    and _os.path.exists(_VENV_PYTHON)
+    and _os.path.realpath(_sys.prefix) != _os.path.realpath(_VENV)
+):
+    _os.execv(_VENV_PYTHON, [_VENV_PYTHON, _os.path.abspath(__file__), *_sys.argv[1:]])
+
 import argparse
 import json
 import subprocess
