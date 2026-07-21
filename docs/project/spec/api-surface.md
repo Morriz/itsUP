@@ -35,7 +35,7 @@ immediately.
 <!-- planned:verifiable-deploy-chain -->
 | `GET /health` | none | Liveness probe: returns `200` with a static ok body. Carries no data and reads no state; probed by `pi-healthcheck` on `localhost:8888` and by the scheduled reconcile workflow through Traefik. |
 <!-- /planned:verifiable-deploy-chain -->
-| `GET /redirect?url=` | none | 307-redirects, but **only** `message://` / `imessage://` schemes; rejects other schemes or whitespace (`:103-116`). |
+| `GET /redirect?url=` | none | 307-redirects, but **only** `message://` / `imessage://` schemes; rejects other schemes or whitespace (`:103-116`). Consumer: OtoMo (`lib/deep_links.py`) wraps iMessage deep links in this endpoint so Telegram renders them as clickable https links. |
 
 ### Self-update (`project == "itsUP"`)
 
