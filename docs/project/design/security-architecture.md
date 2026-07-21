@@ -35,8 +35,9 @@ Six layers compose, each closing a gap the others leave open:
    (`docs/project/spec/api-surface.md`).
 <!-- change:api-public-surface-scoping -->
 6. **API authentication and exposure** — the deploy webhook surface is
-   apikey-guarded and carries no public route; only `GET /redirect` is routed
-   from the internet (`docs/project/spec/api-surface.md`).
+   apikey-guarded and carries no public route; the internet-facing router matches
+   only the `/redirect` path prefix, under which `GET /redirect` is the sole
+   endpoint served (`docs/project/spec/api-surface.md`).
 <!-- /planned-change:api-public-surface-scoping -->
 
 This snippet is the overview and threat model only; each layer's mechanism lives

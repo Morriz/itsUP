@@ -17,11 +17,15 @@ systems trigger deploys via webhook and query projects. It is **not**
 containerized — it runs as a host process on `:8888` (`bin/start-api.sh`).
 
 Its Traefik route is scoped to the one endpoint that needs the internet: the
-public router matches `Host(...) && PathPrefix('/redirect')`, so `/redirect` is
-the only path reachable from outside the network. The apikey-guarded endpoints
-carry no public route at all — an internet request for one of them fails to
-match a router and is refused by the proxy before the API sees it, rather than
-reaching the API and being rejected by the API key. Those endpoints are served
+public router matches `Host(...) && PathPrefix('/redirect')`. This is a **path
+prefix, not an exact route** — it admits any method and any path beginning with
+`/redirect`. Nothing else is served under that prefix, so the only endpoint it
+reaches is `GET /redirect`; a request such as `POST /redirect` or
+`/redirect-anything` is routed to the API and answered `405` or `404` by FastAPI.
+The apikey-guarded endpoints share no prefix with it and so carry no public route
+at all — an internet request for one of them fails to match a router and is
+refused by the proxy before the API sees it, rather than reaching the API and
+being rejected by the API key. Those endpoints are served
 over plain HTTP on `:8888` to callers already inside the boundary: the container
 host itself over loopback, and LAN or VPN clients at the host's LAN address. The
 hostname and its Let's Encrypt certificate are unaffected — ACME HTTP-01

@@ -83,6 +83,28 @@ command-injection input besides. The action's own boundary for this is the
 - `curl -v` inside the remote script defeats the whole arrangement by tracing the
   outbound `Authorization` header into the log. Use `-f` alone.
 
+### What `envs:` actually does — and what it does not
+
+Verified in the executed runtime, `appleboy/drone-ssh` `v1.8.2` `plugin.go:116-140`
+(the action downloads and runs this binary; see the pin caveat below):
+
+- For each name in `envs`, the plugin reads the value from its own environment and
+  formats `export {NAME}={VALUE}` with the value passed through `escapeArg`, then
+  **prepends those lines to the script** and sends the joined string over the SSH
+  stream. The value therefore *is* part of the remote command text.
+- `escapeArg` is what makes this safe against injection — the value is escaped
+  before it becomes shell source, which is the guarantee inline `${{ }}`
+  interpolation cannot offer.
+- The `======ENV======` dump that would print those export lines is gated on the
+  action's `debug` input, which defaults to false. The earlier `======CMD======`
+  dump prints the script *before* env is prepended, so it never contains them.
+
+**Therefore `envs:` buys two specific things and no more:** the value never
+appears in a GitHub-resolved workflow input, and it is shell-escaped rather than
+concatenated. It does **not** keep the value out of the remote command stream.
+Claim only what it delivers — and never set `debug: true` on a step carrying a
+credential this way, which would print the export lines verbatim.
+
 **Pin the action when relying on this seam.** `@master` lets the
 credential-transfer semantics change without review. `v1.2.5` resolves to commit
 `0ff4204d59e8e51228ff73bce53f80d53301dee2`; a commit pin makes any change to the
