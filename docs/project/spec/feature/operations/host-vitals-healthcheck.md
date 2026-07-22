@@ -41,10 +41,10 @@ process boundary.
 
 ```gherkin
 Given the host healthcheck runs under its supervised unit identity
-And a degradation has tripped a threshold whose response is staged across runs
+And a degradation has tripped a threshold inside the maintenance window
 When the healthcheck runs twice against that degradation
-Then the first run records its strike state and completes
-And the second run reads that state and takes its escalated remediation
+Then the first run records its strike state and restarts Docker and the itsUP stacks
+And the second run reads that state and reboots the host
 ```
 
 ## Canonical fields
