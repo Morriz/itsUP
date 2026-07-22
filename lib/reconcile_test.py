@@ -30,7 +30,7 @@ class TestReconcile(unittest.TestCase):
         mock_run.assert_called_once()
         # `itsup apply` with no project arg = full-stack apply.
         cmd = mock_run.call_args[0][0]
-        self.assertTrue(cmd[0].endswith("bin/itsup"))
+        self.assertTrue(cmd[0].endswith(".venv/bin/itsup"))
         self.assertEqual(cmd[-1], "apply")
         self.assertFalse(reconcile_mod._reconciler._running)
 

@@ -33,7 +33,7 @@ def _pull_and_apply() -> None:
     # Shell to the CLI so the reconcile reuses apply's validation gate and
     # topological deploy ordering verbatim; there is no single Python entry
     # point that wraps both, and replicating them here would drift from `apply`.
-    subprocess.run([str(root() / "bin" / "itsup"), "apply"], check=True)
+    subprocess.run([str(root() / ".venv" / "bin" / "itsup"), "apply"], check=True)
 
 
 class _Reconciler:

@@ -1,8 +1,7 @@
 """itsUP CLI - Command-line interface for itsUP management.
 
 The single source of the click command group. ``main()`` is the console-script
-target (``pyproject.toml`` ``[project.scripts] itsup = "itsup.cli:main"``) and
-the callable the ``bin/itsup`` shim imports.
+target (``pyproject.toml`` ``[project.scripts] itsup = "itsup.cli:main"``).
 """
 
 import os

@@ -1,14 +1,6 @@
-#!/usr/bin/env python3
-
 import os
 import shutil
 import sys
-
-_VENV = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".venv"))
-_VENV_PYTHON = os.path.join(_VENV, "bin", "python")
-if __name__ == "__main__" and os.path.exists(_VENV_PYTHON) and os.path.realpath(sys.prefix) != os.path.realpath(_VENV):
-    os.execv(_VENV_PYTHON, [_VENV_PYTHON, os.path.abspath(__file__), *sys.argv[1:]])
-
 from io import StringIO
 from pathlib import Path
 from typing import Any

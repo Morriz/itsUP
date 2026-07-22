@@ -2,26 +2,22 @@
 
 """Process-tier acceptance: itsup runs cwd-independently.
 
-Invokes the REAL ``bin/itsup`` shim as an OS subprocess from ``/`` and from an
-unrelated directory, proving data resolution follows ``ITSUP_ROOT`` (or the
-package location) and never the caller's cwd. This is the acceptance criterion
-for ``project/design/itsup-cli`` invariant 2, exercised across representative
-commands (a data-read command, a root-derived-path command), the
-package-derived ``root()`` branch, and the fail-closed branch.
+Invokes the packaged ``.venv/bin/itsup`` console script as an OS subprocess from
+``/`` and from an unrelated directory, proving data resolution follows
+``ITSUP_ROOT`` (or the package location) and never the caller's cwd. This is the
+acceptance criterion for ``project/design/itsup-cli`` invariant 2, exercised
+across representative commands, the package-derived ``root()`` branch, and the
+fail-closed branch.
 """
 
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SHIM = REPO_ROOT / "bin" / "itsup"
 CONSOLE_SCRIPT = REPO_ROOT / ".venv" / "bin" / "itsup"
-
-sys.path.insert(0, str(REPO_ROOT))
 
 ALL_PROJECTS_VALID = "All projects valid"
 GIT_STATUS_HEADER = "Git Status"
@@ -67,7 +63,7 @@ def _run(args: list[str], cwd: str, itsup_root: Path | None) -> subprocess.Compl
     else:
         env.pop("ITSUP_ROOT", None)
     return subprocess.run(
-        [sys.executable, str(SHIM), *args],
+        [str(CONSOLE_SCRIPT), *args],
         cwd=cwd,
         env=env,
         capture_output=True,

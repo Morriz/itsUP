@@ -50,6 +50,6 @@ def pull(run_apply: bool) -> None:
         click.echo()
         click.echo("Running apply...")
         try:
-            subprocess.run([str(repo_root / "bin" / "itsup"), "apply"], check=True)
+            subprocess.run([str(repo_root / ".venv" / "bin" / "itsup"), "apply"], check=True)
         except subprocess.CalledProcessError:
             sys.exit(1)
