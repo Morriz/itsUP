@@ -16,8 +16,14 @@ symlink (`~/.local/bin/itsup` → `<repo>/.venv/bin/itsup`), so the bare `itsup`
 from anywhere on the machine — an agent or operator never has to `cd` into the repo
 or source anything to operate on the project's config and secrets. itsUP stays a
 single-root tool: the global handle always resolves back to, and operates on, its
-own repo. No runtime caller — systemd units, the API self-update, `start-api.sh` —
+own repo.
+<!-- planned-change:native-daemon-supervision -->
+No runtime caller — systemd units, the API self-update, `start-api.sh` —
 sources or activates anything.
+<!-- change:native-daemon-supervision -->
+No runtime caller — systemd units, launchd agents, the API self-update —
+sources or activates anything.
+<!-- /planned-change:native-daemon-supervision -->
 
 This exists because the prior `bin/itsup` (`#!/usr/bin/env python3`) bound the
 interpreter to whatever python was active, and read cwd-relative data paths, so

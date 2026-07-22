@@ -60,6 +60,7 @@ Validate gate → for each target in dependency order, `deploy_*` →
 
 ### `itsup run` — orchestrated boot
 
+<!-- planned-change:native-daemon-supervision -->
 `check_schema_version` → regenerate proxy artifacts → DNS `up -d` (creates
 `proxynet`) → proxy `up -d` → `bin/start-api.sh` → `bin/start-monitor.sh
 --report-only` (`commands/run.py`). **Divergence:** `run` uses plain
@@ -71,6 +72,20 @@ zero-downtime (it is the cold-start path).
 monitor (`pkill`) → API (`pkill`) → all projects in parallel (`down`) → proxy →
 DNS (`commands/down.py`). `--clean` additionally `rm -f`s itsUP-managed stopped
 containers.
+<!-- change:native-daemon-supervision -->
+`check_schema_version` → regenerate proxy artifacts → DNS `up -d` (creates
+`proxynet`) → proxy `up -d` → start the API daemon unit → start the monitor
+daemon unit in report-only mode, both through the host supervisor
+(`commands/run.py`). **Divergence:** `run` uses plain `docker compose up -d`,
+bypassing `smart_deploy`/rollout — boot is not zero-downtime (it is the
+cold-start path).
+
+### `itsup down` — orchestrated shutdown
+
+monitor unit (stop) → API unit (stop) → all projects in parallel (`down`) →
+proxy → DNS (`commands/down.py`). `--clean` additionally `rm -f`s itsUP-managed
+stopped containers.
+<!-- /planned-change:native-daemon-supervision -->
 
 ## Failure modes
 

@@ -16,6 +16,7 @@ in `project/spec/secrets-management`.
 
 ### `run` / `down` orchestration order
 
+<!-- planned-change:native-daemon-supervision -->
 - `itsup run` starts the stack in dependency order: **DNS → proxy → API →
   monitor**, with the monitor in **report-only mode** (`start-monitor.sh
   --report-only`). Full blocking protection requires a separate `itsup monitor
@@ -31,6 +32,29 @@ in `project/spec/secrets-management`.
   **not fatal** — `down` completes regardless. `--clean` additionally `rm -f`s
   the stopped itsUP containers (projects + proxy + dns) in parallel and never
   touches non-itsUP containers. (`commands/down.py`)
+<!-- change:native-daemon-supervision -->
+- `itsup run` starts the stack in dependency order: **DNS → proxy → API →
+  monitor**. The two container stacks come up through `docker compose`; the API
+  and the monitor are **daemon units the host supervisor owns**, so `run` starts
+  them through it rather than spawning processes of its own. The monitor starts
+  in **report-only mode** — `run` writes that mode into the supervisor-read flags
+  file before starting the unit — and full blocking protection requires a
+  separate `itsup monitor start`. Before starting anything, `run` regenerates
+  proxy artifacts (`write_proxy_artifacts()`) and aborts if that fails. At boot
+  it intentionally does **not** pull images (the host's own DNS may not be up
+  yet). On any stack failure `run` exits with that stack's subprocess
+  returncode. On a host with no monitor support (macOS — the monitor is
+  Linux-only) `run` skips the monitor step with a notice and continues.
+  (`commands/run.py`)
+- `itsup down` stops in the **reverse** order: **monitor → API → all upstream
+  projects → proxy → DNS**. Upstream projects are stopped **in parallel**
+  (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially. The
+  monitor and API are stopped through the supervisor, and a unit that is already
+  inactive is not an error; proxy/DNS `down` failures are logged but **not
+  fatal** — `down` completes regardless. `--clean` additionally `rm -f`s the
+  stopped itsUP containers (projects + proxy + dns) in parallel and never
+  touches non-itsUP containers. (`commands/down.py`)
+<!-- /planned-change:native-daemon-supervision -->
 
 ### `apply` — validate gate, sequential topo deploy, label-based hash skip
 

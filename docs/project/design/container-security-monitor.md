@@ -54,7 +54,15 @@ record the incident history that motivated it.
   `IPTABLES_CHAIN = "DOCKER-USER"` in `constants.py:45`).
 - **iptables LOG rule** — one rule logging NEW outbound container TCP, the source
   of the `[CONTAINER-TCP]` kernel lines (`iptables.py:ensure_log_rule_exists`).
+<!-- planned-change:native-daemon-supervision -->
 - **Log file** — `logs/monitor.log` (`constants.py:17`).
+<!-- change:native-daemon-supervision -->
+- **Restart watermark** — `logs/monitor.log` (`constants.py:17`): a `[<ts>]
+  Started` marker the entry point appends on each start and
+  `core.py:_get_last_processed_timestamp` reads back to resume connection
+  processing. It is application state, not a log. The daemon's diagnostics go to
+  its stdout, which the supervisor captures.
+<!-- /planned-change:native-daemon-supervision -->
 - **Threat-actor CSV** — `reports/potential_threat_actors.csv`, produced by the
   separate `bin/analyze_threats.py` (reverse-DNS, RDAP whois, optional AbuseIPDB
   enrichment of blacklist IPs), invoked via `itsup monitor report`.
@@ -101,12 +109,32 @@ record the incident history that motivated it.
 
 ### Run modes
 
+<!-- planned-change:native-daemon-supervision -->
 Selected by flags on `bin/monitor.py` / `itsup monitor start`
 (`bin/monitor.py:main`, `commands/monitor.py:start`):
 
 - **Report-only** (`--report-only`) — detect, blacklist in-file, log; **no**
   iptables DROP. This is the mode `itsup run` starts the monitor in
   (`commands/run.py:93` passes `--report-only`).
+<!-- change:native-daemon-supervision -->
+Selected by flags on `bin/monitor.py` / `itsup monitor start`
+(`bin/monitor.py:main`, `commands/monitor.py:start`).
+
+The monitor runs as a supervised daemon unit, so `itsup monitor start` does not
+spawn it: it writes the requested flags into the host-local `.itsup-monitor.env`
+file at the install root as `MONITOR_FLAGS=<flags>` and restarts the unit, which
+reads that file at start. `itsup monitor stop` stops the unit. Restart rather
+than start is what makes the command mean "running with *these* flags" — a start
+against an already-running unit would keep the previous mode. With the file
+absent the unit starts with no flags, i.e. in protection mode. `--cleanup`,
+`--clear-iptables` and `report` stay direct one-shot invocations; they are not
+the daemon. Supervision is Linux-only, matching the monitor's own root and
+`iptables` requirements, so `itsup monitor start|stop` refuse on macOS with a
+named reason and `itsup run` skips the monitor step there.
+
+- **Report-only** (`--report-only`) — detect, blacklist in-file, log; **no**
+  iptables DROP. This is the mode `itsup run` starts the monitor in.
+<!-- /planned-change:native-daemon-supervision -->
 - **Protection** (default, no flags) — detect plus insert iptables DROP rules.
 - **OpenSnitch cross-reference** (`--use-opensnitch`) — adds a thread that reads
   OpenSnitch's `0-deny-arpa-53` blocks and annotates blacklist entries as
