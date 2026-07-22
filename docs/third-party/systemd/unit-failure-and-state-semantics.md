@@ -137,6 +137,13 @@ Documented behaviour:
   `RuntimeDirectory=`.** A reader who searches only the `RuntimeDirectory=` entry
   finds creation and stop-removal and concludes reboot lifetime is unspecified. It is
   specified, one entry later, and it holds for system services.
+- **A unit hooked to alert about its own failure has no outer observer.** When the
+  handler a unit's `OnFailure=` names is the same unit that reports failures, its own
+  failure produces no report, and its silence is indistinguishable from health. A
+  handler unit therefore declares no `OnFailure=` of its own, and its failures are
+  found in its journal rather than announced. This is the same class as the
+  start-limit trap above: the alerting path failing invisibly, with nothing in the
+  configuration looking wrong.
 - **Timer units reach `failed` through their own faults** (for example an invalid
   calendar specification), not through the failure of the service they trigger —
   that failure belongs to the service unit. A hook on a timer and a hook on its
