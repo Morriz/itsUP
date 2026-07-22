@@ -13,7 +13,6 @@ from ruamel.yaml import YAML
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-
 from lib.data import (
     build_reverse_egress_graph,
     edge_network_name,

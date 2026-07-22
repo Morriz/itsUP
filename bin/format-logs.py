@@ -3,9 +3,10 @@
 import json
 import sys
 from datetime import datetime
+from typing import Any
 
 
-def format_size(bytes_val):
+def format_size(bytes_val: float) -> str:
     """Convert bytes to human-readable format."""
     if bytes_val < 1024:
         return f"{bytes_val}B"
@@ -15,12 +16,14 @@ def format_size(bytes_val):
         return f"{bytes_val / (1024 * 1024):.1f}MB"
 
 
-def format_duration(ns):
+def format_duration(ns: float) -> float:
     """Convert nanoseconds to milliseconds."""
     return ns / 1_000_000
 
 
-def format_log_line(log_entry):
+def format_log_line(
+    log_entry: dict[str, Any],  # guard: loose-dict - arbitrary Traefik access-log record
+) -> str | None:
     """Format a single JSON log entry into flat format.
 
     Format: TIME LEVEL CLIENT_IP "METHOD HOST/PATH" → SERVICE STATUS DURATION (origin:X +overhead) SIZE [retries:N] [TLS:X]
@@ -97,7 +100,7 @@ def format_log_line(log_entry):
         return f"[PARSE ERROR: {e}] {json.dumps(log_entry)}"
 
 
-def main():
+def main() -> None:
     """Read JSON log lines from stdin and output formatted versions."""
     for line in sys.stdin:
         line = line.strip()

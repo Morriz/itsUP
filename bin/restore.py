@@ -27,7 +27,11 @@ from typing import Any
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from bin.backup import DB_FILE, build_s3_client
-from lib.data import get_env_with_secrets, load_project_backup_config, resolve_backup_adapter
+from lib.data import (
+    get_env_with_secrets,
+    load_project_backup_config,
+    resolve_backup_adapter,
+)
 from lib.paths import root
 
 PROXY_TARGET = "proxy"

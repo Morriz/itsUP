@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from http.client import HTTPSConnection
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +48,9 @@ class Result:
     error: str | None
 
 
-def _extract_healthcheck_urls(service: dict) -> list[tuple[int | None, str]]:
+def _extract_healthcheck_urls(
+    service: dict[str, Any],  # guard: loose-dict - arbitrary docker-compose mapping
+) -> list[tuple[int | None, str]]:
     healthcheck = service.get("healthcheck") if service else None
     if not isinstance(healthcheck, dict):
         return []
@@ -72,7 +74,10 @@ def _extract_healthcheck_urls(service: dict) -> list[tuple[int | None, str]]:
     return urls
 
 
-def _infer_path(ingress: Ingress, compose: dict) -> tuple[str, str]:
+def _infer_path(
+    ingress: Ingress,
+    compose: dict[str, Any],  # guard: loose-dict - arbitrary docker-compose mapping
+) -> tuple[str, str]:
     if ingress.service and compose:
         services = compose.get("services", {})
         service = services.get(ingress.service)

@@ -6,7 +6,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -39,7 +39,7 @@ def _docker_ids(project: str, service: str) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def _inspect(container_id: str) -> dict:
+def _inspect(container_id: str) -> dict[str, Any]:  # guard: loose-dict - docker inspect payload
     result = subprocess.run(
         ["docker", "inspect", container_id],
         check=False,
@@ -52,7 +52,10 @@ def _inspect(container_id: str) -> dict:
     return data[0] if data else {}
 
 
-def _status_ok(state: dict, requires_health: bool) -> tuple[bool, str | None]:
+def _status_ok(
+    state: dict[str, Any],  # guard: loose-dict - docker inspect payload
+    requires_health: bool,
+) -> tuple[bool, str | None]:
     status = state.get("Status")
     if status != "running":
         return False, f"state={status}"
@@ -66,7 +69,9 @@ def _status_ok(state: dict, requires_health: bool) -> tuple[bool, str | None]:
     return True, None
 
 
-def _has_healthcheck(service: dict) -> bool:
+def _has_healthcheck(
+    service: dict[str, Any],  # guard: loose-dict - arbitrary docker-compose mapping
+) -> bool:
     return isinstance(service, dict) and "healthcheck" in service
 
 

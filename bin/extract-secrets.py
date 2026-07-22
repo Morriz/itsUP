@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+from typing import Any
 
 import yaml
 
@@ -45,7 +46,10 @@ def is_secret(key: str, value: str) -> bool:
     return False
 
 
-def extract_env_from_dict(data: dict, prefix: str = "") -> dict:
+def extract_env_from_dict(
+    data: dict[str, Any],  # guard: loose-dict - arbitrary nested config mapping
+    prefix: str = "",
+) -> dict[str, str]:
     """Recursively extract all env vars"""
     env_vars = {}
 
@@ -60,7 +64,7 @@ def extract_env_from_dict(data: dict, prefix: str = "") -> dict:
     return env_vars
 
 
-def main():
+def main() -> None:
     # Load current db.yml
     with open("db.yml") as f:
         db = yaml.safe_load(f)
