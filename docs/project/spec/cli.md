@@ -74,8 +74,12 @@ in `project/spec/secrets-management`.
   (systemd) or bootstrapping (launchd) bringup when that unit changed or was
   inactive; and **directly, once**, while the host's initial supervision cutover
   is still pending, which is what makes `make install-runtime` leave a
-  first-cutover host live. Once that cutover has completed, an install starts
-  nothing of its own accord: a daemon the operator stopped stays stopped. A written definition is therefore inert until the daemon is next
+  first-cutover host live. Once that cutover has completed the installer performs no **direct** run
+  again. The transitive path is unchanged and unconditional: whenever the
+  bringup definition changed or bringup is inactive, every install restarts it
+  (`bin/install-bringup.sh:192`) and its `ExecStart=itsup run` starts the stack —
+  so a daemon the operator stopped survives an install only when bringup is
+  unchanged **and** active. That is existing behaviour, not introduced here. A written definition is therefore inert until the daemon is next
   brought up in a way that re-reads it, which is what both supervisors do
   natively: writing a unit file and reloading systemd never restarts a running
   service, and writing a plist does not reload a loaded job. The paths that
