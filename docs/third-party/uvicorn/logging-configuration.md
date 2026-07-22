@@ -98,9 +98,12 @@ Reading "the handlers it declares are never selected" as covering both is wrong:
 - **Version-pinned observation.** The absence of a `root` key is a property of
   the installed version's `LOGGING_CONFIG`, verified by reading it. Re-verify
   after a uvicorn major upgrade before relying on root-handler survival.
-- **A `log_config` naming non-uvicorn loggers is a silent no-op for uvicorn**,
-  and any handler it points at a file is created and left empty — which reads,
-  on inspection, exactly like a logging path that works.
+- **A handler attached only to an unmatched named logger is a silent no-op**:
+  its file is created and stays empty, which reads on inspection exactly like a
+  logging path that works. This does **not** extend to a handler the same config
+  attaches to `root` — see the selection rules above; a config can be half-live,
+  and inferring "the whole config is dead" from one empty file is the mistake
+  the section above exists to prevent.
 
 ## Sources
 
