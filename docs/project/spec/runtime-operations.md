@@ -89,12 +89,12 @@ caveats).
 - **The supervision completion marker is host state, and its absence is not a
   licence to restart the stack.** `.itsup-supervision-initialized` at the
   install root records that an ordered `itsup run` has succeeded on this host. It
-  is written only by whichever path observed that success — the installer for a
-  run it performed itself, `itsup-bringup.service` via an `ExecStartPost` for
-  its own, and `bin/bringup-guardian.sh` after its own, because on macOS
-  `launchctl bootstrap` returns before the guardian's run has happened and its
-  exit status therefore proves nothing about it. `make uninstall-runtime`
-  removes the marker.
+  is written only by whichever path observed that success: the installer for a
+  run it performed itself, `itsup-bringup.service` through an `ExecStartPost`
+  for its own, and `bin/bringup-guardian.sh` after its own. No path records a
+  run it did not observe — on macOS `launchctl bootstrap` returns before the
+  guardian's run has happened, so its exit status carries no information about
+  that run. `make uninstall-runtime` removes the marker.
 
   While it is absent **and** the daemon definitions were not previously present
   and registered, `make install-runtime` completes the cutover by running the
