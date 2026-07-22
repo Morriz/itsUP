@@ -82,6 +82,27 @@ make the directory exist for a different unit. Every unit that writes into the
 shared state directory declares it, or the directory must be created by something
 that runs before all of them.
 
+### `RuntimeDirectory=` and `RuntimeDirectoryPreserve=`
+
+The runtime counterpart of `StateDirectory=`, for state that should not survive
+indefinitely.
+
+> In case of `RuntimeDirectory=` the innermost subdirectories are removed when the
+> unit is stopped. It is possible to preserve the specified directories in this case
+> if `RuntimeDirectoryPreserve=` is configured to `restart` or `yes`.
+
+Documented behaviour:
+
+- Directories are created below `/run/` for system units when **the unit starts**,
+  and "the innermost specified directories will be owned by the user and group
+  specified in `User=` and `Group=`". This is what makes a path beneath `/run`
+  writable by an unprivileged unit, which bare `/run` is not.
+- The full paths are exported to the unit as `$RUNTIME_DIRECTORY`.
+- `RuntimeDirectoryPreserve=` takes `no` (default — removed when the unit stops),
+  `restart` (preserved across a restart), or `yes` (preserved when the unit stops).
+  For a repeatedly-invoked `Type=oneshot` unit, `yes` is what keeps a marker alive
+  between invocations, since every invocation ends with the unit stopping.
+
 ## Known caveats
 
 - **A directive on unit A creates nothing for unit B.** `StateDirectory=` is
@@ -104,6 +125,12 @@ that runs before all of them.
   first failure; always-restarting daemons alert only after the start limit is
   exhausted. Alert-trigger documentation that says "once per failure" is wrong for
   the second class.
+- **Reboot lifetime of `RuntimeDirectory=` is not stated by `systemd.exec(5)`.**
+  The page documents creation on start and removal on stop (modulo
+  `RuntimeDirectoryPreserve=`), and says nothing about reboot. A design that relies
+  on runtime state being *gone* after a reboot is relying on `/run` being volatile,
+  which is a property of the host's filesystem layout rather than of these
+  directives — verify it on the target host instead of inferring it from this page.
 - **Timer units reach `failed` through their own faults** (for example an invalid
   calendar specification), not through the failure of the service they trigger —
   that failure belongs to the service unit. A hook on a timer and a hook on its
