@@ -42,7 +42,10 @@ project-specific shape:
    row for `erpnext-frontend`. Keep its first site as `tls.main` and add every other site
    under `tls.sans`. itsUP renders one router with a combined exact-domain Host rule, one
    backend service, and one certificate covering those names. The frontend resolves the
-   selected site from the Host header (`FRAPPE_SITE_NAME_HEADER=$$host`).
+   selected site from the Host header (`FRAPPE_SITE_NAME_HEADER=$$host`). Invalidate the
+   stored certificate for `tls.main` in the same pass: a still-valid certificate is served
+   unchanged, and the added hostname stays refused until one covering every listed name is
+   issued.
 4. **Add the admin bootstrap password to the ERPNext secret set**: `itsup decrypt erpnext`,
    add the site-specific variable, `itsup encrypt erpnext --delete`. Desired-state files
    contain only the variable reference; the password value never lands in chat or logs.
