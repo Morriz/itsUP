@@ -42,10 +42,7 @@ project-specific shape:
    row for `erpnext-frontend`. Keep its first site as `tls.main` and add every other site
    under `tls.sans`. itsUP renders one router with a combined exact-domain Host rule, one
    backend service, and one certificate covering those names. The frontend resolves the
-   selected site from the Host header (`FRAPPE_SITE_NAME_HEADER=$$host`). Invalidate the
-   stored certificate for `tls.main` in the same pass: a still-valid certificate is served
-   unchanged, and the added hostname stays refused until one covering every listed name is
-   issued.
+   selected site from the Host header (`FRAPPE_SITE_NAME_HEADER=$$host`).
 4. **Add the admin bootstrap password to the ERPNext secret set**: `itsup decrypt erpnext`,
    add the site-specific variable, `itsup encrypt erpnext --delete`. Desired-state files
    contain only the variable reference; the password value never lands in chat or logs.
@@ -65,9 +62,11 @@ project-specific shape:
 - **Reconciliation did not create the site:** follow the itsUP GitOps workflow's recovery
   guidance (inspect pipeline and host evidence first); the create-sites container's logs name
   the failing `bench new-site` step.
-- **The FQDN is refused with an unrecognized-name TLS error:** the served certificate
-  predates the new hostname and the proxy holds it as valid. Invalidate that certificate so
-  the proxy requests one covering every name the ingress lists, then retry.
+- **The FQDN is refused with an unrecognized-name TLS error:** the proxy holds no
+  certificate for that name. Confirm the rendered artifact and the proxy's live
+  configuration both carry the name; a certificate name the proxy never receives is absent
+  from the request without any error, and the proxy requests a new certificate on its own
+  once the name reaches it.
 - **The FQDN routes but ERPNext serves the wrong site:** the Host header does not match a
   site directory name — confirm the ingress domain and the site name are identical strings.
 - **A re-apply reports the site as existing:** that is the idempotent guard working, not an
