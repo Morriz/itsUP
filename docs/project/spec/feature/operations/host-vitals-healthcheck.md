@@ -4,7 +4,6 @@ description:
   unit records the strike state its own next run reads, so a degradation reaches
   the remediation its strike count gates instead of aborting on an unwritable
   state path.
-delivered_by: [fix-pi-healthcheck-writes-run-state-as-an-un]
 ---
 
 # Host Vitals Healthcheck — Spec
