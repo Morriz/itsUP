@@ -257,9 +257,8 @@ place. (`itsup/cli.py`, `lib/host_gate.py`)
   rendered in exactly one place: `lib/paths.py` owns the install root, the data
   trees under it (`secrets_dir`, `secret_file`, `sops_config_file`,
   `projects_dir`, `project_dir`), and the rendering (`display_path`). A literal
-  data-tree path in CLI output is a defect, not a style choice: it is correct
-  only for a caller standing in the install root, and the CLI is installed
-  globally.
+  data-tree path in output is a defect: it is correct only for a caller standing
+  in the install root, and the CLI is installed globally.
 - `commit` is non-interactive: plaintext `secrets/*.txt` files present at
   commit time are encrypted in-process (plaintext deleted on success) before
   committing; when SOPS is unavailable while plaintext exists, `commit` fails
@@ -293,14 +292,6 @@ The CLI emits only these — there is no 2/3/130 contract.
 - Change detection compares the live `docker compose config` hash against the
   running container's `com.docker.compose.config-hash` label (container-label
   based), not a hash stored on disk.
-- The caller-usable-location guarantee is machine-enforced by
-  `commands/path_emission_test.py`, in two lanes: a behavioral lane invokes the
-  path-emitting commands from a cwd outside the install root and asserts every
-  reported location is absolute, and a structural lane rejects literal
-  data-tree paths in command source. Click `help=`/`short_help=` text and
-  docstrings are exempt — they are generic command documentation, not a
-  resolved location the caller is told to act on, so a path that appears there
-  is illustrative and stays literal.
 <!-- planned-change:itsup-logs-router -->
 - Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
   `monitor`) are **host-only** and refuse fail-closed off-host (detected

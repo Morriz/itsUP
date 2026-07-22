@@ -37,11 +37,6 @@ def step(message: str) -> None:
     click.echo(message)
 
 
-def is_interactive() -> bool:
-    """Report whether the caller is a human at a terminal rather than a program."""
-    return sys.stdin.isatty()
-
-
 def guard_schema_version() -> None:
     """Check the config schema version and print the outcome to the terminal.
 

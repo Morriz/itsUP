@@ -14,7 +14,7 @@ from pathlib import Path
 
 import click
 
-from commands.common import fail, is_interactive, ok, warn
+from commands.common import fail, ok, warn
 from lib.paths import display_path, secret_file, secrets_dir
 from lib.sops import decrypt_file, encrypt_file, is_sops_available
 
@@ -33,7 +33,7 @@ def edit_secret(name: str) -> None:
         itsup edit-secret itsup         # Edit itsup.enc.txt
         itsup edit-secret my-project    # Edit my-project.enc.txt
     """
-    if not is_interactive():
+    if not sys.stdin.isatty():
         fail("itsup edit-secret is interactive and human-only")
         click.echo()
         click.echo("Non-interactive round trip:")

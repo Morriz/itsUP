@@ -20,7 +20,14 @@ except ImportError:
     netifaces = None
 
 from lib.models import BackupConfig, TraefikConfig
-from lib.paths import project_dir, projects_dir, root, secret_file, secrets_dir
+from lib.paths import (
+    display_path,
+    project_dir,
+    projects_dir,
+    root,
+    secret_file,
+    secrets_dir,
+)
 from lib.sops import load_encrypted_env, load_env_file
 
 logger = get_logger(f"itsup.{__name__}")
@@ -483,7 +490,7 @@ def get_router_ip() -> str:
             config = yaml.safe_load(f) or {}
             router_ip = config.get("routerIP")
             if router_ip:
-                logger.info("Using router IP from projects/itsup.yml: %s", router_ip)
+                logger.info("Using router IP from %s: %s", display_path(itsup_file), router_ip)
                 return router_ip
 
     # Auto-detect using netifaces
@@ -497,8 +504,10 @@ def get_router_ip() -> str:
 
         return router_ip
     except Exception as e:
-        logger.error("Could not auto-detect router IP and none configured in projects/itsup.yml: %s", e)
-        raise ValueError("Router IP required: set in projects/itsup.yml or ensure network detection works") from e
+        logger.error("Could not auto-detect router IP and none configured in %s: %s", display_path(itsup_file), e)
+        raise ValueError(
+            f"Router IP required: set in {display_path(itsup_file)} or ensure network detection works"
+        ) from e
 
 
 def update_itsup_yml_router_ip(ip: str) -> None:
@@ -506,7 +515,7 @@ def update_itsup_yml_router_ip(ip: str) -> None:
     itsup_file = projects_dir() / "itsup.yml"
 
     if not itsup_file.exists():
-        logger.warning("projects/itsup.yml not found, cannot update router IP")
+        logger.warning("%s not found, cannot update router IP", display_path(itsup_file))
         return
 
     # Read current content
@@ -524,7 +533,7 @@ def update_itsup_yml_router_ip(ip: str) -> None:
     with open(itsup_file, "w", encoding="utf-8") as f:
         f.write(updated)
 
-    logger.info("Updated projects/itsup.yml with router IP: %s", ip)
+    logger.info("Updated %s with router IP: %s", display_path(itsup_file), ip)
 
 
 def get_trusted_ips() -> list[str]:
@@ -543,7 +552,7 @@ def load_itsup_config() -> dict[str, Any]:
     itsup_file = projects_dir() / "itsup.yml"
 
     if not itsup_file.exists():
-        logger.warning("projects/itsup.yml not found, using defaults")
+        logger.warning("%s not found, using defaults", display_path(itsup_file))
         return {}
 
     with open(itsup_file, encoding="utf-8") as f:
@@ -563,7 +572,7 @@ def load_traefik_overrides() -> dict[str, Any]:
     traefik_file = projects_dir() / "traefik.yml"
 
     if not traefik_file.exists():
-        logger.warning("projects/traefik.yml not found")
+        logger.warning("%s not found", display_path(traefik_file))
         return {}
 
     with open(traefik_file, encoding="utf-8") as f:
@@ -583,7 +592,7 @@ def load_middleware_overrides() -> dict[str, Any]:
     middleware_file = projects_dir() / "middlewares.yml"
 
     if not middleware_file.exists():
-        logger.warning("projects/middlewares.yml not found")
+        logger.warning("%s not found", display_path(middleware_file))
         return {}
 
     with open(middleware_file, encoding="utf-8") as f:
