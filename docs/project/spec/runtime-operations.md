@@ -88,8 +88,14 @@ caveats).
 
 - **The supervision cutover record is host state, and its absence is not a
   licence to restart the stack.** `.itsup-supervision-state` at the install root
-  holds `attempting` or `complete`. The installer writes `attempting` before it
-  writes any daemon definition; the record advances to `complete` only when a
+  holds exactly one of the literals `attempting` or `complete`, written
+  atomically. Any other content — empty, malformed, truncated — is **unreadable**
+  rather than absent, and the install fails closed on it: absence means never
+  attempted, an unreadable value means unknown, and guessing between them would
+  restart a stack the operator had deliberately stopped. Recovery writes the
+  intended state explicitly (`printf 'complete\n' > …`); `touch` is not a
+  recovery command, since it produces the empty case. The installer writes
+  `attempting` before it writes any daemon definition; the record advances to `complete` only when a
   path that observed an ordered `itsup run` exit zero records it. No path
   records a run it did not observe. `make uninstall-runtime` removes the record.
 
@@ -110,8 +116,11 @@ caveats).
   outcome and the retry on the next invocation. On macOS the guardian runs under
   `set -euo pipefail` and its agent declares `KeepAlive={SuccessfulExit: false}`,
   so a failed run exits the guardian and launchd relaunches it — the guardian
-  owns the retry. The installer performs no direct run there; it waits, bounded,
-  for the record to reach `complete` and exits non-zero on timeout.
+  owns the retry. The installer performs no direct run there.
+  While the cutover is fresh or `attempting` it reloads the bringup agent even
+  when its plist is unchanged — the only launchd-owned way to make a resident
+  guardian execute a new run — then waits for the record to reach `complete`,
+  polling every 2 s for up to 300 s, and exits non-zero on timeout.
 
 <!-- /planned:native-daemon-supervision -->
 
