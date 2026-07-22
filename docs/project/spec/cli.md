@@ -52,8 +52,9 @@ in `project/spec/secrets-management`.
   job starts as soon as it is bootstrapped. The paths that start or restart a daemon are:
   - **`itsup run`** — the ordered, whole-stack path: the only thing that
     activates the daemons as a set, in the order above. Installation reaches it
-    transitively, because writing or reloading the bringup unit runs
-    `itsup run`.
+    transitively when it **restarts (systemd) or bootstraps (launchd) bringup**
+    — which it does when the bringup definition changed or bringup was inactive.
+    Writing a unit file and reloading systemd does not execute it.
   - **`itsup monitor start` / `stop`** — the operator's explicit monitor
     control, transitioning that one unit through the supervisor and touching
     nothing else.
