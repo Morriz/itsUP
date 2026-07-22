@@ -35,7 +35,7 @@ immediately.
 
 | Method/Path | Auth | Reachable from | Behaviour |
 |-------------|------|----------------|-----------|
-| `GET /update-upstream/{project}` | apikey | host loopback, LAN/VPN | Background-deploys one project via `bin/itsup apply {project}` (`:27-36,84-93`). Unknown project ⇒ logged and ignored. |
+| `GET /update-upstream/{project}` | apikey | host loopback, LAN/VPN | Background-deploys one project via `.venv/bin/itsup apply {project}` (`:27-36,84-93`). Unknown project ⇒ logged and ignored. |
 | `GET /update-upstream/{project}/{service}` | apikey | host loopback, LAN/VPN | Same, scoped to one service. |
 | `POST /reconcile` | apikey | host loopback, LAN/VPN | Background full-stack reconcile: pulls the `projects`/`secrets` config repos then runs `itsup apply`; single-flight with trailing-run coalescing (`lib/reconcile.py`). |
 | `GET /projects` | apikey | host loopback, LAN/VPN | Returns `list_projects()` (`@cache`d, `:96-100`). |
@@ -51,7 +51,7 @@ is not available; an operator reaches these endpoints over LAN or VPN.
 `GET /update-upstream/itsUP` triggers `_handle_itsup_update` (`:39-66`): in
 `PYTHON_ENV=production` it **`git fetch origin main` + `git reset --hard
 origin/main`** (destructive — discards local changes to the itsUP checkout),
-then redeploys DNS + proxy stacks (`smart_deploy`) and `bin/itsup apply` (all
+then redeploys DNS + proxy stacks (`smart_deploy`) and `.venv/bin/itsup apply` (all
 projects), then restarts the API. This is the unattended self-update path.
 
 ### Server
