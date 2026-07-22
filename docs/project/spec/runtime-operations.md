@@ -111,11 +111,11 @@ caveats).
   present, or anything registered**, is ambiguous — the record was lost — and the
   install **fails closed**: it starts nothing,
   exits non-zero, and prints the recovery sequences. Each ends with the
-  record written, because nothing else writes it: to bring the stack up, run
-  `itsup run`, confirm it exited zero, then atomically write `complete`; to keep
-  a host that is already as intended, atomically write `complete` and run
-  nothing. A manual `itsup run` alone leaves the record absent, so the next
-  install fails ambiguous again. An absent record never
+  record written: to bring the stack up, run `itsup run`, confirm it exited
+  zero, then atomically write `complete`; to keep a host that is already as
+  intended, atomically write `complete` and run nothing. A manual `itsup run`
+  leaves the record absent, and an install with an absent record and installed
+  definitions is ambiguous. An absent record never
   causes an automatic whole-stack start on an initialised host, because that
   would revive a deliberately stopped daemon.
 
