@@ -46,6 +46,15 @@ in `project/spec/secrets-management`.
   returncode. On a host with no monitor support (macOS — the monitor is
   Linux-only) `run` skips the monitor step with a notice and continues.
   (`commands/run.py`)
+- **Startup ownership differs by supervisor.** On Linux the daemon units carry
+  no `[Install]` section and are never enabled, so nothing activates them at
+  boot and `itsup run` is their sole starter — which is what preserves the
+  order above. On macOS a launchd agent that opts into crash supervision
+  (`KeepAlive`) implicitly sets `RunAtLoad`, so bootstrapping the API agent
+  starts it; launchd owns activation there and `run`'s API step ensures the
+  agent is loaded rather than sequencing it. The documented order is therefore
+  enforced on the container host (Linux) and is best-effort on macOS, which is
+  a development platform for these commands rather than a deployment target.
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
   (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially. The

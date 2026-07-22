@@ -60,13 +60,57 @@ death is expected rather than fatal to the operation.
 re-load a job that was booted out — `bootout` removes the job from the domain,
 so there is nothing left for `KeepAlive` to act on.
 
+### Any `KeepAlive` implies `RunAtLoad` — a supervised job self-starts on load
+
+> KeepAlive <boolean or dictionary of stuff>
+>
+> This optional key is used to control whether your job is to be kept
+> continuously running or to let demand and conditions control the invocation.
+> The default is false and therefore only demand will start the job. ... **The
+> use of this key implicitly implies RunAtLoad, causing launchd to
+> speculatively launch the job.**
+
+The dictionary form carries the same implication, and `SuccessfulExit` states it
+again explicitly:
+
+> SuccessfulExit <boolean>
+>
+> ... This key implies that "RunAtLoad" is set to true, since the job needs to
+> run at least once before an exit status can be determined.
+
+So **omitting `RunAtLoad` does not make a `KeepAlive` job demand-only.** Any job
+that opts into crash supervision starts the moment it is bootstrapped into the
+domain. There is no plist shape that gives crash-restart without load-time
+activation.
+
+The consequence for orchestration: on macOS, `bootstrap` **is** a start.
+An orchestrator cannot both supervise a job for crashes and reserve startup for
+itself the way an unenabled systemd unit allows — `[Install]`-style separation of
+"installed" from "activated" has no launchd equivalent for a `KeepAlive` job.
+Either the orchestrator accepts that launchd owns activation, or the job forgoes
+`KeepAlive`.
+
+Because `bootstrap` starts the job, it is also the correct **start** verb for a
+job that is not loaded, and `bootout` the correct **stop** verb — `kickstart`
+requires an already-loaded job and cannot recover one that was booted out.
+
 ## Known caveats
 
-- **`bootout` + `bootstrap` reads like a restart and is not one.** It is the
-  most common way to leave a self-restarting macOS agent permanently unloaded.
-  Use it for install/uninstall; use `kickstart -k` for restart.
+- **`bootout` + `bootstrap` in one breath reads like a restart and is not one.**
+  A process that boots out its own job never reaches the bootstrap. Use
+  `kickstart -k` when the job is loaded; use the two verbs separately as stop
+  and start.
+- **`kickstart` cannot start an unloaded job.** Pairing `bootout` as stop with
+  `kickstart` as start yields a service that stops once and never starts again.
+  Start must be `bootstrap` whenever the job may be unloaded.
 - **`KeepAlive` is not a safety net for a bad restart verb.** It covers crashes
   and clean exits of a *loaded* job only.
+- **Reading only the first half of the `KeepAlive` entry inverts its meaning.**
+  The paragraph opens with "The default is false and therefore only demand will
+  start the job" — describing the key's *absence* — and closes with the
+  implicit-`RunAtLoad` implication that governs its *presence*. Quoting the
+  opening as evidence that a `KeepAlive` job stays demand-only is a
+  contract-fidelity error.
 - **A service-target is domain-qualified.** The GUI domain for a user agent is
   `gui/<uid>`, so the restart target is `gui/<uid>/<label>` — the same domain
   form the install and teardown paths already use.
