@@ -103,12 +103,13 @@ caveats).
   path that observed an ordered `itsup run` exit zero records it. No path
   records a run it did not observe. `make uninstall-runtime` removes the record.
 
-  `make install-runtime` classifies the host from that record plus whether the
-  daemon definitions already existed and were registered: no record and no
-  pre-existing registered definitions is a fresh cutover, which it performs;
-  `attempting` is an unfinished attempt, which it retries; `complete` is done.
-  No record **with** definitions already registered is ambiguous — the record was
-  lost after a cutover — and the install **fails closed**: it starts nothing,
+  `make install-runtime` classifies the host from that record plus whether each
+  daemon definition file is already installed and whether it is registered: no
+  record, **no installed definition file and nothing registered** is a fresh
+  cutover, which it performs; `attempting` is an unfinished attempt, which it
+  retries; `complete` is done. No record **with an installed definition file
+  present, or anything registered**, is ambiguous — the record was lost — and the
+  install **fails closed**: it starts nothing,
   exits non-zero, and prints the recovery choice (run `itsup run` manually, or
   write `complete` if the host is already as intended). An absent record never
   causes an automatic whole-stack start on an initialised host, because that
