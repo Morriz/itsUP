@@ -21,9 +21,9 @@ process** writes to its per-source file under the instrukt-ai diagnostic folder.
 Traefik's access log stays file-based under `logs/`; every Docker container also
 emits to Docker's json-file driver (ephemeral).
 
-Routing daemon diagnostics through the supervisor is what makes them survive a
-restart, rotate under the operator's existing policy, and stay readable without
-knowing which user the process ran as.
+Daemon diagnostics routed through the supervisor survive a restart, rotate under
+the operator's existing host policy, and are readable without knowing which user
+the process ran as.
 
 ## Inputs/Outputs
 
@@ -123,8 +123,8 @@ are not part of the `logs/` directory contract.
   file. No `get_logger` call site knows or cares which applies.
 - **No itsUP process launches through a shell redirect.** A daemon's records
   reach durable storage because a supervisor captures its stdout, never because a
-  launcher pointed `>` at a file. This is what makes a restart non-destructive: a
-  truncating redirect discards history on every start, a journal does not.
+  launcher pointed `>` at a file. A restart is therefore non-destructive: the
+  journal retains records written before it.
 - **One diagnostic folder, one file per producing process** for the non-daemon
   paths. The file is selected by `configure_logging(source=)`, not by
   `get_logger` (which only sets the logger name → level-gating via the `itsup`
