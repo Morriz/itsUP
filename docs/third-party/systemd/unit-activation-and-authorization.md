@@ -6,14 +6,14 @@ description: systemd semantics itsUP's daemon supervision depends on — that [I
 
 ## What it is
 
-itsUP supervises two long-running daemons (the API server and the container
-security monitor) as systemd units, but their startup order is owned by
-`itsup run`, not by systemd targets: the documented sequence is DNS → proxy →
-API → monitor, and DNS creates the `proxynet` network the others depend on.
-Two systemd contracts decide whether that ownership can hold — how a unit
-becomes boot-activated, and who is allowed to start it — and a wrong reading of
-either produces units that race the orchestrated sequence or a bringup that
-cannot start them at all.
+itsUP's documented startup sequence is DNS → proxy → API → monitor, owned by
+`itsup run` rather than by systemd targets — DNS creates the `proxynet` network
+the others depend on. Any design that supervises a long-running itsUP daemon as
+a systemd unit therefore has to answer two questions before it can claim that
+ownership holds: how a unit becomes boot-activated (and how it can be installed
+without becoming so), and who is authorized to start it. A wrong reading of
+either yields units that race the orchestrated sequence, or an unattended caller
+that cannot start them at all. This entry records both contracts verbatim.
 
 ## Canonical fields
 

@@ -46,15 +46,16 @@ in `project/spec/secrets-management`.
   returncode. On a host with no monitor support (macOS — the monitor is
   Linux-only) `run` skips the monitor step with a notice and continues.
   (`commands/run.py`)
-- **`itsup run` is the sole starter of both daemons, on every platform.**
-  Installation writes the supervisor definitions but never activates them: on
-  Linux the units carry no `[Install]` section and are never enabled; on macOS
-  the API agent's plist is written but not bootstrapped. Activation happens only
-  at `run`'s own API and monitor steps — on macOS `run` bootstraps the agent,
-  which is what starts it, since a `KeepAlive` job implies `RunAtLoad`. Once
-  started, the supervisor owns crash recovery on both platforms. The order above
-  therefore holds identically everywhere, and nothing activates a daemon behind
-  the orchestrator's back.
+- **Nothing starts either daemon directly except `itsup run`, on every
+  platform.** Installation writes the supervisor definitions without activating
+  them itself: on Linux the units carry no `[Install]` section and are never
+  enabled; on macOS the API agent's plist is written but not bootstrapped, since
+  a `KeepAlive` job starts as soon as it is bootstrapped. The daemons are
+  started only at `run`'s own API and monitor steps, in the order above, and the
+  supervisor owns crash recovery from then on. Installation may still *cause* a
+  start transitively — writing or reloading the bringup unit runs `itsup run`,
+  which is the ordered path — but no installer starts a daemon out of sequence
+  on its own.
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
   (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially. The

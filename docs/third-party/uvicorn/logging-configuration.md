@@ -6,12 +6,15 @@ description: uvicorn's default LOGGING_CONFIG as installed for itsUP — it conf
 
 ## What it is
 
-itsUP's API runs under uvicorn as a supervised daemon and attaches its own
-stdout handler to the root logger so that application records (`itsup.*`) reach
-the supervisor's journal. Whether that handler survives depends on exactly what
-uvicorn's `dictConfig` touches when `uvicorn.run(...)` is called, and on which
-stream each uvicorn handler writes to. Guessing either produces an API that
-either loses every application record or duplicates them.
+itsUP's API runs under uvicorn. Today it passes an explicit
+`log_config="api-log.conf.yaml"`, which puts a `logging.FileHandler` on the root
+logger; `api/main.py` attaches no handler of its own. Any change that drops that
+config and instead relies on a handler attached to the **root logger** before
+`uvicorn.run(...)` — the usual shape for a process whose stdout a supervisor
+captures — depends on exactly what uvicorn's own `dictConfig` touches, and on
+which stream each uvicorn handler writes to. Guessing either yields an API that
+loses every application record, or duplicates them. This entry records what the
+installed default actually does.
 
 ## Canonical fields
 

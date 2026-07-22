@@ -6,13 +6,14 @@ description: launchctl verbs itsUP's macOS API supervision depends on — bootst
 
 ## What it is
 
-itsUP supervises its API server on macOS as a launchd user agent, and the API's
-self-update path has to restart that agent from inside the very process the
-agent supervises. Which verb is used decides whether that works: a
-`bootout`-then-`bootstrap` pair asks the terminated process to complete the
-reload, while `kickstart -k` hands the whole restart to launchd. The repository
-already uses `bootstrap`/`bootout` for install and teardown, so both verbs are
-in play and the distinction has to be explicit.
+`bin/install-bringup.sh` and `bin/uninstall-runtime.sh` already drive launchd
+agents with `bootstrap` and `bootout`. Any design that adds a **resident** agent
+— one supervised for crashes, or one a process might restart from inside itself
+— depends on distinctions those two verbs do not make: which verb starts an
+unloaded job, which restarts a loaded one, and whether opting into crash
+supervision also opts into starting at load. This entry records those launchd
+contracts verbatim so a design can be checked against them rather than against
+an assumption.
 
 ## Canonical fields
 
@@ -83,12 +84,16 @@ that opts into crash supervision starts the moment it is bootstrapped into the
 domain. There is no plist shape that gives crash-restart without load-time
 activation.
 
-The consequence for orchestration: on macOS, `bootstrap` **is** a start.
-An orchestrator cannot both supervise a job for crashes and reserve startup for
-itself the way an unenabled systemd unit allows — `[Install]`-style separation of
-"installed" from "activated" has no launchd equivalent for a `KeepAlive` job.
-Either the orchestrator accepts that launchd owns activation, or the job forgoes
-`KeepAlive`.
+The consequence for orchestration: on macOS, `bootstrap` **is** a start. There is
+no *plist-level* equivalent of installing a systemd unit without enabling it — no
+key gives crash supervision while withholding load-time activation.
+
+The separation is still available, one level up: **writing a plist and
+bootstrapping it are separate acts.** An installer can render the plist to
+`~/Library/LaunchAgents` and stop there; whoever later runs `bootstrap` is the
+job's starter. So an orchestrator that wants to own startup does not fight
+`KeepAlive` — it declines to bootstrap, and performs the bootstrap itself at the
+point in its sequence where the job belongs.
 
 Because `bootstrap` starts the job, it is also the correct **start** verb for a
 job that is not loaded, and `bootout` the correct **stop** verb — `kickstart`
