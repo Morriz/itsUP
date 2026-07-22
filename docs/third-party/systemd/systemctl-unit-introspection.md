@@ -17,8 +17,13 @@ Only what bears on that predicate is recorded.
 installed on the system, in combination with their enablement state", and `cat
 PATTERN...` as showing "backing files of one or more units". For **neither
 command does the manual specify an exit status when the pattern matches
-nothing**, and `show` documents no `--quiet`. A predicate built on the exit code
-of any of the three rests on undocumented behavior.
+nothing**. A predicate built on the exit code of any of these rests on
+undocumented behavior.
+
+Nor does silencing help: `-q`/`--quiet` is a global option, but it "does not
+suppress output of commands for which the printed output is the only result
+(like `show`)". So `show` prints its property regardless, and the value — not the
+presence or absence of output — is what a caller reads.
 
 `list-unit-files` does not require the unit to be loaded — it reads installed
 files — and it lists template units in addition to instantiated ones. `cat`
