@@ -12,7 +12,7 @@ import sys
 import click
 
 from commands.common import fail, warn
-from lib.paths import root as install_root
+from lib.paths import display_path, root, secrets_dir
 
 
 def _check_sops_diff() -> bool:
@@ -70,32 +70,32 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool) -> None:
 
     # No arguments: iterate over all encrypted files in secrets/
     if not file1:
-        repo_root = install_root()
-        secrets_dir = repo_root / "secrets"
-
-        if not secrets_dir.exists():
-            fail("secrets/ directory not found")
+        if not secrets_dir().exists():
+            fail(f"Secrets directory not found: {display_path(secrets_dir())}")
             sys.exit(1)
 
-        encrypted_files = sorted(secrets_dir.glob("*.enc.txt"))
+        encrypted_files = sorted(secrets_dir().glob("*.enc.txt"))
 
         if not encrypted_files:
-            warn("No encrypted files found in secrets/")
+            warn(f"No encrypted files found in {display_path(secrets_dir())}")
             sys.exit(0)
 
         has_changes = False
         for enc_file in encrypted_files:
             # Show diff vs git HEAD
-            rel_path = enc_file.relative_to(repo_root)
+            shown_path = display_path(enc_file)
 
             # Check if file exists in git HEAD of secrets repo
             check_in_git = subprocess.run(
-                ["git", "cat-file", "-e", f"HEAD:{enc_file.name}"], cwd=secrets_dir, capture_output=True, check=False
+                ["git", "cat-file", "-e", f"HEAD:{enc_file.name}"],
+                cwd=secrets_dir(),
+                capture_output=True,
+                check=False,
             )
 
             if check_in_git.returncode != 0:
                 # File not in git yet - show decrypted content
-                click.echo(click.style(f"=== {rel_path} ===", fg="blue"))
+                click.echo(click.style(f"=== {shown_path} ===", fg="blue"))
                 click.echo(click.style("+ New file (not yet in git)", fg="green"))
                 click.echo()
 
@@ -116,8 +116,8 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool) -> None:
             if summary:
                 cmd.insert(1, "--summary")
 
-            click.echo(click.style(f"=== {rel_path} ===", fg="blue"))
-            result = subprocess.run(cmd, cwd=secrets_dir, check=False, text=True)
+            click.echo(click.style(f"=== {shown_path} ===", fg="blue"))
+            result = subprocess.run(cmd, cwd=secrets_dir(), check=False, text=True)
 
             if result.returncode != 0:
                 has_changes = True
@@ -145,16 +145,15 @@ def diff_secrets(file1: str, file2: str, summary: bool, git: bool) -> None:
             sys.exit(1)
 
         # Validate files exist
-        repo_root = install_root()
-        f1 = repo_root / file1
-        f2 = repo_root / file2
+        f1 = root() / file1
+        f2 = root() / file2
 
         if not f1.exists():
-            fail(f"File not found: {file1}")
+            fail(f"File not found: {display_path(f1)}")
             sys.exit(1)
 
         if not f2.exists():
-            fail(f"File not found: {file2}")
+            fail(f"File not found: {display_path(f2)}")
             sys.exit(1)
 
         cmd.extend([str(f1), str(f2)])

@@ -10,8 +10,8 @@ import sys
 
 import click
 
-from commands.common import display_path, fail, ok, warn
-from lib.paths import root as install_root
+from commands.common import fail, ok, warn
+from lib.paths import display_path, secret_file, secrets_dir
 from lib.sops import decrypt_file, is_sops_available
 
 
@@ -39,24 +39,22 @@ def decrypt(name: str) -> None:
         click.echo()
         sys.exit(1)
 
-    secrets_dir = install_root() / "secrets"
-
-    if not secrets_dir.exists():
-        fail("secrets/ directory not found")
+    if not secrets_dir().exists():
+        fail(f"Secrets directory not found: {display_path(secrets_dir())}")
         sys.exit(1)
 
     # Find files to decrypt
     if name:
         # Decrypt specific file
-        encrypted_files = [secrets_dir / f"{name}.enc.txt"]
+        encrypted_files = [secret_file(name, encrypted=True)]
         if not encrypted_files[0].exists():
-            fail(f"File not found: secrets/{name}.enc.txt")
+            fail(f"File not found: {display_path(encrypted_files[0])}")
             sys.exit(1)
     else:
         # Decrypt all .enc.txt files
-        encrypted_files = list(secrets_dir.glob("*.enc.txt"))
+        encrypted_files = list(secrets_dir().glob("*.enc.txt"))
         if not encrypted_files:
-            warn("No encrypted secrets found in secrets/")
+            warn(f"No encrypted secrets found in {display_path(secrets_dir())}")
             return
 
     click.echo("Decrypting secrets...")

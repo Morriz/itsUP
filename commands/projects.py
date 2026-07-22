@@ -10,9 +10,9 @@ import sys
 
 import click
 
-from commands.common import complete_project, display_path, fail
+from commands.common import complete_project, fail
 from lib.data import list_projects
-from lib.paths import root as install_root
+from lib.paths import display_path, project_dir, secret_file
 
 
 @click.command()
@@ -33,7 +33,6 @@ def projects(name: str | None) -> None:
         itsup projects               # List configured project names
         itsup projects my-project    # List my-project's files
     """
-    repo_root = install_root()
     configured = list_projects()
 
     if name is None:
@@ -45,12 +44,10 @@ def projects(name: str | None) -> None:
         fail(f"Unknown project: {name}")
         sys.exit(1)
 
-    project_dir = repo_root / "projects" / name
-    for file_path in sorted(p for p in project_dir.rglob("*") if p.is_file()):
+    for file_path in sorted(p for p in project_dir(name).rglob("*") if p.is_file()):
         click.echo(display_path(file_path))
 
-    secrets_dir = repo_root / "secrets"
-    for suffix in (".enc.txt", ".txt"):
-        secret_path = secrets_dir / f"{name}{suffix}"
+    for encrypted in (True, False):
+        secret_path = secret_file(name, encrypted=encrypted)
         if secret_path.exists():
             click.echo(display_path(secret_path))

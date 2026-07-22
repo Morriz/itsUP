@@ -15,7 +15,7 @@ from pathlib import Path
 import click
 
 from commands.common import fail, ok, warn
-from lib.paths import root
+from lib.paths import display_path, secrets_dir, sops_config_file
 
 
 def _check_age_installed() -> bool:
@@ -106,10 +106,9 @@ def sops_key(rotate: bool) -> None:
         click.echo()
 
         # Auto-update .sops.yaml
-        secrets_dir = root() / "secrets"
-        sops_yaml = secrets_dir / ".sops.yaml"
+        sops_yaml = sops_config_file()
 
-        if secrets_dir.exists():
+        if secrets_dir().exists():
             click.echo(click.style("📝 Updating .sops.yaml with new public key...", fg="blue"))
 
             # Create or update .sops.yaml
@@ -117,10 +116,10 @@ def sops_key(rotate: bool) -> None:
   - age: {public_key}
 """
             sops_yaml.write_text(sops_config)
-            ok(f"Updated {sops_yaml}")
+            ok(f"Updated {display_path(sops_yaml)}")
             click.echo()
         else:
-            warn("secrets/ directory not found")
+            warn(f"Secrets directory not found: {display_path(secrets_dir())}")
             click.echo()
             click.echo("Manual .sops.yaml configuration:")
             click.echo()
@@ -131,14 +130,14 @@ def sops_key(rotate: bool) -> None:
         # Show next steps
         click.echo("Next steps:")
         click.echo()
-        if secrets_dir.exists() and sops_yaml.exists():
+        if secrets_dir().exists() and sops_yaml.exists():
             click.echo("  1. Commit .sops.yaml:")
             click.echo("     itsup commit")
             click.echo()
         else:
-            click.echo("  1. Create secrets/ directory and .sops.yaml:")
-            click.echo("     mkdir -p secrets")
-            click.echo("     cat > secrets/.sops.yaml <<EOF")
+            click.echo(f"  1. Create the secrets directory and {sops_yaml.name}:")
+            click.echo(f"     mkdir -p {display_path(secrets_dir())}")
+            click.echo(f"     cat > {display_path(sops_yaml)} <<EOF")
             click.echo("     creation_rules:")
             click.echo(f"       - age: {public_key}")
             click.echo("     EOF")
@@ -153,12 +152,11 @@ def sops_key(rotate: bool) -> None:
             click.echo(click.style("🔄 Re-encrypting all secrets with new key...", fg="blue"))
             click.echo()
 
-            secrets_dir = root() / "secrets"
-            if not secrets_dir.exists():
-                warn("secrets/ directory not found, skipping re-encryption")
+            if not secrets_dir().exists():
+                warn(f"Secrets directory not found: {display_path(secrets_dir())}, skipping re-encryption")
                 return
 
-            encrypted_files = list(secrets_dir.glob("*.enc.txt"))
+            encrypted_files = list(secrets_dir().glob("*.enc.txt"))
             if not encrypted_files:
                 warn("No encrypted secrets found, skipping re-encryption")
                 return

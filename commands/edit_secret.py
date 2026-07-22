@@ -14,8 +14,8 @@ from pathlib import Path
 
 import click
 
-from commands.common import fail, ok, warn
-from lib.paths import root as install_root
+from commands.common import fail, is_interactive, ok, warn
+from lib.paths import display_path, secret_file, secrets_dir
 from lib.sops import decrypt_file, encrypt_file, is_sops_available
 
 
@@ -33,12 +33,12 @@ def edit_secret(name: str) -> None:
         itsup edit-secret itsup         # Edit itsup.enc.txt
         itsup edit-secret my-project    # Edit my-project.enc.txt
     """
-    if not sys.stdin.isatty():
+    if not is_interactive():
         fail("itsup edit-secret is interactive and human-only")
         click.echo()
         click.echo("Non-interactive round trip:")
         click.echo(f"  itsup decrypt {name}")
-        click.echo(f"  <edit secrets/{name}.txt>")
+        click.echo(f"  <edit {display_path(secret_file(name, encrypted=False))}>")
         click.echo(f"  itsup encrypt {name} --delete")
         click.echo("  itsup commit")
         sys.exit(1)
@@ -52,21 +52,19 @@ def edit_secret(name: str) -> None:
         click.echo()
         sys.exit(1)
 
-    secrets_dir = install_root() / "secrets"
-
-    if not secrets_dir.exists():
-        fail("secrets/ directory not found")
+    if not secrets_dir().exists():
+        fail(f"Secrets directory not found: {display_path(secrets_dir())}")
         sys.exit(1)
 
-    encrypted_path = secrets_dir / f"{name}.enc.txt"
-    plaintext_path = secrets_dir / f"{name}.txt"
+    encrypted_path = secret_file(name, encrypted=True)
+    plaintext_path = secret_file(name, encrypted=False)
 
     # Check if encrypted file exists
     if not encrypted_path.exists():
-        fail(f"Encrypted file not found: secrets/{name}.enc.txt")
+        fail(f"Encrypted file not found: {display_path(encrypted_path)}")
         click.echo()
         click.echo("To create a new secret:")
-        click.echo(f"  1. edit secrets/{name}.txt")
+        click.echo(f"  1. edit {display_path(plaintext_path)}")
         click.echo(f"  2. itsup encrypt {name}")
         sys.exit(1)
 

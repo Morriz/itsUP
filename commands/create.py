@@ -7,7 +7,7 @@ import sys
 import click
 
 from commands.common import fail, guard_schema_version, ok
-from lib.paths import root as install_root
+from lib.paths import display_path, project_dir, root, secret_file
 from lib.projects import create_project
 
 
@@ -28,18 +28,17 @@ def create(name: str) -> None:
     """
     guard_schema_version()
 
-    repo_root = install_root()
-
     try:
-        create_project(name, repo_root)
+        create_project(name, root())
     except ValueError as e:
         fail(str(e))
         sys.exit(1)
 
+    created = project_dir(name)
     click.echo()
     ok(f"Project '{name}' created successfully!")
     click.echo("Next steps:")
-    click.echo(f"  1. Edit config:  projects/{name}/itsup-project.yml")
-    click.echo(f"  2. Edit compose: projects/{name}/docker-compose.yml")
-    click.echo(f"  3. Add secrets:  secrets/{name}.txt")
+    click.echo(f"  1. Edit config:  {display_path(created / 'itsup-project.yml')}")
+    click.echo(f"  2. Edit compose: {display_path(created / 'docker-compose.yml')}")
+    click.echo(f"  3. Add secrets:  {display_path(secret_file(name, encrypted=False))}")
     click.echo(f"  4. Deploy:       itsup apply {name}")

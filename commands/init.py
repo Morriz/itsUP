@@ -14,7 +14,7 @@ from pathlib import Path
 import click
 
 from commands.common import fail, ok, warn
-from lib.paths import root
+from lib.paths import display_path, project_dir, projects_dir, root, secret_file
 
 
 def _error(message: str) -> None:
@@ -140,7 +140,7 @@ def _setup_repo(root: Path, name: str) -> None:
         _setup_sops_diff(repo_path)
 
 
-def _copy_if_missing(src: Path, dst: Path, description: str) -> None:
+def _copy_if_missing(src: Path, dst: Path) -> None:
     """Copy file if destination doesn't exist"""
     if dst.exists():
         _success(f"{dst.name} already exists (not overwriting)")
@@ -155,14 +155,14 @@ def _copy_if_missing(src: Path, dst: Path, description: str) -> None:
 
     # Copy file
     shutil.copy2(src, dst)
-    _success(f"Copied {description}")
+    _success(f"Copied {display_path(src)} → {display_path(dst)}")
 
     # Special handling for secrets
     if "secrets" in str(dst):
         _warning("WARNING: Sample secrets copied - MUST be changed before deployment!")
 
 
-def _copy_dir_if_missing(src: Path, dst: Path, description: str) -> None:
+def _copy_dir_if_missing(src: Path, dst: Path) -> None:
     """Copy directory recursively if destination doesn't exist"""
     if dst.exists():
         _success(f"{dst.name}/ already exists (not overwriting)")
@@ -174,7 +174,7 @@ def _copy_dir_if_missing(src: Path, dst: Path, description: str) -> None:
 
     # Copy entire directory
     shutil.copytree(src, dst)
-    _success(f"Copied {description}")
+    _success(f"Copied {display_path(src)} → {display_path(dst)}")
 
 
 @click.command()
@@ -203,9 +203,9 @@ def init(force: bool) -> None:
     # Check if already initialized (exit early unless --force)
     if not force:
         required_files = [
-            project_root / "projects" / "itsup.yml",
-            project_root / "projects" / "traefik.yml",
-            project_root / "secrets" / "itsup.txt",
+            projects_dir() / "itsup.yml",
+            projects_dir() / "traefik.yml",
+            secret_file("itsup", encrypted=False),
         ]
         if all(f.exists() for f in required_files):
             _success("Already initialized (use --force to re-run)")
@@ -219,32 +219,12 @@ def init(force: bool) -> None:
 
     # Initialize configuration files
     click.echo("Copying configuration files...")
-    _copy_if_missing(project_root / "samples" / "env", project_root / ".env", "samples/env → .env")
-    _copy_if_missing(
-        project_root / "samples" / "itsup.yml",
-        project_root / "projects" / "itsup.yml",
-        "samples/itsup.yml → projects/itsup.yml",
-    )
-    _copy_if_missing(
-        project_root / "samples" / "traefik.yml",
-        project_root / "projects" / "traefik.yml",
-        "samples/traefik.yml → projects/traefik.yml",
-    )
-    _copy_if_missing(
-        project_root / "samples" / "middlewares.yml",
-        project_root / "projects" / "middlewares.yml",
-        "samples/middlewares.yml → projects/middlewares.yml",
-    )
-    _copy_dir_if_missing(
-        project_root / "samples" / "example-project",
-        project_root / "projects" / "example-project",
-        "samples/example-project/ → projects/example-project/",
-    )
-    _copy_if_missing(
-        project_root / "samples" / "secrets" / "itsup.txt",
-        project_root / "secrets" / "itsup.txt",
-        "samples/secrets/itsup.txt → secrets/itsup.txt",
-    )
+    samples = project_root / "samples"
+    _copy_if_missing(samples / "env", project_root / ".env")
+    for config in ("itsup.yml", "traefik.yml", "middlewares.yml"):
+        _copy_if_missing(samples / config, projects_dir() / config)
+    _copy_dir_if_missing(samples / "example-project", project_dir("example-project"))
+    _copy_if_missing(samples / "secrets" / "itsup.txt", secret_file("itsup", encrypted=False))
     click.echo()
 
     # Done
@@ -254,24 +234,27 @@ def init(force: bool) -> None:
     click.echo("Next steps:")
     click.echo()
     click.echo("1. Edit secrets (CRITICAL - fill in all empty values!):")
-    click.echo("   vim secrets/itsup.txt   # All secrets (infrastructure + itsUP)")
+    click.echo(f"   vim {display_path(secret_file('itsup', encrypted=False))}   # All secrets (infrastructure + itsUP)")
     click.echo()
     click.echo("2. Edit infrastructure config:")
-    click.echo("   vim projects/itsup.yml        # Router IP, versions, backup config")
-    click.echo("   vim projects/traefik.yml      # Traefik overrides (log levels, plugins)")
-    click.echo("   vim projects/middlewares.yml  # Middleware overrides (rate-limit, auth, crowdsec)")
+    click.echo(f"   vim {display_path(projects_dir() / 'itsup.yml')}        # Router IP, versions, backup config")
+    click.echo(f"   vim {display_path(projects_dir() / 'traefik.yml')}      # Traefik overrides (log levels, plugins)")
+    click.echo(
+        f"   vim {display_path(projects_dir() / 'middlewares.yml')}  "
+        "# Middleware overrides (rate-limit, auth, crowdsec)"
+    )
     click.echo()
     click.echo("3. Add your first project (copy example-project as template):")
-    click.echo("   cp -r projects/example-project projects/my-app")
-    click.echo("   vim projects/my-app/docker-compose.yml  # Define your service")
-    click.echo("   vim projects/my-app/ingress.yml         # Configure routing/domain")
+    click.echo(f"   cp -r {display_path(project_dir('example-project'))} {display_path(project_dir('my-app'))}")
+    click.echo(f"   vim {display_path(project_dir('my-app') / 'docker-compose.yml')}  # Define your service")
+    click.echo(f"   vim {display_path(project_dir('my-app') / 'ingress.yml')}         # Configure routing/domain")
     click.echo()
     click.echo("4. Commit to git:")
     click.echo("   itsup status   # Check what changed")
     click.echo("   itsup commit 'Initial configuration'")
     click.echo()
     click.echo("5. Optional - Encrypt secrets:")
-    click.echo("   cd secrets && sops -e itsup.txt > itsup.enc.txt")
+    click.echo("   itsup encrypt itsup --delete")
     click.echo()
     click.echo("6. Deploy:")
     click.echo("   itsup apply")

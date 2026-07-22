@@ -11,7 +11,7 @@ import sys
 import click
 
 from commands.common import fail, ok, warn
-from lib.paths import root as install_root
+from lib.paths import display_path, secret_file, secrets_dir
 from lib.sops import encrypt_plaintext_secrets, is_sops_available
 
 
@@ -43,27 +43,26 @@ def encrypt(name: str, delete: bool, force: bool) -> None:
         click.echo()
         sys.exit(1)
 
-    secrets_dir = install_root() / "secrets"
-
-    if not secrets_dir.exists():
-        fail("secrets/ directory not found")
+    if not secrets_dir().exists():
+        fail(f"Secrets directory not found: {display_path(secrets_dir())}")
         sys.exit(1)
 
     # Pre-check existence so a missing NAME fails before encryption runs
     if name:
-        if not (secrets_dir / f"{name}.txt").exists():
-            fail(f"File not found: secrets/{name}.txt")
+        plaintext_path = secret_file(name, encrypted=False)
+        if not plaintext_path.exists():
+            fail(f"File not found: {display_path(plaintext_path)}")
             sys.exit(1)
     else:
-        plaintext_files = [f for f in secrets_dir.glob("*.txt") if not f.name.endswith(".enc.txt")]
+        plaintext_files = [f for f in secrets_dir().glob("*.txt") if not f.name.endswith(".enc.txt")]
         if not plaintext_files:
-            warn("No plaintext secrets found in secrets/")
+            warn(f"No plaintext secrets found in {display_path(secrets_dir())}")
             return
 
     click.echo("Encrypting secrets...")
     click.echo()
 
-    result = encrypt_plaintext_secrets(secrets_dir, name=name, delete=delete, force=force)
+    result = encrypt_plaintext_secrets(secrets_dir(), name=name, delete=delete, force=force)
 
     if delete:
         for plaintext_path in result.encrypted + result.skipped:
