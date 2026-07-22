@@ -61,10 +61,12 @@ in `project/spec/secrets-management`.
   - **the API's supervisor-owned self-restart**, used by the self-update path to
     replace a running API in place.
 
-  **No installer step starts, stops, restarts or reloads a daemon** — it writes
-  supervisor definitions and nothing more. The only way an install starts a
-  stopped daemon is by reaching `itsup run` through bringup, the ordered path
-  above. A written definition therefore takes effect the next time that daemon
+  **No installer step starts, stops, restarts or reloads the API or the
+  monitor** — for those two it writes definitions only. The one daemon lifecycle
+  action an install performs is on **bringup itself**, which it restarts
+  (systemd) or bootstraps (launchd) when that unit changed or was inactive; that
+  runs `itsup run`, and so is how an install can start a stopped API or monitor —
+  through the ordered path above, never by acting on them directly. A written definition therefore takes effect the next time that daemon
   starts, which is what both supervisors do natively: writing a unit file and
   reloading systemd never restarts a running service, and writing a plist does
   not reload a loaded job. Apply a change with `itsup run`, `itsup monitor
