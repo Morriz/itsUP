@@ -11,7 +11,7 @@ delivered_by: [fix-pi-healthcheck-writes-run-state-as-an-un]
 
 ## Required reads
 
-@docs/project/spec/runtime-operations.md
+- @docs/project/spec/runtime-operations.md
 
 ## What it is
 
@@ -23,10 +23,8 @@ itsUP stacks on the first strike and reboots on the second, and the daytime
 break-glass path acts only after three consecutive strikes. Both stages are
 gated on strike state that one run writes and the next run reads.
 
-The healthy path clears strike state and reports success, so a run in which
-nothing is wrong is indistinguishable from a run whose state could not be
-recorded. Strike state persisting across runs is therefore the property that
-carries the staging.
+The healthy path clears strike state and reports success. A run whose strike
+state is not recorded is indistinguishable from a healthy run.
 
 The business value is that the staged remediation the unit exists to perform
 actually runs when the host degrades.
