@@ -59,10 +59,9 @@ in `project/spec/secrets-management`.
     nothing else.
   - **the API's supervisor-owned self-restart**, used by the self-update path to
     replace a running API in place.
-  - **the installer's first-introduction start**, and the **supervisor's own
-    crash respawn**, both described below. These are automatic recovery and
-    provisioning rather than operator control surfaces, which is why they are
-    listed apart from the three above rather than omitted.
+  - **the installer's first-introduction start** and the **supervisor's own
+    crash respawn** — automatic provisioning and recovery rather than operator
+    control surfaces.
 
   **An install never stops, restarts or reloads the API or the monitor**, and
   never touches one that is already running or that the operator stopped. Its
