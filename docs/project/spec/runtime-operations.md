@@ -84,6 +84,31 @@ caveats).
 
 ## Known caveats
 
+<!-- planned:native-daemon-supervision -->
+
+- **The supervision completion marker is host state, and its absence is not a
+  licence to restart the stack.** `.itsup-supervision-initialized` at the
+  install root records that an ordered `itsup run` has succeeded on this host. It
+  is written only by whichever path observed that success — the installer for a
+  run it performed itself, `itsup-bringup.service` via an `ExecStartPost` for
+  its own, and `bin/bringup-guardian.sh` after its own, because on macOS
+  `launchctl bootstrap` returns before the guardian's run has happened and its
+  exit status therefore proves nothing about it. `make uninstall-runtime`
+  removes the marker.
+
+  While it is absent **and** the daemon definitions were not previously present
+  and registered, `make install-runtime` completes the cutover by running the
+  ordered start once. If it is absent but the definitions *were* already
+  registered — the marker was deleted, or a crash landed between a successful
+  run and the write — the install **fails closed**: it starts nothing, exits
+  non-zero, and prints the recovery choice (run `itsup run` manually, or
+  recreate the marker if the host is already as intended). An absent marker
+  never causes an automatic whole-stack start on an initialised host, because
+  that would revive a deliberately stopped daemon.
+
+<!-- /planned:native-daemon-supervision -->
+
+
 - **Frequencies drift if units change.** The 03:00/05:00/5-min schedules and the
   bringup `run && apply` command are read from `samples/systemd/*.timer` /
   `*.service` and `samples/launchd/ai.itsup.*.plist`. Editing a unit (or the
