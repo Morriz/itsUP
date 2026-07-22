@@ -94,7 +94,7 @@ Contract of the template:
   operator configured.
 - **The alert body arrives on the command's standard input**; it is never
   interpolated into an argument. The failed unit's identity is additionally
-  available to the command in its environment.
+  available to the command as `ITSUP_ALERT_UNIT` in its environment.
 - **Secret values never enter an alert body** — names at most.
 
 <!-- /planned:ops-failure-alerting -->
