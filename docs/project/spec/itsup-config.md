@@ -79,10 +79,9 @@ Contract of the template:
   another argument or command.
 - **`${VAR}` placeholders resolve from the itsUP infrastructure secrets**
   (`secrets/itsup.{enc.txt|txt}`, loaded per-context — see
-  `project/spec/secrets-management`), which is how a token-bearing transport keeps
-  its credential out of `projects/itsup.yml` — the same split
-  `crowdsec.apikey: '${CROWDSEC_APIKEY}'` already uses. A placeholder with no
-  matching secret resolves empty, exactly as elsewhere in itsUP.
+  `project/spec/secrets-management`). A token-bearing transport therefore holds
+  its credential in the secrets file and only its placeholder in
+  `projects/itsup.yml`. A placeholder with no matching secret resolves empty.
 - **The alert body arrives on the command's standard input**; it is never
   interpolated into an argument. The failed unit's identity is additionally
   available to the command in its environment.
