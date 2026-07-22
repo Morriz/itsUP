@@ -4,7 +4,8 @@ set -euo pipefail
 # (view with `journalctl -u pi-healthcheck.service`).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-STAMP=/run/pi-healthcheck.fail
+: "${RUNTIME_DIRECTORY:?RUNTIME_DIRECTORY must be provided by pi-healthcheck.service}"
+STAMP="${RUNTIME_DIRECTORY}/pi-healthcheck.fail"
 NOW=$(date -Is)
 HOUR=$(date +%H%M)  # HHMM for maintenance window checks
 
@@ -17,7 +18,7 @@ EMERG_MEM_KB=100000    # ~100MB for daytime break-glass
 EMERG_SWAP_KB=262144   # 256MB swap use
 EMERG_LOAD1=12.0
 EMERG_CONN_PCT=95
-STRIKES_FILE=/run/pi-healthcheck.strikes
+STRIKES_FILE="${RUNTIME_DIRECTORY}/pi-healthcheck.strikes"
 
 ok=1
 reasons=()
