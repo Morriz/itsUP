@@ -86,25 +86,32 @@ caveats).
 
 <!-- planned:native-daemon-supervision -->
 
-- **The supervision completion marker is host state, and its absence is not a
-  licence to restart the stack.** `.itsup-supervision-initialized` at the
-  install root records that an ordered `itsup run` has succeeded on this host. It
-  is written only by whichever path observed that success: the installer for a
-  run it performed itself, `itsup-bringup.service` through an `ExecStartPost`
-  for its own, and `bin/bringup-guardian.sh` after its own. No path records a
-  run it did not observe — on macOS `launchctl bootstrap` returns before the
-  guardian's run has happened, so its exit status carries no information about
-  that run. `make uninstall-runtime` removes the marker.
+- **The supervision cutover record is host state, and its absence is not a
+  licence to restart the stack.** `.itsup-supervision-state` at the install root
+  holds `attempting` or `complete`. The installer writes `attempting` before it
+  writes any daemon definition; the record advances to `complete` only when a
+  path that observed an ordered `itsup run` exit zero records it. No path
+  records a run it did not observe. `make uninstall-runtime` removes the record.
 
-  While it is absent **and** the daemon definitions were not previously present
-  and registered, `make install-runtime` completes the cutover by running the
-  ordered start once. If it is absent but the definitions *were* already
-  registered — the marker was deleted, or a crash landed between a successful
-  run and the write — the install **fails closed**: it starts nothing, exits
-  non-zero, and prints the recovery choice (run `itsup run` manually, or
-  recreate the marker if the host is already as intended). An absent marker
-  never causes an automatic whole-stack start on an initialised host, because
-  that would revive a deliberately stopped daemon.
+  `make install-runtime` classifies the host from that record plus whether the
+  daemon definitions already existed and were registered: no record and no
+  pre-existing registered definitions is a fresh cutover, which it performs;
+  `attempting` is an unfinished attempt, which it retries; `complete` is done.
+  No record **with** definitions already registered is ambiguous — the record was
+  lost after a cutover — and the install **fails closed**: it starts nothing,
+  exits non-zero, and prints the recovery choice (run `itsup run` manually, or
+  write `complete` if the host is already as intended). An absent record never
+  causes an automatic whole-stack start on an initialised host, because that
+  would revive a deliberately stopped daemon.
+
+  **Run ownership and retry differ by supervisor.** On Linux the bringup unit is
+  `Type=oneshot` with no `Restart=`, so a failed run is not retried by systemd;
+  `systemctl restart` returns its result, and the installer owns both the
+  outcome and the retry on the next invocation. On macOS the guardian runs under
+  `set -euo pipefail` and its agent declares `KeepAlive={SuccessfulExit: false}`,
+  so a failed run exits the guardian and launchd relaunches it — the guardian
+  owns the retry. The installer performs no direct run there; it waits, bounded,
+  for the record to reach `complete` and exits non-zero on timeout.
 
 <!-- /planned:native-daemon-supervision -->
 
