@@ -13,7 +13,7 @@ from pathlib import Path
 import click
 
 from commands.common import fail, ok
-from lib.paths import root as install_root
+from lib.paths import display_path, projects_dir, secrets_dir
 from lib.sops import encrypt_plaintext_secrets, is_sops_available
 
 
@@ -90,11 +90,8 @@ def commit(force: bool) -> None:
         itsup commit          # Auto-generated message
         itsup commit -f       # Skip rebase, force-push
     """
-    # Get project root
-    repo_root = install_root()
-
-    projects_path = repo_root / "projects"
-    secrets_path = repo_root / "secrets"
+    projects_path = projects_dir()
+    secrets_path = secrets_dir()
 
     # Preflight: encrypt any plaintext secrets before deciding what's dirty.
     # secrets/*.txt is gitignored, so a plaintext-only edit leaves git clean
@@ -129,9 +126,9 @@ def commit(force: bool) -> None:
     # Show what will be committed
     click.echo("Changes detected in:")
     if projects_dirty:
-        click.echo(f"  - {click.style('projects/', fg='yellow')}")
+        click.echo(f"  - {click.style(display_path(projects_path), fg='yellow')}")
     if secrets_dirty:
-        click.echo(f"  - {click.style('secrets/', fg='yellow')}")
+        click.echo(f"  - {click.style(display_path(secrets_path), fg='yellow')}")
     click.echo()
 
     # Detect key rotation for secrets repo
@@ -163,13 +160,13 @@ def commit(force: bool) -> None:
 
     if projects_dirty:
         projects_msg = "Update configuration"
-        click.echo(f"projects/ message: {click.style(projects_msg, fg='yellow')}")
+        click.echo(f"{display_path(projects_path)} message: {click.style(projects_msg, fg='yellow')}")
         if not _commit_and_push(projects_path, "projects", projects_msg, force=force):
             success = False
 
     if secrets_dirty:
         secrets_msg = "Rotate SOPS encryption key" if key_rotation else "Update secrets"
-        click.echo(f"secrets/ message: {click.style(secrets_msg, fg='yellow')}")
+        click.echo(f"{display_path(secrets_path)} message: {click.style(secrets_msg, fg='yellow')}")
         if not _commit_and_push(secrets_path, "secrets", secrets_msg, force=force):
             success = False
 

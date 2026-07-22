@@ -20,7 +20,7 @@ except ImportError:
     netifaces = None
 
 from lib.models import BackupConfig, TraefikConfig
-from lib.paths import root
+from lib.paths import project_dir, projects_dir, root, secret_file, secrets_dir
 from lib.sops import load_encrypted_env, load_env_file
 
 logger = get_logger(f"itsup.{__name__}")
@@ -55,16 +55,16 @@ def load_secrets(project_name: str | None = None) -> dict[str, str]:
         Dictionary of secret key-value pairs
     """
     secrets: dict[str, str] = {}
-    secrets_dir = root() / "secrets"
+    secrets_path = secrets_dir()
 
-    if not secrets_dir.exists():
-        logger.warning("secrets/ directory not found")
+    if not secrets_path.exists():
+        logger.warning("Secrets directory not found: %s", secrets_path)
         return secrets
 
     def _load_secret_file(name: str) -> dict[str, str]:
         """Load secret file with auto-detection (encrypted first, then plaintext)"""
-        encrypted_file = secrets_dir / f"{name}.enc.txt"
-        plaintext_file = secrets_dir / f"{name}.txt"
+        encrypted_file = secret_file(name, encrypted=True)
+        plaintext_file = secret_file(name, encrypted=False)
 
         # Try encrypted first (production)
         if encrypted_file.exists():
@@ -132,13 +132,13 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
         For external hosts, docker_compose_dict will be empty {}
         Secrets are left as ${VAR} placeholders for runtime expansion by Docker Compose
     """
-    project_dir = root() / "projects" / project_name
+    project_path = project_dir(project_name)
 
-    if not project_dir.exists():
+    if not project_path.exists():
         raise FileNotFoundError(f"Project not found: {project_name}")
 
     # Load docker-compose.yml (optional for external host passthroughs)
-    compose_file = project_dir / "docker-compose.yml"
+    compose_file = project_path / "docker-compose.yml"
     if compose_file.exists():
         with open(compose_file, encoding="utf-8") as f:
             compose = yaml.safe_load(f)
@@ -147,8 +147,8 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
         compose = {}
 
     # Load itsup-project.yml (or ingress.yml for backward compatibility)
-    new_config_file = project_dir / "itsup-project.yml"
-    old_config_file = project_dir / "ingress.yml"
+    new_config_file = project_path / "itsup-project.yml"
+    old_config_file = project_path / "ingress.yml"
 
     # Initialize with defaults
     traefik = TraefikConfig()
@@ -185,7 +185,7 @@ def load_project_backup_config(project_name: str) -> BackupConfig | None:
     declares no backup config. Presence drives both adapter dispatch and the
     derived live-tar exclusion (see project/design/backup-restore).
     """
-    backup_file = root() / "projects" / project_name / "backup.yml"
+    backup_file = project_dir(project_name) / "backup.yml"
     if not backup_file.exists():
         return None
 
@@ -205,7 +205,7 @@ def resolve_backup_adapter(project_name: str, adapter: str) -> Path | None:
 
     Returns the first existing path, or None when neither is present.
     """
-    project_local = root() / "projects" / project_name / "backup-adapter.sh"
+    project_local = project_dir(project_name) / "backup-adapter.sh"
     if project_local.exists():
         return project_local
 
@@ -218,13 +218,13 @@ def resolve_backup_adapter(project_name: str, adapter: str) -> Path | None:
 
 def list_projects() -> list[str]:
     """List all available projects (both container and ingress-only)"""
-    projects_dir = root() / "projects"
-    if not projects_dir.exists():
+    projects_path = projects_dir()
+    if not projects_path.exists():
         return []
 
     return [
         p.name
-        for p in projects_dir.iterdir()
+        for p in projects_path.iterdir()
         if p.is_dir()
         and ((p / "docker-compose.yml").exists() or (p / "itsup-project.yml").exists() or (p / "ingress.yml").exists())
         and not p.name.startswith(".")
@@ -384,7 +384,7 @@ def _validate_compose_schema(project_name: str) -> list[str]:
     validator, so this shells out to the exact binary that would otherwise
     reject the file first at deploy time.
     """
-    compose_file = root() / "projects" / project_name / "docker-compose.yml"
+    compose_file = project_dir(project_name) / "docker-compose.yml"
     if not compose_file.exists():
         return []
 
@@ -477,7 +477,7 @@ def get_router_ip() -> str:
     """Get router IP from projects/itsup.yml or auto-detect"""
 
     # Try to load from projects/itsup.yml (top-level routerIP key)
-    itsup_file = root() / "projects" / "itsup.yml"
+    itsup_file = projects_dir() / "itsup.yml"
     if itsup_file.exists():
         with open(itsup_file, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
@@ -503,7 +503,7 @@ def get_router_ip() -> str:
 
 def update_itsup_yml_router_ip(ip: str) -> None:
     """Update projects/itsup.yml with detected router IP"""
-    itsup_file = root() / "projects" / "itsup.yml"
+    itsup_file = projects_dir() / "itsup.yml"
 
     if not itsup_file.exists():
         logger.warning("projects/itsup.yml not found, cannot update router IP")
@@ -540,7 +540,7 @@ def load_itsup_config() -> dict[str, Any]:
         Dictionary of itsUP configuration
         Secrets are left as ${VAR} placeholders - not expanded
     """
-    itsup_file = root() / "projects" / "itsup.yml"
+    itsup_file = projects_dir() / "itsup.yml"
 
     if not itsup_file.exists():
         logger.warning("projects/itsup.yml not found, using defaults")
@@ -560,7 +560,7 @@ def load_traefik_overrides() -> dict[str, Any]:
         Dictionary of Traefik configuration overrides
         Secrets are left as ${VAR} placeholders - not expanded
     """
-    traefik_file = root() / "projects" / "traefik.yml"
+    traefik_file = projects_dir() / "traefik.yml"
 
     if not traefik_file.exists():
         logger.warning("projects/traefik.yml not found")
@@ -580,7 +580,7 @@ def load_middleware_overrides() -> dict[str, Any]:
         Dictionary of middleware configuration overrides
         Secrets are left as ${VAR} placeholders - not expanded
     """
-    middleware_file = root() / "projects" / "middlewares.yml"
+    middleware_file = projects_dir() / "middlewares.yml"
 
     if not middleware_file.exists():
         logger.warning("projects/middlewares.yml not found")
