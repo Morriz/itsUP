@@ -102,6 +102,14 @@ Documented behaviour:
   `restart` (preserved across a restart), or `yes` (preserved when the unit stops).
   A `Type=oneshot` unit stops at the end of each invocation; `yes` preserves its
   directory across those stops.
+- Reboot removes the directory regardless of the preserve mode, for system services:
+
+  > Note that since the runtime directory /run/ is a mount point of "tmpfs", then for
+  > system services the directories specified in `RuntimeDirectory=` are removed when
+  > the system is rebooted.
+
+  The clause closes the `RuntimeDirectoryPreserve=` entry, not the `RuntimeDirectory=`
+  entry.
 
 ## Known caveats
 
@@ -125,12 +133,10 @@ Documented behaviour:
   first failure; always-restarting daemons alert only after the start limit is
   exhausted. Alert-trigger documentation that says "once per failure" is wrong for
   the second class.
-- **Reboot lifetime of `RuntimeDirectory=` is not stated by `systemd.exec(5)`.**
-  The page documents creation on start and removal on stop (modulo
-  `RuntimeDirectoryPreserve=`), and says nothing about reboot. A design that relies
-  on runtime state being *gone* after a reboot is relying on `/run` being volatile,
-  which is a property of the host's filesystem layout rather than of these
-  directives — verify it on the target host instead of inferring it from this page.
+- **The reboot guarantee lives under `RuntimeDirectoryPreserve=`, not
+  `RuntimeDirectory=`.** A reader who searches only the `RuntimeDirectory=` entry
+  finds creation and stop-removal and concludes reboot lifetime is unspecified. It is
+  specified, one entry later, and it holds for system services.
 - **Timer units reach `failed` through their own faults** (for example an invalid
   calendar specification), not through the failure of the service they trigger —
   that failure belongs to the service unit. A hook on a timer and a hook on its
