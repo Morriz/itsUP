@@ -87,6 +87,19 @@ that runs before all of them.
 - **A directive on unit A creates nothing for unit B.** `StateDirectory=` is
   scoped to the units that declare it. A second writer that never declares it
   finds no directory on a fresh host.
+- **A restart interval shorter than the start-limit window makes a unit
+  structurally unalertable.** The limit trips only when `StartLimitBurst` starts
+  fall inside a single `StartLimitIntervalSec`: "units which are started more than
+  burst times within an interval time span are not permitted to start any more."
+  With the upstream defaults (10s interval, 5 starts) and `RestartSec=5`, roughly
+  two starts land in any interval, the burst never accumulates, and a persistently
+  crash-looping unit restarts forever without ever entering `failed` — so
+  `OnFailure=` never fires for it. Reaching `failed` requires an interval long
+  enough to accumulate `StartLimitBurst` restarts at the configured `RestartSec`
+  (for example `StartLimitIntervalSec=300` with `StartLimitBurst=5` at
+  `RestartSec=5`, which reaches `failed` in roughly 30s of looping while leaving an
+  isolated crash below the threshold). Nothing in a unit that gets this wrong looks
+  incorrect; the alert simply never arrives.
 - **`OnFailure=` latency is not uniform across unit types.** Oneshot jobs alert on
   first failure; always-restarting daemons alert only after the start limit is
   exhausted. Alert-trigger documentation that says "once per failure" is wrong for
