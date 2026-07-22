@@ -60,8 +60,9 @@ surface as Compose-time errors, not itsUP errors.
 
 The editing path for non-interactive callers: `itsup decrypt <name>` writes
 `secrets/<name>.txt` and reports each written path in a form usable from the
-caller's cwd (absolute when the caller is not standing in the install root);
-the caller edits the plaintext with its own tools; `itsup encrypt --delete`
+caller's cwd (absolute when the caller is not standing in the install root — a
+universal CLI guarantee, see `project/spec/cli`); the caller edits the
+plaintext with its own tools; `itsup encrypt --delete`
 re-encrypts and removes the plaintext; `itsup commit` pushes. `commit` closes
 the loop fail-safe: plaintext `secrets/*.txt` files still present at commit
 time are encrypted in-process (plaintext deleted on success) before the commit,
