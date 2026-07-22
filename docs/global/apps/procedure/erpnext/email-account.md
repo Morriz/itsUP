@@ -15,8 +15,23 @@ from its own address instead of the sender the bench provides to every site.
 
 ## Preconditions
 
-- The company holds a mailbox or relay it may send as, with its server, port, transport
-  security, and authentication credentials.
+The company brings one of two things, and the choice decides everything downstream:
+
+- **Control of its domain's DNS**, when the fleet relay sends on the company's behalf. The
+  company publishes the relay's domain-verification, SPF, and DKIM records, and a
+  return-path record when the relay asks for one. It keeps no mailbox credentials in the
+  site, and its normal mail server continues to receive replies.
+- **A mailbox it sends from**, when the company relays through its own provider: the address,
+  the outgoing server, port, transport security, and credentials that authenticate. Providers
+  that enforce multi-factor authentication require an application password or an explicitly
+  enabled SMTP authentication path for that mailbox; the account password alone fails.
+
+Both paths also require:
+
+- The sender address and the display name recipients see, decided by the company's owner.
+- A person at the company with authority over that address or that domain.
+- The company's expected sending volume, checked against the provider's limits before
+  invoices depend on it.
 - The operator runs under the site's `System Manager` authority: its owner, or an agent in
   the site's administrator context. A company's agent operator identity lacks this authority
   and does not perform this procedure.
@@ -28,9 +43,13 @@ from its own address instead of the sender the bench provides to every site.
 1. **Establish the sender identity with the owner.** Confirm the address mail is sent as and
    the display name recipients see. Both appear on every invoice and every invitation the
    company sends, so the owner decides them.
-2. **Gather the transport facts:** outgoing server, port, transport security, the login the
-   server authenticates, and its password. A relay that accepts the site by network address
-   needs no login; say so explicitly rather than inventing empty credentials.
+2. **Prepare the sending path the company chose.** For a company sending on its own domain
+   through the fleet relay, publish the relay's verification, SPF, and DKIM records in that
+   domain's DNS and confirm the provider reports the domain and sender as verified. For a
+   company relaying through its own provider, collect the outgoing server, port, transport
+   security, and the credential that authenticates — an application password where the
+   provider enforces multi-factor authentication. Credentials travel through the approved
+   secret channel, never through chat.
 3. **Create the Email Account record** on that site with outgoing enabled and marked as the
    default outgoing account. Its presence is what overrides the bench-wide default, and its
    scope is that one site.
