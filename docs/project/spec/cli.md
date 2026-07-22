@@ -51,9 +51,10 @@ in `project/spec/secrets-management`.
   plist is written but not bootstrapped by the installer, since a `KeepAlive`
   job starts as soon as it is bootstrapped. Exactly three paths start or restart
   a daemon:
-  - **`itsup run`** — the ordered, whole-stack path, and the only thing that
-    activates a daemon which was not already running. Installation may reach it
-    transitively, because writing or reloading the bringup unit runs `itsup run`.
+  - **`itsup run`** — the ordered, whole-stack path: the only thing that
+    activates the daemons as a set, in the order above, and the only activation
+    an installer can reach. Installation reaches it transitively, because
+    writing or reloading the bringup unit runs `itsup run`.
   - **`itsup monitor start` / `stop`** — the operator's explicit monitor
     control, transitioning that one unit through the supervisor and touching
     nothing else.
