@@ -69,11 +69,29 @@ Passing `log_config=<path>` replaces this default wholesale; passing
 `log_level=` overrides the level uvicorn applies to its own loggers. Omitting
 both yields the table above.
 
-A custom `log_config` whose logger names do not match `uvicorn`,
-`uvicorn.error` and `uvicorn.access` silently configures nothing for uvicorn:
-the handlers it declares are never selected, and uvicorn's records fall through
-to whatever the root logger does. This failure is silent — the config loads
-without error.
+A custom `log_config` whose **named** loggers do not match `uvicorn`,
+`uvicorn.error` and `uvicorn.access` configures nothing for uvicorn *by name*:
+handlers attached to those unmatched names are never selected for uvicorn's
+records. This failure is silent — the config loads without error and the
+handler's file is created and stays empty.
+
+A handler the same config attaches to **`root`** is a different case and is
+**not** dead: every record that propagates to root reaches it, including
+`uvicorn.error`'s (which sets no `propagate: False`). So a config can be
+half-live — its root handler receiving records while a same-config named handler
+never fires.
+
+itsUP's own `api-log.conf.yaml` is exactly that shape, and it is the reason the
+two files behave differently today:
+
+| Handler | Attached to | Selected? |
+|---|---|---|
+| `default` → `logs/api.log` | `default` logger **and `root`** | **Yes**, via `root` — receives propagated records |
+| `access` → `logs/access.log` | `access` logger only | **No** — uvicorn's access logger is `uvicorn.access`, which this config never names |
+
+Reading "the handlers it declares are never selected" as covering both is wrong:
+`logs/api.log` has content, and the record that never arrives is uvicorn's
+*access* record.
 
 ## Known caveats
 
