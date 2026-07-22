@@ -46,10 +46,14 @@ in `project/spec/secrets-management`.
   returncode. On a host with no monitor support (macOS — the monitor is
   Linux-only) `run` skips the monitor step with a notice and continues.
   (`commands/run.py`)
-- **Startup ownership.** Nothing is boot-activated: on Linux the daemon units
-  carry no `[Install]` section and are never enabled; on macOS the API agent's
-  plist is written but not bootstrapped by the installer, since a `KeepAlive`
-  job starts as soon as it is bootstrapped. The paths that start or restart a daemon are:
+- **Startup ownership.** **Neither daemon** is boot-activated: on Linux the
+  `itsup-api` and `itsup-monitor` units carry no `[Install]` section and are
+  never enabled; on macOS the API agent's plist is written but not bootstrapped
+  by the installer, since a `KeepAlive` job starts as soon as it is
+  bootstrapped. `itsup-bringup.service` is the exception and is unchanged by
+  this: it does carry `[Install]`, is enabled, and is restarted when its
+  definition changed or it was inactive — which is how boot brings the stack up
+  at all. The paths that start or restart a daemon are:
   - **`itsup run`** — the ordered, whole-stack path: the only thing that
     activates the daemons as a set, in the order above. Installation reaches it
     transitively when it **restarts (systemd) or bootstraps (launchd) bringup**
