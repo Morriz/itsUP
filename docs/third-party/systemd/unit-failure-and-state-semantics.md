@@ -1,0 +1,103 @@
+---
+description: systemd semantics itsUP's failure alerting depends on — what OnFailure= actually triggers on (the failed state, not a crash), how Restart= plus the start limit delays that trigger, template-instance specifiers, ExecStartPost= ordering under Type=oneshot, and StateDirectory= creation timing and ownership.
+---
+
+# systemd — Unit Failure and State Semantics
+
+## What it is
+
+itsUP's ops failure alerting is built entirely on the supervisor's own
+mechanisms rather than a polling daemon. That makes the exact semantics of four
+systemd directives load-bearing: a wrong reading produces alerts that never fire,
+fire late, or fire on the wrong event. These are the verbatim contracts from the
+systemd manual pages.
+
+## Canonical fields
+
+### `OnFailure=` triggers on the failed state, not on a crash
+
+> A space-separated list of one or more units that are activated when this unit
+> enters the "failed" state.
+
+The trigger is the **unit result state**, not the exit of a process. Two
+consequences itsUP depends on:
+
+- A unit that exits successfully never enters `failed`, so success silence is
+  structural — no code decides not to alert.
+- A unit that crashes but is restarted does **not** necessarily enter `failed`.
+  See the start-limit interaction below.
+
+`OnSuccess=` (systemd 249+) is the mirror, activating when the unit enters
+`inactive`. itsUP does not use it: success notifications train operators to
+ignore the channel.
+
+### `Restart=` plus the start limit delays when `failed` is reached
+
+> Note that units which are configured for `Restart=`, and which reach the start
+> limit are not attempted to be restarted anymore; however, they may still be
+> restarted manually or from a timer or socket at a later point, after the
+> interval has passed.
+
+For a unit with `Restart=always` or `Restart=on-failure`, a single crash is
+followed by a restart attempt, not by the `failed` state. The unit reaches
+`failed` — and therefore fires `OnFailure=` — only once it exhausts
+`StartLimitBurst` attempts within `StartLimitIntervalSec`. An always-restarting
+daemon therefore alerts on **sustained** failure, not on the first crash, and the
+alert latency is a function of those two settings.
+
+A unit with no `Restart=` (such as a `Type=oneshot` scheduled job) enters
+`failed` on its first non-zero exit, so its hook fires immediately.
+
+### Template instances and the `%n` / `%i` specifiers
+
+In a template unit, the instance parameter is referred to with `%i` — the name
+between `@` and the type suffix. `%n` expands to the full unit name of the unit
+being processed.
+
+`OnFailure=alert@%n.service` on a failing unit therefore instantiates the alert
+template with the failing unit's own full name as the instance, which the alert
+unit reads back as `%i`. Because `%n` already includes the `.service` suffix, the
+resulting instance name carries it too.
+
+### `ExecStartPost=` ordering
+
+`ExecStartPost=` commands run after the commands in `ExecStart=` have completed
+successfully. For `Type=oneshot` this makes `ExecStartPost=` a success-conditional
+step: it does not run when `ExecStart=` fails. That property is what lets a
+success-only stamp be expressed in the unit rather than in application code.
+
+### `StateDirectory=` creation timing and ownership
+
+> The directories specified with `StateDirectory=` ... are not removed when the
+> unit is stopped.
+
+Creation is per-unit and start-time scoped: when **the unit** is started, the
+named directories are created including their parents, below `/var/lib/` for
+system units. The innermost directories are owned by the unit's `User=` and
+`Group=`, with mode from `StateDirectoryMode=`. The full path is exported to the
+unit as `$STATE_DIRECTORY`.
+
+The load-bearing consequence: declaring `StateDirectory=` on one unit does **not**
+make the directory exist for a different unit. Every unit that writes into the
+shared state directory declares it, or the directory must be created by something
+that runs before all of them.
+
+## Known caveats
+
+- **A directive on unit A creates nothing for unit B.** `StateDirectory=` is
+  scoped to the units that declare it. A second writer that never declares it
+  finds no directory on a fresh host.
+- **`OnFailure=` latency is not uniform across unit types.** Oneshot jobs alert on
+  first failure; always-restarting daemons alert only after the start limit is
+  exhausted. Alert-trigger documentation that says "once per failure" is wrong for
+  the second class.
+- **Timer units reach `failed` through their own faults** (for example an invalid
+  calendar specification), not through the failure of the service they trigger —
+  that failure belongs to the service unit. A hook on a timer and a hook on its
+  service cover different events.
+
+## Sources
+
+- https://man7.org/linux/man-pages/man5/systemd.unit.5.html
+- https://man7.org/linux/man-pages/man5/systemd.exec.5.html
+- https://man7.org/linux/man-pages/man5/systemd.service.5.html

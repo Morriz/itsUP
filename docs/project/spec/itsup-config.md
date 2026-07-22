@@ -81,7 +81,17 @@ Contract of the template:
   (`secrets/itsup.{enc.txt|txt}`, loaded per-context — see
   `project/spec/secrets-management`). A token-bearing transport therefore holds
   its credential in the secrets file and only its placeholder in
-  `projects/itsup.yml`. A placeholder with no matching secret resolves empty.
+  `projects/itsup.yml`.
+- **A malformed or unresolvable command fails at the boundary, before any child
+  process starts.** `alert.command` is valid only when it is a non-empty string
+  that splits to a non-empty argument vector and every `${VAR}` it names resolves
+  to a non-empty secret. A value that is not a string, splits to nothing, or
+  references an absent secret is rejected with a diagnostic naming the offending
+  key or placeholder — it is never silently substituted with an empty value.
+  This is the one place `${VAR}` does **not** follow itsUP's compose-passthrough
+  behaviour, because the resolved value is executed rather than passed to a
+  container: an empty substitution there would run a different command than the
+  operator configured.
 - **The alert body arrives on the command's standard input**; it is never
   interpolated into an argument. The failed unit's identity is additionally
   available to the command in its environment.
