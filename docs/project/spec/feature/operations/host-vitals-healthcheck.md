@@ -9,6 +9,10 @@ delivered_by: [fix-pi-healthcheck-writes-run-state-as-an-un]
 
 # Host Vitals Healthcheck — Spec
 
+## Required reads
+
+@docs/project/spec/runtime-operations.md
+
 ## What it is
 
 `bin/pi-healthcheck.sh` runs periodically under its own supervised unit and
@@ -19,12 +23,10 @@ itsUP stacks on the first strike and reboots on the second, and the daytime
 break-glass path acts only after three consecutive strikes. Both stages are
 gated on strike state that one run writes and the next run reads.
 
-That state is what makes the staging real. A run that cannot record its strike
-state cannot be counted by the next run, so every gated remediation sits behind
-a counter that never advances — and because the healthy path only clears state,
-the unit reports success on every run in which nothing is wrong. This spec pins
-the persistence of strike state across runs so a healthcheck whose remediation
-is unreachable is caught by the functional suite instead of by an outage.
+The healthy path clears strike state and reports success, so a run in which
+nothing is wrong is indistinguishable from a run whose state could not be
+recorded. Strike state persisting across runs is therefore the property that
+carries the staging.
 
 The business value is that the staged remediation the unit exists to perform
 actually runs when the host degrades.
