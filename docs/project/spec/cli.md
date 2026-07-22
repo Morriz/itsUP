@@ -66,11 +66,16 @@ in `project/spec/secrets-management`.
   action an install performs is on **bringup itself**, which it restarts
   (systemd) or bootstraps (launchd) when that unit changed or was inactive; that
   runs `itsup run`, and so is how an install can start a stopped API or monitor —
-  through the ordered path above, never by acting on them directly. A written definition therefore takes effect the next time that daemon
-  starts, which is what both supervisors do natively: writing a unit file and
-  reloading systemd never restarts a running service, and writing a plist does
-  not reload a loaded job. Apply a change with `itsup run`, `itsup monitor
-  start`, or the API's self-restart. Where no bringup action occurs, a daemon
+  through the ordered path above, never by acting on them directly. A written definition is therefore inert until the daemon is next
+  brought up in a way that re-reads it, which is what both supervisors do
+  natively: writing a unit file and reloading systemd never restarts a running
+  service, and writing a plist does not reload a loaded job. The paths that
+  apply it differ by platform: **on Linux**, restart that unit —
+  `itsup monitor start` for the monitor, the API's self-restart, or
+  `sudo systemctl restart <unit>`; **on macOS**, `itsup down` then `itsup run`,
+  the only sequence that unloads and re-registers the job. `itsup run` on its
+  own does not apply a changed definition to a running daemon on either
+  platform, because its start verb no-ops against something already running. Where no bringup action occurs, a daemon
   the operator deliberately stopped stays stopped across an install.
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
