@@ -49,24 +49,30 @@ in `project/spec/secrets-management`.
 - **Startup ownership.** Nothing is boot-activated: on Linux the daemon units
   carry no `[Install]` section and are never enabled; on macOS the API agent's
   plist is written but not bootstrapped by the installer, since a `KeepAlive`
-  job starts as soon as it is bootstrapped. Exactly three paths start or restart
-  a daemon:
+  job starts as soon as it is bootstrapped. The paths that start or restart a daemon are:
   - **`itsup run`** — the ordered, whole-stack path: the only thing that
-    activates the daemons as a set, in the order above, and the only activation
-    an installer can reach. Installation reaches it transitively, because
-    writing or reloading the bringup unit runs `itsup run`.
+    activates the daemons as a set, in the order above. Installation reaches it
+    transitively, because writing or reloading the bringup unit runs
+    `itsup run`.
   - **`itsup monitor start` / `stop`** — the operator's explicit monitor
     control, transitioning that one unit through the supervisor and touching
     nothing else.
   - **the API's supervisor-owned self-restart**, used by the self-update path to
     replace a running API in place.
+  - **the installer's first-introduction start**, and the **supervisor's own
+    crash respawn**, both described below. These are automatic recovery and
+    provisioning rather than operator control surfaces, which is why they are
+    listed apart from the three above rather than omitted.
 
-  **No installer step starts, stops, restarts or reloads the API or the
-  monitor** — for those two it writes definitions only. The one daemon lifecycle
-  action an install performs is on **bringup itself**, which it restarts
-  (systemd) or bootstraps (launchd) when that unit changed or was inactive; that
-  runs `itsup run`, and so is how an install can start a stopped API or monitor —
-  through the ordered path above, never by acting on them directly. A written definition is therefore inert until the daemon is next
+  **An install never stops, restarts or reloads the API or the monitor**, and
+  never touches one that is already running or that the operator stopped. Its
+  only direct action on them is to **start a daemon whose definition is newly
+  introduced and which has never run** — started alone, through its own
+  single-unit start, so a first-introduction install cannot revive or reconfigure
+  its sibling. Separately, an install performs a lifecycle action on **bringup
+  itself**, restarting (systemd) or bootstrapping (launchd) it when that unit
+  changed or was inactive; that runs `itsup run`, which is the other way an
+  install can start a stopped daemon — through the ordered path above. A written definition is therefore inert until the daemon is next
   brought up in a way that re-reads it, which is what both supervisors do
   natively: writing a unit file and reloading systemd never restarts a running
   service, and writing a plist does not reload a loaded job. The paths that
