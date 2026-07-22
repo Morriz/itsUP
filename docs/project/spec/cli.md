@@ -46,16 +46,26 @@ in `project/spec/secrets-management`.
   returncode. On a host with no monitor support (macOS — the monitor is
   Linux-only) `run` skips the monitor step with a notice and continues.
   (`commands/run.py`)
-- **Nothing starts either daemon directly except `itsup run`, on every
-  platform.** Installation writes the supervisor definitions without activating
-  them itself: on Linux the units carry no `[Install]` section and are never
-  enabled; on macOS the API agent's plist is written but not bootstrapped, since
-  a `KeepAlive` job starts as soon as it is bootstrapped. The daemons are
-  started only at `run`'s own API and monitor steps, in the order above, and the
-  supervisor owns crash recovery from then on. Installation may still *cause* a
-  start transitively — writing or reloading the bringup unit runs `itsup run`,
-  which is the ordered path — but no installer starts a daemon out of sequence
-  on its own.
+- **Startup ownership.** Nothing is boot-activated: on Linux the daemon units
+  carry no `[Install]` section and are never enabled; on macOS the API agent's
+  plist is written but not bootstrapped by the installer, since a `KeepAlive`
+  job starts as soon as it is bootstrapped. Exactly three paths start or restart
+  a daemon:
+  - **`itsup run`** — the ordered, whole-stack path, and the only thing that
+    activates a daemon which was not already running. Installation may reach it
+    transitively, because writing or reloading the bringup unit runs `itsup run`.
+  - **`itsup monitor start` / `stop`** — the operator's explicit monitor
+    control, transitioning that one unit through the supervisor and touching
+    nothing else.
+  - **the API's supervisor-owned self-restart**, used by the self-update path to
+    replace a running API in place.
+
+  The installer never activates a daemon that was not already running. It may
+  re-apply a changed definition to a daemon that *was* running, through that
+  daemon's own supervisor verb — which preserves both the fact that it was
+  running and its sibling's independent state, including a monitor the operator
+  stopped or put in a non-default mode. A daemon deliberately stopped stays
+  stopped across an install.
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
   (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially. The
