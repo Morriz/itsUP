@@ -67,12 +67,15 @@ in `project/spec/secrets-management`.
   - **the supervisor's own crash respawn** — automatic recovery rather than an
     operator control surface.
 
-  **An install performs no lifecycle action on the API or the monitor** — it
-  writes their definitions and does not start, stop, restart or reload either,
-  in any case. It does act on **bringup itself**, restarting (systemd) or
-  bootstrapping (launchd) it when that unit changed or was inactive; that runs
-  `itsup run`, which is the only way an install can start a stopped daemon —
-  transitively, through the ordered path above. A written definition is therefore inert until the daemon is next
+  **An install issues no per-daemon supervisor verb** — it never starts, stops,
+  restarts or reloads the API or the monitor individually. It writes their
+  definitions, and it reaches the ordered `itsup run` in two ways, both
+  whole-stack and both in the order above: **transitively**, by restarting
+  (systemd) or bootstrapping (launchd) bringup when that unit changed or was
+  inactive; and **directly, once**, while the host's initial supervision cutover
+  is still pending, which is what makes `make install-runtime` leave a
+  first-cutover host live. Once that cutover has completed, an install starts
+  nothing of its own accord: a daemon the operator stopped stays stopped. A written definition is therefore inert until the daemon is next
   brought up in a way that re-reads it, which is what both supervisors do
   natively: writing a unit file and reloading systemd never restarts a running
   service, and writing a plist does not reload a loaded job. The paths that
