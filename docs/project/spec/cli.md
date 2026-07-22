@@ -46,15 +46,15 @@ in `project/spec/secrets-management`.
   returncode. On a host with no monitor support (macOS — the monitor is
   Linux-only) `run` skips the monitor step with a notice and continues.
   (`commands/run.py`)
-- **Startup ownership differs by supervisor.** On Linux the daemon units carry
-  no `[Install]` section and are never enabled, so nothing activates them at
-  boot and `itsup run` is their sole starter — which is what preserves the
-  order above. On macOS a launchd agent that opts into crash supervision
-  (`KeepAlive`) implicitly sets `RunAtLoad`, so bootstrapping the API agent
-  starts it; launchd owns activation there and `run`'s API step ensures the
-  agent is loaded rather than sequencing it. The documented order is therefore
-  enforced on the container host (Linux) and is best-effort on macOS, which is
-  a development platform for these commands rather than a deployment target.
+- **`itsup run` is the sole starter of both daemons, on every platform.**
+  Installation writes the supervisor definitions but never activates them: on
+  Linux the units carry no `[Install]` section and are never enabled; on macOS
+  the API agent's plist is written but not bootstrapped. Activation happens only
+  at `run`'s own API and monitor steps — on macOS `run` bootstraps the agent,
+  which is what starts it, since a `KeepAlive` job implies `RunAtLoad`. Once
+  started, the supervisor owns crash recovery on both platforms. The order above
+  therefore holds identically everywhere, and nothing activates a daemon behind
+  the orchestrator's back.
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
   (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially. The
@@ -93,15 +93,19 @@ holds that producer's records; the operator never needs to know which. It is
 host-only (see the gate below) and read-only.
 
 **Bare invocation is discovery**: `itsup logs` with no target prints every
-routable target with its description and exits 0. An unrecognised target exits 1
-and prints the routable set.
+routable target with its description, one pair per line, and exits 0. An
+unrecognised target exits 1 and prints the routable set. Every rejection the
+router owns — unknown target, malformed option value, unavailable backend — exits
+1; the CLI declares no exit-2 contract, so parameter failures are translated
+rather than left to the parser's own usage exit.
 
 **Targets and their backends.** Six supervised-unit targets — `api`, `monitor`,
 `bringup`, `apply`, `backup`, `healthcheck` — plus the file-backed `access`
 (Traefik's JSON access log under `logs/`, rendered through `bin/format-logs.py`).
 The unit targets resolve per platform, following the supervision contract in
 `project/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
-launchd agent's `StandardOutPath` file. `monitor` and `healthcheck` are
+launchd agent's `StandardOutPath`, read from the installed agent's own plist so
+the path comes from what launchd actually loaded. `monitor` and `healthcheck` are
 Linux-only daemons and have no macOS agent, so on macOS they are refused with
 that reason rather than routed to a file that will never exist.
 
@@ -110,23 +114,36 @@ through `itsup svc` / `proxy` / `dns` — and **no `cli` target**: interactive r
 are observed live, and their diagnostic file is read with `instrukt-ai-logs
 itsup`.
 
-**One option surface, translated per backend.** `-f/--follow`, `--since`,
-`--grep`, and `-n/--lines` mean the same thing on every target:
+**One option surface, translated per backend.** `-f/--follow`, `--since`, and
+`--grep` mean the same thing on every target, and both filters apply to the
+**operator-visible line** — the text the command prints — so a pattern matches
+what the operator reads rather than an underlying representation they never see.
 
 - `--since` takes the duration grammar `<n>{s,m,h,d}`. The journal's own
   `--since` rejects a bare duration, so the router parses the duration and hands
-  the journal an absolute timestamp; file backends compare the same cutoff
-  against each line's own time.
+  the journal an absolute timestamp; a file backend compares the same cutoff
+  against the time its own rendered line carries.
 - `--grep` is a case-sensitive regular expression on every backend. The journal's
   default is smart-case, so the router pins `--case-sensitive=true` rather than
   letting the pattern's own casing change the contract.
-- An invalid duration, an invalid regex, or a non-positive line count is rejected
-  at the option boundary with exit 1 before any backend is reached.
+- An invalid duration or an invalid regex is rejected at the option boundary with
+  exit 1 before any backend is reached.
 
-**Both unavailability paths refuse, never degrade.** A unit target on a host with
-no reader for it, and a unit target whose unit is not installed, each exit 1
-naming the reason. Unit existence is checked before the query, not inferred from
-its output.
+**`--since` has one designed exception: macOS unit targets.** Filtering by time
+requires a per-line time, and the supervisor is what supplies it — journald does,
+launchd does not. A launchd agent's `StandardOutPath` captures the daemon's
+stream verbatim, and that stream deliberately carries no timestamp because the
+supervisor is expected to add one. So `--since` against a macOS unit target exits
+1 naming that reason, while `--follow` and `--grep` remain available there. The
+`access` target is unaffected on either platform: its rendered line leads with
+Traefik's own time.
+
+**Every unavailability path refuses, never degrades.** A unit target with no
+reader on this platform, and a unit target whose unit is not installed, each exit
+1 naming the reason. Unit existence is established before the query — a unit is
+usable only when its `LoadState` is `loaded`, and any other value is reported
+rather than interpreted — because a journal query against an absent unit succeeds
+with empty output.
 
 <!-- /planned:itsup-logs-router -->
 
