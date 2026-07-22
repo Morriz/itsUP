@@ -65,4 +65,4 @@ operation, and the company's operator identity is deliberately powerless here.
 
 ## See Also
 
-- @~/.teleclaude/docs/apps/procedure/erpnext/create-site.md
+- ~/.teleclaude/docs/apps/procedure/erpnext/create-site.md
