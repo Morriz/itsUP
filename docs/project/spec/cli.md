@@ -74,6 +74,54 @@ in `project/spec/secrets-management`.
   failed individual rollout is logged and does not fail the deployment.
   (`lib/deploy.py:62`, `lib/deploy.py:257`)
 
+<!-- planned:itsup-logs-router -->
+
+### `logs` — the routing front door over fragmented log backends
+
+`itsup logs [TARGET]` is the single entry point to itsUP's host-side logs. Each
+target names a producer, and the command routes it to whichever backend actually
+holds that producer's records; the operator never needs to know which. It is
+host-only (see the gate below) and read-only.
+
+**Bare invocation is discovery**: `itsup logs` with no target prints every
+routable target with its description and exits 0. An unrecognised target exits 1
+and prints the routable set.
+
+**Targets and their backends.** Six supervised-unit targets — `api`, `monitor`,
+`bringup`, `apply`, `backup`, `healthcheck` — plus the file-backed `access`
+(Traefik's JSON access log under `logs/`, rendered through `bin/format-logs.py`).
+The unit targets resolve per platform, following the supervision contract in
+`project/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
+launchd agent's `StandardOutPath` file. `monitor` and `healthcheck` are
+Linux-only daemons and have no macOS agent, so on macOS they are refused with
+that reason rather than routed to a file that will never exist.
+
+There is deliberately **no `<project>` target** — container logs stay docker-led
+through `itsup svc` / `proxy` / `dns` — and **no `cli` target**: interactive runs
+are observed live, and their diagnostic file is read with `instrukt-ai-logs
+itsup`.
+
+**One option surface, translated per backend.** `-f/--follow`, `--since`,
+`--grep`, and `-n/--lines` mean the same thing on every target:
+
+- `--since` takes the duration grammar `<n>{s,m,h,d}`. The journal's own
+  `--since` rejects a bare duration, so the router parses the duration and hands
+  the journal an absolute timestamp; file backends compare the same cutoff
+  against each line's own time.
+- `--grep` is a case-sensitive regular expression on every backend. The journal's
+  default is smart-case, so the router pins `--case-sensitive=true` rather than
+  letting the pattern's own casing change the contract.
+- An invalid duration, an invalid regex, or a non-positive line count is rejected
+  at the option boundary with exit 1 before any backend is reached.
+
+**Both unavailability paths refuse, never degrade.** A unit target on a host with
+no reader for it, and a unit target whose unit is not installed, each exit 1
+naming the reason — the second because a journal query against an uninstalled
+unit succeeds with empty output, which is indistinguishable from a healthy quiet
+unit.
+
+<!-- /planned:itsup-logs-router -->
+
 ### Host-identity gate (runtime-mutating commands are host-only)
 
 The CLI group refuses runtime-mutating commands on any machine that is not the
@@ -86,9 +134,15 @@ keyed on `ctx.invoked_subcommand` against a single host-only set — so it prece
 per-command argument parsing, and off-host even `itsup <host-only-cmd> --help` is
 refused.
 
+<!-- planned-change:itsup-logs-router -->
 - **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
   `proxy`, `svc`, `monitor`. `make install-runtime` refuses off-host
   before it touches systemd/launchd (`bin/install-bringup.sh`).
+<!-- change:itsup-logs-router -->
+- **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
+  `proxy`, `svc`, `monitor`, `logs`. `make install-runtime` refuses off-host
+  before it touches systemd/launchd (`bin/install-bringup.sh`).
+<!-- /planned-change:itsup-logs-router -->
 
 - **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
   `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
@@ -152,10 +206,18 @@ The CLI emits only these — there is no 2/3/130 contract.
 - Change detection compares the live `docker compose config` hash against the
   running container's `com.docker.compose.config-hash` label (container-label
   based), not a hash stored on disk.
+<!-- planned-change:itsup-logs-router -->
 - Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
   `monitor`) are **host-only** and refuse fail-closed off-host (detected
   LAN IP ≠ `SSH_HOST`); see the host-identity gate above. (`itsup logs` is
   removed; diagnostic logs are viewed with `instrukt-ai-logs itsup`.)
+<!-- change:itsup-logs-router -->
+- Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
+  `monitor`) and the read-only `logs` router are **host-only** and refuse
+  fail-closed off-host (detected LAN IP ≠ `SSH_HOST`); see the host-identity
+  gate above. `logs` is gated not because it mutates but because every backend
+  it reads exists only on the container host.
+<!-- /planned-change:itsup-logs-router -->
 
 
 ## See Also
