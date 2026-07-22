@@ -70,12 +70,20 @@ in `project/spec/secrets-management`.
   brought up in a way that re-reads it, which is what both supervisors do
   natively: writing a unit file and reloading systemd never restarts a running
   service, and writing a plist does not reload a loaded job. The paths that
-  apply it differ by platform: **on Linux**, restart that unit —
-  `itsup monitor start` for the monitor, the API's self-restart, or
-  `sudo systemctl restart <unit>`; **on macOS**, `itsup down` then `itsup run`,
-  the only sequence that unloads and re-registers the job. `itsup run` on its
-  own does not apply a changed definition to a running daemon on either
-  platform, because its start verb no-ops against something already running. Where no bringup action occurs, a daemon
+  apply it differ by supervisor and, within `run`, by daemon:
+  - **Linux API** — `sudo systemctl restart itsup-api`, or the API's
+    self-restart. A bare `itsup run` does **not** apply it: `run`'s API step is
+    a start verb, which no-ops on an active unit.
+  - **Linux monitor** — `itsup monitor start`, `sudo systemctl restart
+    itsup-monitor`, or any `itsup run`, whose monitor step rewrites
+    `MONITOR_FLAGS` and restarts the unit (and therefore also resets the mode to
+    report-only).
+  - **macOS API** — `itsup down` then `itsup run`, the only sequence that
+    unloads and re-registers the job.
+
+  A crash respawn follows the same split: under systemd the auto-restart uses
+  the manager's reloaded unit, so it applies a changed definition; under launchd
+  it relaunches the still-registered job, so it does not. Where no bringup action occurs, a daemon
   the operator deliberately stopped stays stopped across an install.
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
