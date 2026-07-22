@@ -142,10 +142,12 @@ write_if_changed() {
 
   echo "Writing ${dest_path}..."
   local render_rc write_rc
+  local -a pipeline_status
   if [ "${use_sudo}" = "true" ]; then
     render_template "${template_file}" | sudo tee "${dest_path}" >/dev/null
-    render_rc=${PIPESTATUS[0]}
-    write_rc=${PIPESTATUS[1]}
+    pipeline_status=("${PIPESTATUS[@]}")
+    render_rc=${pipeline_status[0]}
+    write_rc=${pipeline_status[1]}
   else
     render_template "${template_file}" > "${dest_path}"
     render_rc=$?
