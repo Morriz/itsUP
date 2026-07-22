@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SHIM = REPO_ROOT / "bin" / "itsup"
+ITSUP = REPO_ROOT / ".venv" / "bin" / "itsup"
 VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
 
 sys.path.insert(0, str(REPO_ROOT))
@@ -58,7 +58,7 @@ def _nonmatching_host() -> str:
 def _run_itsup(args: list[str], root: Path) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["ITSUP_ROOT"] = str(root)
-    command = [sys.executable, str(SHIM), *args]
+    command = [str(ITSUP), *args]
     return subprocess.run(command, cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, timeout=60, check=False)
 
 
