@@ -101,7 +101,8 @@ rather than left to the parser's own usage exit.
 
 **Targets and their backends.** Six supervised-unit targets — `api`, `monitor`,
 `bringup`, `apply`, `backup`, `healthcheck` — plus the file-backed `access`
-(Traefik's JSON access log under `logs/`, rendered through `bin/format-logs.py`).
+(Traefik's JSON access log under `logs/`, rendered by the same in-process
+renderer `bin/format-logs.py` uses).
 The unit targets resolve per platform, following the supervision contract in
 `project/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
 launchd agent's `StandardOutPath`, read from the installed agent's own plist so
@@ -123,9 +124,16 @@ what the operator reads rather than an underlying representation they never see.
   `--since` rejects a bare duration, so the router parses the duration and hands
   the journal an absolute timestamp; a file backend compares the same cutoff
   against the time its own rendered line carries.
-- `--grep` is a case-sensitive regular expression on every backend. The journal's
-  default is smart-case, so the router pins `--case-sensitive=true` rather than
-  letting the pattern's own casing change the contract.
+- `--grep` is a case-sensitive Python regular expression, applied by the router
+  itself to each complete line just before it is printed — on every backend. The
+  journal's own `-g` is not used: it matches only the record's message field,
+  while the line the operator sees also carries the supervisor's timestamp and
+  identity, and its smart-case default would make the same pattern mean
+  different things on different backends.
+- `--follow` is future-only everywhere: it streams what arrives after the
+  command starts and never replays history first. The journal is asked for
+  `-n 0` alongside `-f` so it does not emit its recent window, matching the
+  file backend, which follows from the end of the file.
 - An invalid duration or an invalid regex is rejected at the option boundary with
   exit 1 before any backend is reached.
 
