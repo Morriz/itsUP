@@ -142,8 +142,9 @@ def inject_traefik_labels(
                 # TLS domain configuration with SANs
                 if ingress.tls and ingress.tls.main:
                     labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].main={ingress.tls.main}")
-                    for idx, san in enumerate(ingress.tls.sans):
-                        labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].sans[{idx}]={san}")
+                    if ingress.tls.sans:
+                        sans = ",".join(ingress.tls.sans)
+                        labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].sans={sans}")
 
                 # Companion plain-HTTP router: redirect to HTTPS. Traefik's ACME
                 # HTTP-01 challenge handling on the `web` entrypoint intercepts

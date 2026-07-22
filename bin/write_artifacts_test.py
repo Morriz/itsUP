@@ -8,7 +8,7 @@ from unittest.mock import Mock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from bin.write_artifacts import inject_traefik_labels, write_upstream
-from lib.models import Ingress, TraefikConfig
+from lib.models import Ingress, TLS, TraefikConfig
 from lib.paths import root
 
 
@@ -61,6 +61,26 @@ class TestWriteArtifacts(unittest.TestCase):
 
         labels = result["services"]["api"]["labels"]
         self.assertIn("traefik.http.routers.myproject-api-8080.rule=Host(`example.com`) && PathPrefix(`/api`)", labels)
+
+    def test_inject_traefik_labels_tls_sans_use_traefik_list_value(self) -> None:
+        """TLS SANs share Traefik's single comma-separated label value."""
+        compose = {"services": {"web": {"image": "nginx"}}}
+        ingress = Ingress(
+            service="web",
+            port=443,
+            router="http",
+            tls=TLS(main="example.com", sans=["app.example.com", "api.example.com"]),
+        )
+        traefik = TraefikConfig(enabled=True, ingress=[ingress])
+
+        result = inject_traefik_labels(compose, traefik, "myproject")
+
+        labels = result["services"]["web"]["labels"]
+        self.assertIn(
+            "traefik.http.routers.myproject-web-443.tls.domains[0].sans=app.example.com,api.example.com",
+            labels,
+        )
+        self.assertFalse(any(".sans[" in label for label in labels))
 
     def test_inject_traefik_labels_tcp(self) -> None:
         """TCP router: only traefik.enable=true injected; routing config lives in Traefik dynamic config."""
