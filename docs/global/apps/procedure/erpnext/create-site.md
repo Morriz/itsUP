@@ -62,6 +62,9 @@ project-specific shape:
 - **Reconciliation did not create the site:** follow the itsUP GitOps workflow's recovery
   guidance (inspect pipeline and host evidence first); the create-sites container's logs name
   the failing `bench new-site` step.
+- **The FQDN is refused with an unrecognized-name TLS error:** the served certificate
+  predates the new hostname and the proxy holds it as valid. Invalidate that certificate so
+  the proxy requests one covering every name the ingress lists, then retry.
 - **The FQDN routes but ERPNext serves the wrong site:** the Host header does not match a
   site directory name — confirm the ingress domain and the site name are identical strings.
 - **A re-apply reports the site as existing:** that is the idempotent guard working, not an
