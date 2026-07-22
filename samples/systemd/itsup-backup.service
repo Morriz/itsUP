@@ -17,5 +17,8 @@ User=root
 # with "Missing required secrets".
 Environment=HOME=/home/{{USER}}
 Environment=ITSUP_ROOT={{ROOT}}
+# This service runs as root against a user-owned virtual environment. Prevent
+# Python from leaving root-owned bytecode behind and blocking later `uv sync`.
+Environment=PYTHONDONTWRITEBYTECODE=1
 WorkingDirectory={{ROOT}}
 ExecStart={{ROOT}}/.venv/bin/python {{ROOT}}/bin/backup.py
