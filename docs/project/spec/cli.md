@@ -116,9 +116,8 @@ itsup`.
 
 **Both unavailability paths refuse, never degrade.** A unit target on a host with
 no reader for it, and a unit target whose unit is not installed, each exit 1
-naming the reason — the second because a journal query against an uninstalled
-unit succeeds with empty output, which is indistinguishable from a healthy quiet
-unit.
+naming the reason. Unit existence is checked before the query, not inferred from
+its output.
 
 <!-- /planned:itsup-logs-router -->
 

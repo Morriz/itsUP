@@ -25,8 +25,10 @@ deprecation cycle.
 
 ## `logging.parse_since(value: str) -> timedelta`
 
-- Accepts `<positive integer><unit>` where unit is one of `s`, `m`, `h`, `d`
-  (case-insensitive, surrounding whitespace stripped).
+- Accepts `<non-negative integer><unit>` where unit is one of `s`, `m`, `h`, `d`
+  (case-insensitive, surrounding whitespace stripped). The number part is
+  validated with `str.isdigit()`, so `0s` is accepted and yields a zero window;
+  a sign or a decimal point is rejected.
 - Raises `ValueError` on an empty string, a non-digit number part, or an
   unrecognised unit.
 - Returns a `timedelta` only — it never formats a timestamp, so a consumer
@@ -38,10 +40,7 @@ deprecation cycle.
 - Waits for the file to appear if it does not exist yet.
 - Detects **rotation** (inode change — reopens and reads the new file from the
   start) and **truncation** (offset beyond size — seeks back to the start).
-- `max_lines` / `max_seconds` exist to bound the generator in tests.
-
-The rotation awareness is why it is preferable to `tail -F` for a path under an
-external rotation policy.
+- `max_lines` / `max_seconds` bound the generator.
 
 ## `logging.iter_recent_log_lines_merged(files, since: timedelta)`
 
