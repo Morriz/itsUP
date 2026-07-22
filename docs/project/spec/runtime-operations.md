@@ -93,8 +93,12 @@ caveats).
   rather than absent, and the install fails closed on it: absence means never
   attempted, an unreadable value means unknown, and guessing between them would
   restart a stack the operator had deliberately stopped. Recovery writes the
-  intended state explicitly (`printf 'complete\n' > …`); `touch` is not a
-  recovery command, since it produces the empty case. The installer writes
+  intended state explicitly **and atomically**, by the same temp-file-and-rename
+  route every other writer uses:
+  `printf 'complete\n' > .itsup-supervision-state.tmp && mv
+  .itsup-supervision-state.tmp .itsup-supervision-state`. A plain redirection
+  truncates before it writes, so an interrupted recovery would leave the empty
+  state the contract calls unreadable; `touch` produces that state outright. The installer writes
   `attempting` before it writes any daemon definition; the record advances to `complete` only when a
   path that observed an ordered `itsup run` exit zero records it. No path
   records a run it did not observe. `make uninstall-runtime` removes the record.
