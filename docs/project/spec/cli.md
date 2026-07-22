@@ -69,12 +69,17 @@ in `project/spec/secrets-management`.
 
   **An install issues no per-daemon supervisor verb** — it never starts, stops,
   restarts or reloads the API or the monitor individually. It writes their
-  definitions, and it reaches the ordered `itsup run` in two ways, both
-  whole-stack and both in the order above: **transitively**, by restarting
-  (systemd) or bootstrapping (launchd) bringup when that unit changed or was
-  inactive; and **directly, once**, while the host's initial supervision cutover
-  is still pending, which is what makes `make install-runtime` leave a
-  first-cutover host live. Once that cutover has completed the installer performs no **direct** run
+  definitions, and it reaches the ordered `itsup run` by a route that differs by
+  supervisor:
+  - **Linux** — transitively, by restarting bringup when that unit changed or
+    was inactive; or **directly**, while the host's supervision cutover is still
+    pending and bringup is unchanged and active, which is what makes
+    `make install-runtime` leave a first-cutover host live. systemd retries
+    nothing here: the next install does.
+  - **macOS** — never directly. While the cutover is pending the installer
+    reloads the bringup agent even when its plist is unchanged, so its guardian
+    performs the run, and then waits for the outcome; launchd relaunches a failed
+    guardian, so it owns the retry. Once that cutover has completed the installer performs no **direct** run
   again. The transitive path is unchanged and unconditional: whenever the
   bringup definition changed or bringup is inactive, every install restarts it
   (`bin/install-bringup.sh:192`) and its `ExecStart=itsup run` starts the stack —
