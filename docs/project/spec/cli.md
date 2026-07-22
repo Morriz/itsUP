@@ -59,19 +59,15 @@ in `project/spec/secrets-management`.
     nothing else.
   - **the API's supervisor-owned self-restart**, used by the self-update path to
     replace a running API in place.
-  - **the installer's first-introduction start** and the **supervisor's own
-    crash respawn** — automatic provisioning and recovery rather than operator
-    control surfaces.
+  - **the supervisor's own crash respawn** — automatic recovery rather than an
+    operator control surface.
 
-  **An install never stops, restarts or reloads the API or the monitor**, and
-  never touches one that is already running or that the operator stopped. Its
-  only direct action on them is to **start a daemon whose definition is newly
-  introduced and which has never run** — started alone, through its own
-  single-unit start, so a first-introduction install cannot revive or reconfigure
-  its sibling. Separately, an install performs a lifecycle action on **bringup
-  itself**, restarting (systemd) or bootstrapping (launchd) it when that unit
-  changed or was inactive; that runs `itsup run`, which is the other way an
-  install can start a stopped daemon — through the ordered path above. A written definition is therefore inert until the daemon is next
+  **An install performs no lifecycle action on the API or the monitor** — it
+  writes their definitions and does not start, stop, restart or reload either,
+  in any case. It does act on **bringup itself**, restarting (systemd) or
+  bootstrapping (launchd) it when that unit changed or was inactive; that runs
+  `itsup run`, which is the only way an install can start a stopped daemon —
+  transitively, through the ordered path above. A written definition is therefore inert until the daemon is next
   brought up in a way that re-reads it, which is what both supervisors do
   natively: writing a unit file and reloading systemd never restarts a running
   service, and writing a plist does not reload a loaded job. The paths that
