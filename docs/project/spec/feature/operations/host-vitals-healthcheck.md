@@ -32,19 +32,19 @@ actually runs when the host degrades.
 ### Use cases
 
 The scenario below is bound by exactly one functional test in
-`tests/functional/bin/test_pi_healthcheck_state.py`, which invokes the real
+`tests/operations/test_host_vitals_healthcheck.py`, which invokes the real
 script through its own command surface against a per-test root and per-test
 runtime directory, with the external commands it shells out to replaced at the
 process boundary.
 
-#### UC-HVH1: Strike state persists between runs, so a degradation reaches its remediation
+#### UC-HVH1: A second run reads the first run's strike state and escalates
 
 ```gherkin
 Given the host healthcheck runs under its supervised unit identity
-And a degradation has tripped a threshold whose response is gated on strike state
+And a degradation has tripped a threshold whose response is staged across runs
 When the healthcheck runs twice against that degradation
-Then each run records its strike state where the next run reads it
-And neither run aborts before the remediation its strike count gates
+Then the first run records its strike state and completes
+And the second run reads that state and takes its escalated remediation
 ```
 
 ## Canonical fields
@@ -57,9 +57,10 @@ And neither run aborts before the remediation its strike count gates
 
 ## Known caveats
 
-- The script reads Linux process and filesystem interfaces directly and shells
-  out to GNU coreutils, so the scenario is exercised on Linux only. It is bound
-  on the platform the unit runs on and in CI; other platforms skip it.
+- The script reads Linux process interfaces and GNU coreutils behaviour through
+  the commands it invokes. The scenario is exercised with those commands
+  replaced at the process boundary, so it runs on every platform the suite runs
+  on rather than only on the unit's own.
 
 ## See Also
 
