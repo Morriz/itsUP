@@ -27,11 +27,21 @@ jobs:
           sudo apt update
           sudo apt install -y openvpn openvpn-systemd-resolved
 
+      - name: Require VPN peer secret
+        env:
+          OVPN_HOST: ${{ secrets.OVPN_HOST }}
+        run: |
+          if [ -z "$OVPN_HOST" ]; then
+            echo '::error::OVPN_HOST is not set in this repository; the OpenVPN peer address would be omitted.'
+            exit 1
+          fi
+
       - name: Connect to VPN
-        uses: Morriz/github-openvpn-connect-action@v3
+        id: vpn
+        uses: Morriz/github-openvpn-connect-action@728a3c0657b657ab483cbcbdab7d8f5099d70601 # v3
         with:
           config_file: .github/workflows/client.ovpn
-          host: ${{ secrets.API_HOST }}
+          host: ${{ secrets.OVPN_HOST }}
           ca: '${{ secrets.OVPN_CA }}'
           cert: '${{ secrets.OVPN_CERT }}'
           client_key: '${{ secrets.OVPN_USER_KEY }}'
@@ -41,20 +51,24 @@ jobs:
           tls_auth_key: '${{ secrets.OVPN_TLS_AUTH_KEY }}'
 
       - name: Dump OpenVPN log on failure
-        if: failure()
+        if: failure() && steps.vpn.outcome == 'failure'
         run: sudo cat openvpn.log
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          APP_NAME: ${{ secrets.APP_NAME }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: '${{ secrets.SSH_PRIVATE_KEY }}'
           passphrase: '${{ secrets.SSH_PASSPHRASE }}'
+          envs: API_KEY,APP_NAME
           script: |
-            if [ -n '${{ secrets.APP_NAME }}' ]; then
-              curl -v -f 'https://${{ secrets.API_HOST }}/update-upstream/${{ secrets.APP_NAME }}' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+            if [ -n "$APP_NAME" ]; then
+              curl -f "http://127.0.0.1:8888/update-upstream/$APP_NAME" -H "Authorization: Bearer $API_KEY"
             else
-              curl -v -f -X POST 'https://${{ secrets.API_HOST }}/reconcile' -H 'Authorization: Bearer ${{ secrets.API_KEY }}'
+              curl -f -X POST 'http://127.0.0.1:8888/reconcile' -H "Authorization: Bearer $API_KEY"
             fi
             exit
