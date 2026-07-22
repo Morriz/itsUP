@@ -98,7 +98,7 @@ must be re-encrypted before it is committed, or it is silently lost.
 
 ---
 
-## Baseline index — load via `telec docs get <id>` when relevant
+## Domain baseline index — load via `telec docs get <id>` when relevant
 
 - `infra/policy/itsup-host-boundary` — Which itsUP CLI commands may run on which machine — runtime-mutating commands only on the container host, GitOps and read commands anywhere.
 

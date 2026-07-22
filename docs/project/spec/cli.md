@@ -24,14 +24,6 @@ in `project/spec/secrets-management`.
   does **not** pull images (the host's own DNS may not be up yet). On any stack
   failure `run` exits with that stack's subprocess returncode.
   (`commands/run.py`)
-<!-- planned:verifiable-deploy-chain -->
-- The API step of `run` delegates to systemd when the `itsup-api.service` unit
-  is installed on a Linux host: an active unit is left alone, an inactive one is
-  started via `systemctl`. Only when no unit is installed (macOS, dev machines)
-  does `run` fall back to spawning `bin/start-api.sh`. `itsup down` mirrors
-  this: it stops the unit via `systemctl` when it is active, else `pkill`s the
-  process. A supervised API is never spawned a second time by `start-api.sh`.
-<!-- /planned:verifiable-deploy-chain -->
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
   (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially.
@@ -57,31 +49,6 @@ in `project/spec/secrets-management`.
   plain `up -d`, no rollout), or when it is not the `--service` filter target. A
   failed individual rollout is logged and does not fail the deployment.
   (`lib/deploy.py:62`, `lib/deploy.py:257`)
-<!-- planned:verifiable-deploy-chain -->
-- A successful `apply` — full or single-target — finishes by writing the
-  **applied-state receipt** `logs/applied-state.json`: the `HEAD` SHAs of the
-  itsUP checkout and the `projects/` and `secrets/` config repos (null for a
-  repo that is absent or not a git checkout), an ISO-8601 UTC timestamp, and
-  the applied target. The receipt is the convergence evidence `itsup verify`
-  reads; a failed apply leaves the previous receipt untouched.
-
-### `update` / `verify` — synchronous self-update and convergence check
-
-- `itsup update` is the synchronous self-update: in `PYTHON_ENV=production` it
-  `git fetch` + `git reset --hard origin/main` on the itsUP checkout, re-syncs
-  dependencies, then redeploys the DNS and proxy stacks, applies all projects,
-  and restarts the API (via its systemd unit when supervised). It shares its
-  implementation with the API's `/update-upstream/itsUP` background path and
-  exits nonzero on the first failing step.
-- `itsup verify` reads the applied-state receipt and is the assertion the
-  reconcile workflow runs after its synchronous deploy. Two forms:
-  `itsup verify <sha>` exits **0** when the given SHA equals any recorded repo
-  SHA (config-repo and itsUP pushes); `itsup verify --target <name>` exits
-  **0** when the receipt's applied target equals `<name>` (app-image deploys,
-  whose pushed SHA no host repo tracks). Both exit **1** when the receipt is
-  missing or does not match — printing the recorded state so a mismatch shows
-  what the host actually converged to. Read-only, needs no secrets.
-<!-- /planned:verifiable-deploy-chain -->
 
 ### Host-identity gate (runtime-mutating commands are host-only)
 
@@ -95,7 +62,6 @@ keyed on `ctx.invoked_subcommand` against a single host-only set — so it prece
 per-command argument parsing, and off-host even `itsup <host-only-cmd> --help` is
 refused.
 
-<!-- planned-change:verifiable-deploy-chain -->
 - **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
   `proxy`, `svc`, `monitor`. `make install-runtime` refuses off-host
   before it touches systemd/launchd (`bin/install-bringup.sh`).
@@ -103,15 +69,6 @@ refused.
 - **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
   `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
   `diff-secrets`, `edit-secret`, `sops-key`, `projects`.
-<!-- change:verifiable-deploy-chain -->
-- **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
-  `proxy`, `svc`, `monitor`, `update`. `make install-runtime` refuses off-host
-  before it touches systemd/launchd (`bin/install-bringup.sh`).
-
-- **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
-  `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
-  `diff-secrets`, `edit-secret`, `sops-key`, `projects`, `verify`.
-<!-- /planned-change:verifiable-deploy-chain -->
 
 
 The gate is not self-grantable: there is no bypass flag or override env var, and
