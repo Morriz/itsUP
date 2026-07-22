@@ -58,10 +58,14 @@ Two details that are easy to state wrongly:
   stdout. Under a supervisor that captures both streams this is immaterial to
   where records land, but it is wrong to document uvicorn as "logging to
   stdout".
-- **`uvicorn.error` declares no handler and does not set `propagate: False`**,
-  so its records propagate to the root logger and are emitted by whatever
-  handler the application attached there — with the application's formatter, not
-  uvicorn's.
+- **`uvicorn.error` declares no handler but does not reach the root logger.**
+  It sets no `propagate: False` of its own, so its records walk up to the
+  parent `uvicorn` logger — which *does* carry the `default` stderr handler and
+  *does* set `propagate: False`. The record is emitted there and propagation
+  stops. A handler an application attaches to root therefore receives **zero**
+  `uvicorn.error` records, with uvicorn's formatter rather than the
+  application's. Verified by applying `LOGGING_CONFIG` and inspecting the
+  resolved hierarchy, not inferred from the absence of a `propagate` key.
 
 ### `log_config` and `log_level` overrides
 

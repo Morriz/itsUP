@@ -179,9 +179,13 @@ CrowdSec acquisition source (`crowdsec/acquis.yml`) parses it under the `traefik
 label for detection.
 
 **API logging:** `api/main.py` calls `configure_daemon_logging()` before handing
-control to uvicorn and runs uvicorn with its own default configuration, so both
-the server's records and its access records go to stdout and the supervisor
-captures them under the API unit.
+control to uvicorn and runs uvicorn with its own default configuration. Three
+streams result, and they are not all stdout: the application's `itsup.*` records
+go to the root stdout handler; uvicorn's own server and error records go to
+uvicorn's **stderr** handler (they never reach the root handler, because the
+`uvicorn` logger sets `propagate: False`); its access records go to uvicorn's
+stdout handler. The supervisor captures both streams, so all three land under
+the API unit.
 
 **Monitor logging:** `bin/monitor.py` calls `configure_daemon_logging()`, so its
 diagnostics go to stdout and land under the monitor unit; its `[<ts>]` watermark
