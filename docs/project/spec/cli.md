@@ -61,14 +61,15 @@ in `project/spec/secrets-management`.
   - **the API's supervisor-owned self-restart**, used by the self-update path to
     replace a running API in place.
 
-  No installer step activates a daemon **itself**; the only way an install
-  starts a stopped daemon is by reaching `itsup run` through bringup, which is
-  the ordered path above. Within its own steps the installer may re-apply a
-  changed definition to a daemon that *was* running, through that daemon's own
-  supervisor verb — preserving both the fact that it was running and its
-  sibling's independent state, including a monitor the operator stopped or put
-  in a non-default mode. Where no bringup action occurs, a daemon the operator
-  deliberately stopped stays stopped across an install.
+  **No installer step starts, stops, restarts or reloads a daemon** — it writes
+  supervisor definitions and nothing more. The only way an install starts a
+  stopped daemon is by reaching `itsup run` through bringup, the ordered path
+  above. A written definition therefore takes effect the next time that daemon
+  starts, which is what both supervisors do natively: writing a unit file and
+  reloading systemd never restarts a running service, and writing a plist does
+  not reload a loaded job. Apply a change with `itsup run`, `itsup monitor
+  start`, or the API's self-restart. Where no bringup action occurs, a daemon
+  the operator deliberately stopped stays stopped across an install.
 - `itsup down` stops in the **reverse** order: **monitor → API → all upstream
   projects → proxy → DNS**. Upstream projects are stopped **in parallel**
   (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially. The
