@@ -95,13 +95,13 @@ Documented behaviour:
 
 - Directories are created below `/run/` for system units when **the unit starts**,
   and "the innermost specified directories will be owned by the user and group
-  specified in `User=` and `Group=`". This is what makes a path beneath `/run`
-  writable by an unprivileged unit, which bare `/run` is not.
+  specified in `User=` and `Group=`". A path beneath such a directory is writable by
+  that user. Bare `/run` is not.
 - The full paths are exported to the unit as `$RUNTIME_DIRECTORY`.
 - `RuntimeDirectoryPreserve=` takes `no` (default — removed when the unit stops),
   `restart` (preserved across a restart), or `yes` (preserved when the unit stops).
-  For a repeatedly-invoked `Type=oneshot` unit, `yes` is what keeps a marker alive
-  between invocations, since every invocation ends with the unit stopping.
+  A `Type=oneshot` unit stops at the end of each invocation; `yes` preserves its
+  directory across those stops.
 
 ## Known caveats
 
