@@ -57,6 +57,39 @@ sample is `samples/projects/itsup.yml`):
 | `backup.s3.bucket` | str | no | `samples/projects/itsup.yml` | Target bucket (typically `${AWS_S3_BUCKET}`). |
 | `schemaVersion` | str | no | `lib/migrations.py:24,38` | Config schema version, owned by the migration machinery — see `project/spec/schema-migration`. |
 
+<!-- planned:ops-failure-alerting -->
+
+### Alert command
+
+`alert.command` holds the operator's failure-notification transport as a command
+template. itsUP composes the alert and hands it to that command; nothing in this
+repository knows or names a transport.
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `alert` | map | no | Ops failure-alerting settings. |
+| `alert.command` | str | no (default: unset) | Command template run for each composed alert. Unset — key, map, or file absent — is a valid configuration: no command runs, the suppressed alert is recorded in the journal, and the composer exits successfully. |
+
+Contract of the template:
+
+- **It is argv, not a shell line.** The template is split into arguments once,
+  before any placeholder resolves, and executed without a shell. A `${VAR}`
+  placeholder resolves inside the argument that carries it, so a value holding
+  whitespace or shell metacharacters stays one argument and can never introduce
+  another argument or command.
+- **`${VAR}` placeholders resolve from the itsUP infrastructure secrets**
+  (`secrets/itsup.{enc.txt|txt}`, loaded per-context — see
+  `project/spec/secrets-management`), which is how a token-bearing transport keeps
+  its credential out of `projects/itsup.yml` — the same split
+  `crowdsec.apikey: '${CROWDSEC_APIKEY}'` already uses. A placeholder with no
+  matching secret resolves empty, exactly as elsewhere in itsUP.
+- **The alert body arrives on the command's standard input**; it is never
+  interpolated into an argument. The failed unit's identity is additionally
+  available to the command in its environment.
+- **Secret values never enter an alert body** — names at most.
+
+<!-- /planned:ops-failure-alerting -->
+
 ### Override-merge model
 
 `itsup apply` / `bin/write_artifacts.py` first renders minimal **base** configs
