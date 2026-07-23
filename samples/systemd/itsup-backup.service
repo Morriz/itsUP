@@ -2,6 +2,7 @@
 Description=itsUP nightly backup to S3 (runs bin/backup.py)
 After=network-online.target docker.service
 Requires=docker.service
+OnFailure=itsup-alert@%n.service
 
 [Service]
 Type=oneshot

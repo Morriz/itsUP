@@ -1,5 +1,6 @@
 [Unit]
 Description=Run pi-healthcheck every 5 minutes
+OnFailure=itsup-alert@%n.service
 
 [Timer]
 OnBootSec=5min

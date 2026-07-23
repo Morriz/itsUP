@@ -1,0 +1,11 @@
+[Unit]
+Description=itsUP failure alert composer for %i
+
+[Service]
+Type=oneshot
+User={{USER}}
+Group={{GROUP}}
+WorkingDirectory={{ROOT}}
+Environment=HOME=/home/{{USER}}
+Environment=ITSUP_ROOT={{ROOT}}
+ExecStart={{ROOT}}/.venv/bin/python {{ROOT}}/bin/alert.py %i

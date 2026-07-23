@@ -57,7 +57,6 @@ sample is `samples/projects/itsup.yml`):
 | `backup.s3.bucket` | str | no | `samples/projects/itsup.yml` | Target bucket (typically `${AWS_S3_BUCKET}`). |
 | `schemaVersion` | str | no | `lib/migrations.py:24,38` | Config schema version, owned by the migration machinery — see `project/spec/schema-migration`. |
 
-<!-- planned:ops-failure-alerting -->
 
 ### Alert command
 
@@ -97,7 +96,6 @@ Contract of the template:
   available to the command as `ITSUP_ALERT_UNIT` in its environment.
 - **Secret values never enter an alert body** — names at most.
 
-<!-- /planned:ops-failure-alerting -->
 
 ### Override-merge model
 
