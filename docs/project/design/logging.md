@@ -102,6 +102,19 @@ are not part of the `logs/` directory contract.
   carries no diagnostic-log viewer of its own.
 - **Operators** via direct `tail`/`zcat` (e.g. `logs/access.log` raw, or piped
   through `bin/format-logs.py`).
+<!-- planned:itsup-logs-router -->
+- **`itsup logs <target>`** — the itsUP-side front door to these sinks, host-only
+  like the other runtime commands because every backend it reads exists only on
+  the container host. It routes each target to whichever backend already holds it:
+  the supervised units (`api`, `monitor`, `bringup`, `apply`, `backup`,
+  `healthcheck`) to their journal (`journalctl -u <unit>` on Linux, the launchd
+  agent's `StandardOutPath` file on macOS), and `access` to `logs/access.log`
+  rendered in-process through `lib/access_log.py`. Bare `itsup logs` lists the
+  targets with descriptions; `--follow`, `--grep`, and `--since` narrow the read,
+  with `--since` refused for a macOS unit target whose supervisor-less stream
+  carries no per-line time. No target exists for an upstream project — those stay
+  `docker`-led via `itsup svc`/`proxy`/`dns` — and none for interactive CLI runs.
+<!-- /planned:itsup-logs-router -->
 
 ## Invariants
 
