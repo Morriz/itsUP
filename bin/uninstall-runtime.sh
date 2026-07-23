@@ -71,6 +71,8 @@ disable_systemd_units() {
     "itsup-apply.service"
     "itsup-backup.service"
     "pi-healthcheck.service"
+    "itsup-api.service"
+    "itsup-monitor.service"
   )
   for unit in "${services[@]}"; do
     if [ -f "${SERVICE_DIR}/${unit}" ]; then
@@ -90,6 +92,8 @@ assert_systemd_inactive() {
     "itsup-apply.service" "itsup-apply.timer"
     "itsup-backup.service" "itsup-backup.timer"
     "pi-healthcheck.service" "pi-healthcheck.timer"
+    "itsup-api.service"
+    "itsup-monitor.service"
   )
   local active=0 unit
   for unit in "${units[@]}"; do
@@ -104,7 +108,7 @@ assert_systemd_inactive() {
 bootout_launchd_agents() {
   local domain
   domain="gui/$(id -u "${ITSUP_USER}")"
-  local agents=("ai.itsup.apply" "ai.itsup.backup" "ai.itsup.bringup")
+  local agents=("ai.itsup.apply" "ai.itsup.backup" "ai.itsup.bringup" "ai.itsup.api")
   for label in "${agents[@]}"; do
     local plist="${SERVICE_DIR}/${label}.plist"
     if [ -f "${plist}" ]; then
@@ -189,6 +193,8 @@ remove_systemd_units() {
     "itsup-apply.service" "itsup-apply.timer"
     "itsup-backup.service" "itsup-backup.timer"
     "pi-healthcheck.service" "pi-healthcheck.timer"
+    "itsup-api.service"
+    "itsup-monitor.service"
   )
   local removed=0
   for unit in "${units[@]}"; do
@@ -205,7 +211,7 @@ remove_systemd_units() {
 }
 
 remove_launchd_agents() {
-  local agents=("ai.itsup.bringup" "ai.itsup.apply" "ai.itsup.backup")
+  local agents=("ai.itsup.bringup" "ai.itsup.apply" "ai.itsup.backup" "ai.itsup.api")
   for label in "${agents[@]}"; do
     local plist="${SERVICE_DIR}/${label}.plist"
     if [ -f "${plist}" ]; then
@@ -245,6 +251,8 @@ case "${PLATFORM}" in
     remove_launchd_agents
     ;;
 esac
+
+rm -f "${ITSUP_ROOT}/.itsup-supervision-state"
 
 echo ""
 echo "✅ itsUP runtime decommissioned."

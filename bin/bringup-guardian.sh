@@ -14,6 +14,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # console-script at an absolute path — no sourcing/activation on the runtime path.
 export ITSUP_ROOT="${REPO_ROOT}"
 ITSUP="${REPO_ROOT}/.venv/bin/itsup"
+STATE_FILE="${REPO_ROOT}/.itsup-supervision-state"
+
+record_completed_cutover() {
+    if [ -r "${STATE_FILE}" ] && [ "$(cat "${STATE_FILE}")" = "attempting" ]; then
+        printf 'complete\n' > "${STATE_FILE}.tmp"
+        mv "${STATE_FILE}.tmp" "${STATE_FILE}"
+    fi
+}
 
 shutdown_cleanly() {
     # Stop containers in dependency order but DO NOT remove them — leaves them
@@ -27,6 +35,7 @@ trap shutdown_cleanly TERM INT QUIT
 
 # Bring core infra up, then deploy all projects.
 "${ITSUP}" run
+record_completed_cutover
 "${ITSUP}" apply
 
 # Stay alive so launchd can signal us at shutdown for graceful teardown.

@@ -6,16 +6,10 @@ description: 'The itsUP management REST API — apikey-guarded webhook endpoints
 
 ## What it is
 
-<!-- planned-change:native-daemon-supervision -->
-A small FastAPI app (`api/main.py`, title `itsUP API` v2.0) that lets external
-systems trigger deploys via webhook and query projects. It is **not**
-containerized — it runs as a host process on `:8888` (`bin/start-api.sh`).
-<!-- change:native-daemon-supervision -->
 A small FastAPI app (`api/main.py`, title `itsUP API` v2.0) that lets external
 systems trigger deploys via webhook and query projects. It is **not**
 containerized — it runs as a host process on `:8888`, supervised by the host as
 a daemon unit.
-<!-- /planned-change:native-daemon-supervision -->
 
 Its Traefik route is scoped to the one endpoint that needs the internet: the
 public router matches `Host(...) && PathPrefix('/redirect')`. This is a **path

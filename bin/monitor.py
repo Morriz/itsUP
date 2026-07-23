@@ -16,13 +16,11 @@ from datetime import datetime
 # Add parent directory to path for monitor package import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from instrukt_ai_logging import configure_logging
-
+from lib.log_setup import configure_daemon_logging
 from monitor import (
     BLACKLIST_FILE,
     HONEYPOT_CONTAINER,
     LOG_FILE,
-    LOG_LEVEL,
     OPENSNITCH_DB,
     WHITELIST_FILE,
 )
@@ -204,9 +202,7 @@ def main() -> None:
         print("Run as root: sudo python3 bin/monitor.py")
         sys.exit(1)
 
-    # Setup logging (diagnostics route to instrukt-ai/itsup/monitor.log)
-    os.environ["ITSUP_LOG_LEVEL"] = LOG_LEVEL
-    configure_logging("itsup", source="monitor")
+    configure_daemon_logging()
 
     # Parse command-line flags
     skip_sync = False
@@ -249,7 +245,7 @@ def main() -> None:
         with open(LOG_FILE, "a") as f:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             f.write(f"[{ts}] Started\n")
-        print(f"✓ Restart marker: {LOG_FILE} (diagnostics: instrukt-ai-logs itsup --include monitor)")
+        print(f"✓ Restart marker: {LOG_FILE} (diagnostics: journalctl -u itsup-monitor)")
     except Exception as e:
         print(f"Failed to create log: {e}")
         sys.exit(1)

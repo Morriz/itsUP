@@ -54,15 +54,11 @@ record the incident history that motivated it.
   `IPTABLES_CHAIN = "DOCKER-USER"` in `constants.py:45`).
 - **iptables LOG rule** — one rule logging NEW outbound container TCP, the source
   of the `[CONTAINER-TCP]` kernel lines (`iptables.py:ensure_log_rule_exists`).
-<!-- planned-change:native-daemon-supervision -->
-- **Log file** — `logs/monitor.log` (`constants.py:17`).
-<!-- change:native-daemon-supervision -->
 - **Restart watermark** — `logs/monitor.log` (`constants.py:17`): a `[<ts>]
   Started` marker the entry point appends on each start and
   `core.py:_get_last_processed_timestamp` reads back to resume connection
   processing. It is application state, not a log. The daemon's diagnostics go to
   its stdout, which the supervisor captures.
-<!-- /planned-change:native-daemon-supervision -->
 - **Threat-actor CSV** — `reports/potential_threat_actors.csv`, produced by the
   separate `bin/analyze_threats.py` (reverse-DNS, RDAP whois, optional AbuseIPDB
   enrichment of blacklist IPs), invoked via `itsup monitor report`.
@@ -109,14 +105,6 @@ record the incident history that motivated it.
 
 ### Run modes
 
-<!-- planned-change:native-daemon-supervision -->
-Selected by flags on `bin/monitor.py` / `itsup monitor start`
-(`bin/monitor.py:main`, `commands/monitor.py:start`):
-
-- **Report-only** (`--report-only`) — detect, blacklist in-file, log; **no**
-  iptables DROP. This is the mode `itsup run` starts the monitor in
-  (`commands/run.py:93` passes `--report-only`).
-<!-- change:native-daemon-supervision -->
 Selected by flags on `bin/monitor.py` / `itsup monitor start`
 (`bin/monitor.py:main`, `commands/monitor.py:start`).
 
@@ -134,7 +122,6 @@ named reason and `itsup run` skips the monitor step there.
 
 - **Report-only** (`--report-only`) — detect, blacklist in-file, log; **no**
   iptables DROP. This is the mode `itsup run` starts the monitor in.
-<!-- /planned-change:native-daemon-supervision -->
 - **Protection** (default, no flags) — detect plus insert iptables DROP rules.
 - **OpenSnitch cross-reference** (`--use-opensnitch`) — adds a thread that reads
   OpenSnitch's `0-deny-arpa-53` blocks and annotates blacklist entries as

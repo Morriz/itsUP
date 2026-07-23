@@ -39,6 +39,133 @@ else
   SERVICE_DIR="${SERVICE_DIR:-/etc/systemd/system}"
 fi
 
+ITSUP="${ITSUP_ROOT}/.venv/bin/itsup"
+STATE_FILE="${ITSUP_ROOT}/.itsup-supervision-state"
+CUTOVER_STATE=""
+BRINGUP_ACTIVE=false
+
+write_cutover_state() {
+  local value="$1"
+  local temporary="${STATE_FILE}.tmp"
+  printf '%s\n' "${value}" > "${temporary}"
+  mv "${temporary}" "${STATE_FILE}"
+}
+
+capture_cutover_state() {
+  local record="absent"
+  local installed=false
+  local registered=false
+
+  if [ -e "${STATE_FILE}" ]; then
+    if [ ! -r "${STATE_FILE}" ]; then
+      record="unreadable"
+    else
+      record="$(cat "${STATE_FILE}")" || record="unreadable"
+      case "${record}" in
+        attempting|complete) ;;
+        *) record="unreadable" ;;
+      esac
+    fi
+  fi
+
+  if [ "${PLATFORM}" = "linux" ]; then
+    if [ -f "${SERVICE_DIR}/itsup-api.service" ] || [ -f "${SERVICE_DIR}/itsup-monitor.service" ]; then
+      installed=true
+    fi
+    if [ "$(systemctl show itsup-api.service -p LoadState --value 2>/dev/null || true)" = "loaded" ] \
+      || [ "$(systemctl show itsup-monitor.service -p LoadState --value 2>/dev/null || true)" = "loaded" ]; then
+      registered=true
+    fi
+    if systemctl is-active --quiet itsup-bringup.service 2>/dev/null; then
+      BRINGUP_ACTIVE=true
+    fi
+  else
+    [ -f "${SERVICE_DIR}/ai.itsup.api.plist" ] && installed=true
+    if launchctl print "gui/$(id -u "${ITSUP_USER}")/ai.itsup.api" >/dev/null 2>&1; then
+      registered=true
+    fi
+    if launchctl print "gui/$(id -u "${ITSUP_USER}")/ai.itsup.bringup" >/dev/null 2>&1; then
+      BRINGUP_ACTIVE=true
+    fi
+  fi
+
+  case "${record}" in
+    absent)
+      if [ "${installed}" = "false" ] && [ "${registered}" = "false" ]; then
+        CUTOVER_STATE="fresh"
+      else
+        CUTOVER_STATE="ambiguous"
+      fi
+      ;;
+    attempting) CUTOVER_STATE="attempting" ;;
+    complete) CUTOVER_STATE="complete" ;;
+    unreadable) CUTOVER_STATE="unreadable" ;;
+  esac
+}
+
+require_unambiguous_cutover() {
+  capture_cutover_state
+  case "${CUTOVER_STATE}" in
+    ambiguous|unreadable)
+      echo "ERROR: supervision cutover state is ${CUTOVER_STATE}; starting nothing." >&2
+      echo "Recover by either running '${ITSUP} run' successfully then atomically writing complete," >&2
+      echo "or by atomically writing complete when the current stopped state is intended." >&2
+      exit 1
+      ;;
+    fresh)
+      write_cutover_state attempting
+      CUTOVER_STATE="attempting"
+      ;;
+  esac
+}
+
+supervisor_pids() {
+  if [ "${PLATFORM}" = "linux" ]; then
+    systemctl show itsup-api.service itsup-monitor.service -p MainPID --value 2>/dev/null \
+      | awk '/^[1-9][0-9]*$/ { print }'
+  else
+    launchctl print "gui/$(id -u "${ITSUP_USER}")/ai.itsup.api" 2>/dev/null \
+      | awk '/pid = [1-9][0-9]*/ { print $3; exit }'
+  fi
+}
+
+is_supervisor_owned() {
+  local pid="$1"
+  supervisor_pids | grep -qx "${pid}"
+}
+
+terminate_legacy_pid() {
+  local pid="$1"
+  sudo kill -TERM "${pid}"
+  for _ in {1..10}; do
+    if ! sudo kill -0 "${pid}" 2>/dev/null; then
+      return
+    fi
+    sleep 1
+  done
+  sudo kill -KILL "${pid}"
+}
+
+sweep_legacy_daemons() {
+  local pattern match_pattern pid command
+  for pattern in "${ITSUP_ROOT}/api/main.py" "${ITSUP_ROOT}/bin/monitor.py"; do
+    match_pattern="$(printf '%s' "${pattern}" | sed 's/[][\\.^$*+?{}|()]/\\&/g')"
+    while IFS= read -r pid; do
+      [ -n "${pid}" ] || continue
+      command="$(ps -p "${pid}" -o command=)"
+      if [[ "${command}" != *"${pattern}"* ]]; then
+        echo "ERROR: cannot attribute PID ${pid} to this checkout; aborting cutover." >&2
+        return 1
+      fi
+      if is_supervisor_owned "${pid}"; then
+        continue
+      fi
+      echo "Stopping legacy daemon PID ${pid}..."
+      terminate_legacy_pid "${pid}"
+    done < <(pgrep -f "${match_pattern}" || true)
+  done
+}
+
 # ── Host prerequisites ─────────────────────────────────────────────────────
 # Host-level state itsUP services depend on. Idempotent and target-adaptive:
 # every step detects whether it applies on this host and no-ops cleanly when not.
@@ -172,6 +299,8 @@ install_systemd_units() {
     "itsup-backup.timer"
     "pi-healthcheck.service"
     "pi-healthcheck.timer"
+    "itsup-api.service"
+    "itsup-monitor.service"
   )
 
   local bringup_changed=false
@@ -191,8 +320,16 @@ install_systemd_units() {
   sudo systemctl daemon-reload
 
   sudo systemctl enable itsup-bringup.service
-  if [ "${bringup_changed}" = "true" ] || ! systemctl is-active --quiet itsup-bringup.service; then
+  if [ "${bringup_changed}" = "true" ] || [ "${BRINGUP_ACTIVE}" = "false" ]; then
     sudo systemctl restart itsup-bringup.service
+    if [ "${CUTOVER_STATE}" = "attempting" ]; then
+      write_cutover_state complete
+      CUTOVER_STATE="complete"
+    fi
+  elif [ "${CUTOVER_STATE}" = "attempting" ]; then
+    ITSUP_ROOT="${ITSUP_ROOT}" "${ITSUP}" run
+    write_cutover_state complete
+    CUTOVER_STATE="complete"
   else
     echo "  itsup-bringup.service unchanged and active, skipping restart"
   fi
@@ -217,11 +354,16 @@ install_launchd_agents() {
     "ai.itsup.bringup"
     "ai.itsup.apply"
     "ai.itsup.backup"
+    "ai.itsup.api"
   )
 
   mkdir -p "${SERVICE_DIR}"
-  local domain="gui/$(id -u "${ITSUP_USER}")"
+  local domain
+  domain="gui/$(id -u "${ITSUP_USER}")"
 
+  local bringup_changed=false
+  local apply_changed=false
+  local backup_changed=false
   for label in "${agents[@]}"; do
     local plist="${SERVICE_DIR}/${label}.plist"
     local template="${TEMPLATE_DIR}/${label}.plist"
@@ -232,24 +374,62 @@ install_launchd_agents() {
       echo "ERROR: aborting install — failed to write ${plist}" >&2
       exit 1
     fi
-    local plist_changed=true
-    if [ "${write_rc}" -eq 1 ]; then
-      plist_changed=false
+    if [ "${label}" = "ai.itsup.bringup" ] && [ "${write_rc}" -eq 0 ]; then
+      bringup_changed=true
     fi
-
-    if [ "${label}" = "ai.itsup.bringup" ] && [ "${plist_changed}" = "false" ] \
-      && launchctl print "${domain}/${label}" >/dev/null 2>&1; then
-      echo "  ${label} unchanged and loaded, skipping reload"
-      continue
+    if [ "${label}" = "ai.itsup.apply" ] && [ "${write_rc}" -eq 0 ]; then
+      apply_changed=true
     fi
+    if [ "${label}" = "ai.itsup.backup" ] && [ "${write_rc}" -eq 0 ]; then
+      backup_changed=true
+    fi
+  done
 
-    # Reload: bootout (modern unload) || unload (legacy) || true; then bootstrap || load.
+  reload_launchd_agent() {
+    local label="$1"
+    local plist="${SERVICE_DIR}/${label}.plist"
     launchctl bootout "${domain}" "${plist}" 2>/dev/null \
       || launchctl unload "${plist}" 2>/dev/null || true
     if ! launchctl bootstrap "${domain}" "${plist}" 2>/dev/null; then
       launchctl load "${plist}"
     fi
+  }
+
+  for label in "ai.itsup.apply" "ai.itsup.backup"; do
+    local plist="${SERVICE_DIR}/${label}.plist"
+    local changed=false
+    if [ "${label}" = "ai.itsup.apply" ]; then
+      changed="${apply_changed}"
+    else
+      changed="${backup_changed}"
+    fi
+    if [ "${changed}" = "true" ] || ! launchctl print "${domain}/${label}" >/dev/null 2>&1; then
+      reload_launchd_agent "${label}"
+    fi
   done
+
+  if [ "${CUTOVER_STATE}" = "attempting" ] || [ "${bringup_changed}" = "true" ] \
+    || [ "${BRINGUP_ACTIVE}" = "false" ]; then
+    reload_launchd_agent "ai.itsup.bringup"
+  else
+    echo "  ai.itsup.bringup unchanged and loaded, skipping reload"
+  fi
+
+  if [ "${CUTOVER_STATE}" = "attempting" ]; then
+    local attempts=0
+    while [ "${attempts}" -lt 150 ]; do
+      if [ -r "${STATE_FILE}" ] && [ "$(cat "${STATE_FILE}")" = "complete" ]; then
+        CUTOVER_STATE="complete"
+        break
+      fi
+      sleep 2
+      attempts=$((attempts + 1))
+    done
+    if [ "${CUTOVER_STATE}" != "complete" ]; then
+      echo "ERROR: timed out waiting for the bringup guardian; inspect itsUP bringup logs." >&2
+      exit 1
+    fi
+  fi
 
   echo "✓ ai.itsup.bringup loaded (runs at load)"
   echo "✓ ai.itsup.apply loaded (03:00 nightly apply)"
@@ -259,6 +439,8 @@ install_launchd_agents() {
 # ── Dispatch ───────────────────────────────────────────────────────────────
 
 ensure_host_prereqs
+require_unambiguous_cutover
+sweep_legacy_daemons
 
 case "${PLATFORM}" in
   linux) install_systemd_units;;
