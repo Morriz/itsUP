@@ -1,8 +1,9 @@
 ---
-description: Acceptance scenario for bin/backup.py's S3 upload integrity — a restore-point
-  name is published only for an archive whose transfer completed and was verified, so an
-  interrupted or truncated upload never lands under a valid generation name and retention
-  rotates only validated restore points.
+description: Acceptance scenario for bin/backup.py's S3 upload integrity — a backup
+  generation counts as a restore point only after its transfer is verified complete and
+  marked validated, so an interrupted or truncated upload never becomes a validated
+  generation, retention never lets an unvalidated object displace a validated one, and
+  bin/restore.py only ever offers validated generations.
 delivered_by: [backup-upload-not-atomic-retention-unvalidated]
 ---
 
@@ -15,62 +16,71 @@ delivered_by: [backup-upload-not-atomic-retention-unvalidated]
 ## What it is
 
 `bin/backup.py` uploads the `itsup.tar.gz` archive to S3 under a timestamped
-restore-point name `itsup.tar.gz.<timestamp>` and prunes to the newest ten
-generations. A restore-point name is a promise: `bin/restore.py` treats every
-`itsup.tar.gz.<timestamp>` object as a recoverable generation and restores the
-newest by default.
+generation name `itsup.tar.gz.<timestamp>` and retains the newest ten
+generations; `bin/restore.py` restores the newest generation by default. A
+generation is only a real restore point once its upload is proven complete.
 
-The upload keeps that promise atomically. The archive is first uploaded to a
-staging key held outside the `itsup.tar.gz.` restore-point prefix; the upload is
-then verified for completeness — the staged object's byte length must equal the
-local archive's; and only a verified-complete staged object is promoted to its
-final `itsup.tar.gz.<timestamp>` name by a server-side copy. An interrupted,
-truncated, or otherwise incomplete transfer therefore never appears under a
-restore-point name — it leaves at most a staging object, which is cleaned up and
-which neither `bin/restore.py` nor the keep-ten rotation ever considers.
+The upload proves completeness before a generation counts. After the archive is
+uploaded, its stored byte length is compared to the local archive's; only on a
+match is the generation marked **validated** by writing a small companion
+validation marker (a separate object outside the `itsup.tar.gz.` generation
+prefix). An interrupted, truncated, or otherwise incomplete upload never reaches
+the match, so it never gets a validation marker — it is at most an unvalidated
+object that no consumer treats as a restore point.
 
-Because only verified-complete archives ever bear a restore-point name, the
-keep-ten retention — which ranks generations by recency — rotates over validated
-restore points alone. An unverified object can neither occupy a retained slot nor
-evict a validated generation.
+Both consumers gate on the validation marker, not on recency or name alone:
+
+- **Retention** keeps the newest ten **validated** generations. When it must
+  evict to stay within the cap it removes unvalidated objects before validated
+  ones, so an object that never passed the completeness check can never displace
+  one that did. Pruning runs only after a generation is validated, so a failed
+  run never deletes a validated generation.
+- **Restore** offers only validated generations, so a partial or legacy
+  unvalidated object can never be selected as the generation to restore.
 
 The business value is that the disaster-recovery substrate cannot be silently
-poisoned: a partial upload can never masquerade as a restore point, and recency
-cannot preserve a corrupt object at the expense of a good one — the failure that
-would otherwise surface only at restore time, when it can least be tolerated.
+poisoned: a partial upload cannot masquerade as a restore point, recency cannot
+preserve a corrupt object at the expense of a good one, and restore cannot hand
+back an unverified archive — the failure that would otherwise surface only at
+restore time, when it can least be tolerated.
 
 ### Use cases
 
-The scenario below is bound by exactly one functional test that drives the real
-upload path with the S3 service faked at the process boundary, simulating a
-transfer that lands fewer bytes than the archive holds.
+The scenario below is bound by functional tests that drive the real upload,
+retention, and restore paths with the S3 service faked at the process boundary,
+simulating a transfer that lands fewer bytes than the archive holds.
 
-#### UC-BUI1: An incomplete upload never publishes a restore point
+#### UC-BUI1: Only a verified-complete upload becomes a validated restore point
 
 ```gherkin
-Given bin/backup.py uploads the archive to S3 but the transfer lands only part of its bytes
-And validated restore-point generations already exist in the bucket
+Given validated generations already exist in the bucket
+And bin/backup.py uploads a new archive to S3 but the transfer lands only part of its bytes
 When the upload step completes
-Then no object exists under the final itsup.tar.gz.<timestamp> restore-point name for that run
+Then the incomplete upload is not marked validated
+And no unvalidated object is left able to displace a validated generation
 And every pre-existing validated generation is still present
+And bin/restore.py offers only the validated generations for restore
 ```
 
 ## Canonical fields
 
-- **Staging key** — the key the archive is uploaded to first, held outside the
-  `itsup.tar.gz.` restore-point prefix so neither retention nor restore ever
-  treats it as a generation. Removed once the run resolves.
-- **Completeness check** — the staged object's stored byte length compared to the
-  local archive's byte length; equality is the promotion gate.
-- **Promotion** — the server-side copy of a verified-complete staged object to its
-  `itsup.tar.gz.<timestamp>` restore-point name. The restore-point object is only
-  ever created by this copy, never by the initial upload.
-- **Retention** — the keep-ten rotation over `itsup.tar.gz.<timestamp>` objects,
-  unchanged in ranking; it operates only on promoted (validated) restore points
-  because unverified objects never bear the prefix it rotates.
+- **Validation marker** — a small companion object, keyed outside the
+  `itsup.tar.gz.` generation prefix, written only after the uploaded archive's
+  byte length is verified equal to the local archive's. Its presence is the sole
+  signal that a generation is a validated restore point.
+- **Completeness check** — the uploaded object's stored byte length compared to
+  the local archive's byte length; equality is the gate that authorizes writing
+  the validation marker.
+- **Retention** — keeps the newest ten validated generations; evicts unvalidated
+  objects before validated ones; runs only after the current generation is
+  validated (never a pre-upload prune).
+- **Restore selection** — `bin/restore.py` lists and restores only generations
+  that carry a validation marker; an unvalidated object is never an eligible
+  restore target.
 
 ## Known caveats
 
-- The integrity guarantee is forward-looking: it governs objects this upload path
-  writes. A restore-point object published by an earlier, non-atomic version of
-  the script is not retroactively validated or removed by this contract.
+- The guarantee is forward-looking for the marker: generations written by an
+  earlier, non-atomic version of the script carry no validation marker, so they
+  are treated as unvalidated — never offered for restore and evicted before any
+  validated generation. They are not retroactively validated.
