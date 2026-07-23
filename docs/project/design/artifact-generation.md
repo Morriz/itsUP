@@ -84,7 +84,10 @@ overrides. This snippet is the contract for that translation. Network assignment
    segment when the ingress row sets one, so two ingress rows sharing one
    `host:port` that differ only by `path_prefix` generate two distinct routers
    (and matching services) instead of colliding on one router key. Pathless
-   routes keep the `{project}-{host}-{port}` identity.
+   routes keep the `{project}-{host}-{port}` identity. Because the sanitization
+   is lossy, `validate_all` rejects a project whose external-host ingress rows
+   produce a duplicate router identity (naming the collision) rather than
+   letting one route silently overwrite another.
 10. **Per-route source-IP gate.** An ingress row carrying `allow_source_ips`
     makes `write_dynamic_routers` emit a Traefik `ipAllowList` middleware
     (`sourceRange` = the declared list) and attach it to that route's router

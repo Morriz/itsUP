@@ -98,6 +98,10 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
 - **Source-IP allowlist** — when an ingress row sets `allow_source_ips`, each
   entry must parse as an IP address or CIDR network (`ipaddress.ip_network`,
   `lib/models.py`); a malformed entry fails validation.
+- **External-host router identity uniqueness** — within a project, the
+  generated external-host router identities (`{project}-{host}-{port}` plus the
+  sanitized `path_prefix` segment) must be unique; two ingress rows whose path
+  prefixes collapse to the same identity fail validation, naming the collision.
 <!-- /planned:gated-file-endpoint -->
 - **Compose schema** — a container project's `docker-compose.yml` (decided by
   file presence, the project-type discriminator) must pass Docker Compose's own
