@@ -1,10 +1,9 @@
 ---
 description: Acceptance scenario for bin/backup.py's S3 upload integrity — the archive
   is published to its final generation name only after a staged upload is verified
-  complete, so an interrupted or truncated upload never leaves an object under the final
-  itsup.tar.gz.<timestamp> name; retention keeps only validated generations and prunes
-  after promotion, and bin/restore.py offers only validated generations.
-delivered_by: [backup-upload-not-atomic-retention-unvalidated]
+  complete, so an interrupted or truncated upload never leaves an object under the
+  final itsup.tar.gz.<timestamp> name; retention keeps only validated generations
+  and prunes after promotion, and bin/restore.py offers only validated generations.
 ---
 
 # Backup Upload Integrity — Spec

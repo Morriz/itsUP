@@ -8,9 +8,12 @@ asks); bypass with -y/--yes for automation.
 Usage:
   bin/restore.py <target> [--from <s3-key>] [--yes] [--list]
     target   a project name | 'all' (whole stack) | 'proxy' (proxy state)
-    --from   S3 archive key to restore (default: the latest generation)
+    --from   explicit S3 archive key to restore; also permits legacy or unvalidated generations
     --yes    skip the confirmation prompt (non-interactive)
-    --list   list available archive generations and exit
+    --list   list validated archive generations and exit
+
+Without --from, restore selects only the latest validated generation. Use an
+explicit --from key to recover a legacy or otherwise unvalidated generation.
 """
 
 import argparse
@@ -26,7 +29,7 @@ from typing import Any
 # Add parent directory to path to import lib modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from bin.backup import DB_FILE, build_s3_client
+from bin.backup import DB_FILE, VALIDATED_PREFIX, build_s3_client
 from lib.data import (
     get_env_with_secrets,
     load_project_backup_config,
@@ -39,22 +42,27 @@ ALL_TARGET = "all"
 
 
 def list_generations(s3_client: Any, bucket: str) -> list[str]:
-    """Return archive generation keys (itsup.tar.gz.<ts>), newest first."""
+    """Return validated archive generation keys, newest first."""
     response = s3_client.list_objects_v2(Bucket=bucket)
-    prefix = f"{DB_FILE}."
-    keys = [obj["Key"] for obj in response.get("Contents", []) if obj["Key"].startswith(prefix)]
-    keys.sort(reverse=True)
-    return keys
+    keys = [obj["Key"] for obj in response.get("Contents", [])]
+    validated = {
+        key.removeprefix(VALIDATED_PREFIX) for key in keys if key.startswith(VALIDATED_PREFIX)
+    }
+    generations = [key for key in keys if key.startswith(f"{DB_FILE}.") and key in validated]
+    return sorted(generations, reverse=True)
 
 
 def resolve_key(s3_client: Any, bucket: str, requested: str | None) -> str:
-    """Resolve the archive key to restore: the requested one, or the latest."""
-    generations = list_generations(s3_client, bucket)
+    """Resolve an explicit key, or default to the latest validated generation."""
     if requested:
-        if requested not in generations:
-            print(f"Error: archive '{requested}' not found in bucket. Available: {generations}", file=sys.stderr)
+        response = s3_client.list_objects_v2(Bucket=bucket)
+        keys = [obj["Key"] for obj in response.get("Contents", [])]
+        if requested not in keys:
+            print(f"Error: archive '{requested}' not found in bucket. Available: {keys}", file=sys.stderr)
             sys.exit(1)
         return requested
+
+    generations = list_generations(s3_client, bucket)
     if not generations:
         print("Error: no backup generations found in bucket.", file=sys.stderr)
         sys.exit(1)
@@ -166,9 +174,14 @@ def run_restore(target: str, key: str, s3_client: Any, bucket: str) -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Restore a backup generation from S3.")
     parser.add_argument("target", help="project name | 'all' | 'proxy'")
-    parser.add_argument("--from", dest="from_key", default=None, help="S3 archive key (default: latest)")
+    parser.add_argument(
+        "--from",
+        dest="from_key",
+        default=None,
+        help="explicit S3 archive key; defaults to the latest validated generation",
+    )
     parser.add_argument("-y", "--yes", action="store_true", help="skip the confirmation prompt")
-    parser.add_argument("--list", action="store_true", help="list archive generations and exit")
+    parser.add_argument("--list", action="store_true", help="list validated archive generations and exit")
     args = parser.parse_args(argv)
 
     s3_client, bucket = build_s3_client()
