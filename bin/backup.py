@@ -28,6 +28,8 @@ from lib.paths import root
 logger = get_logger("itsup.backup")
 
 DB_FILE = "itsup.tar.gz"
+STAGING_PREFIX = "_staging/"
+VALIDATED_PREFIX = "_validated/"
 
 
 def discover_backup_configs(upstream_dir: Path) -> dict[str, BackupConfig]:
@@ -203,47 +205,85 @@ def build_s3_client() -> tuple[Any, str]:
     return s3_client, secrets["AWS_S3_BUCKET"]
 
 
+def _delete_staging_object(s3_client: Any, bucket: str, staging_key: str) -> None:
+    """Best-effort cleanup for an upload that never became a generation."""
+    try:
+        s3_client.delete_object(Bucket=bucket, Key=staging_key)
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        logger.error("backup: failed to clean staged upload '%s': %s", staging_key, error)
+
+
+def prune_generations(s3_client: Any, bucket: str) -> None:
+    """Keep ten generations, evicting unvalidated objects before validated ones."""
+    response = s3_client.list_objects_v2(Bucket=bucket)
+    keys = [obj["Key"] for obj in response.get("Contents", [])]
+    generation_prefix = f"{DB_FILE}."
+    generations = sorted((key for key in keys if key.startswith(generation_prefix)), reverse=True)
+    validated = {
+        key.removeprefix(VALIDATED_PREFIX) for key in keys if key.startswith(VALIDATED_PREFIX)
+    }
+
+    excess = len(generations) - 10
+    if excess <= 0:
+        return
+
+    unvalidated = sorted(key for key in generations if key not in validated)
+    validated_generations = sorted(key for key in generations if key in validated)
+    for generation in (unvalidated + validated_generations)[:excess]:
+        print(f"Deleting old backup: {generation}")
+        s3_client.delete_object(Bucket=bucket, Key=generation)
+        if generation in validated:
+            s3_client.delete_object(Bucket=bucket, Key=f"{VALIDATED_PREFIX}{generation}")
+
+
 def upload_to_s3() -> None:
-    """Upload DB_FILE to S3 with keep-10 timestamped rotation (existing path)."""
+    """Publish DB_FILE only after its staged S3 upload is complete."""
     print("Uploading backup to S3")
     s3_client, aws_s3_bucket = build_s3_client()
-
-    # List existing versions of the backup file
-    print("Checking existing backup versions in S3...")
-    existing_versions = []
-    response = s3_client.list_objects_v2(Bucket=aws_s3_bucket)
-    if "Contents" in response:
-        for obj in response["Contents"]:
-            existing_versions.append(obj["Key"])
-    print(f"Existing versions: {existing_versions}")
 
     # Generate a timestamped name for the new backup
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     new_backup_name = f"{DB_FILE}.{timestamp}"
+    staging_key = f"{STAGING_PREFIX}{new_backup_name}"
+    local_size = os.path.getsize(DB_FILE)
 
-    # Sort existing backups by timestamp and delete older ones if more than 10 exist
-    backup_prefix = f"{DB_FILE}."
-    timestamped_backups = [key for key in existing_versions if key.startswith(backup_prefix)]
-    timestamped_backups.sort(reverse=True)
-
-    if len(timestamped_backups) >= 10:
-        for old_backup in timestamped_backups[10:]:
-            print(f"Deleting old backup: {old_backup}")
-            s3_client.delete_object(Bucket=aws_s3_bucket, Key=old_backup)
-
-    # Upload the new backup with the timestamped name
-    print(f"Uploading new backup: {new_backup_name}")
+    print(f"Uploading staged backup: {staging_key}")
     try:
         with open(DB_FILE, "rb") as file_data:
-            s3_client.upload_fileobj(file_data, aws_s3_bucket, new_backup_name)
+            s3_client.upload_fileobj(file_data, aws_s3_bucket, staging_key)
+
+        staged_size = s3_client.head_object(Bucket=aws_s3_bucket, Key=staging_key)["ContentLength"]
+        if staged_size != local_size:
+            logger.error(
+                "backup: staged upload size mismatch for '%s': expected %s bytes, got %s",
+                staging_key,
+                local_size,
+                staged_size,
+            )
+            print("Error: staged backup upload is incomplete; refusing to publish it.")
+            _delete_staging_object(s3_client, aws_s3_bucket, staging_key)
+            sys.exit(1)
+
+        s3_client.copy(
+            CopySource={"Bucket": aws_s3_bucket, "Key": staging_key},
+            Bucket=aws_s3_bucket,
+            Key=new_backup_name,
+        )
+        s3_client.put_object(Bucket=aws_s3_bucket, Key=f"{VALIDATED_PREFIX}{new_backup_name}", Body=b"")
+        s3_client.delete_object(Bucket=aws_s3_bucket, Key=staging_key)
+        prune_generations(s3_client, aws_s3_bucket)
         print("Backup completed successfully")
     except botocore.exceptions.ClientError as e:
+        _delete_staging_object(s3_client, aws_s3_bucket, staging_key)
         print(f"AWS S3 Client Error: {e}")
         sys.exit(1)
     except botocore.exceptions.EndpointConnectionError as e:
+        _delete_staging_object(s3_client, aws_s3_bucket, staging_key)
         print(f"Cannot connect to S3 endpoint: {e}")
         sys.exit(1)
     except Exception as e:  # pylint: disable=broad-exception-caught
+        _delete_staging_object(s3_client, aws_s3_bucket, staging_key)
+        logger.error("backup: staged publication failed for '%s': %s", staging_key, e)
         print(f"Error uploading to S3: {e}")
         sys.exit(1)
     finally:
