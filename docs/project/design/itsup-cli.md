@@ -17,13 +17,8 @@ from anywhere on the machine — an agent or operator never has to `cd` into the
 or source anything to operate on the project's config and secrets. itsUP stays a
 single-root tool: the global handle always resolves back to, and operates on, its
 own repo.
-<!-- planned-change:native-daemon-supervision -->
-No runtime caller — systemd units, the API self-update, `start-api.sh` —
-sources or activates anything.
-<!-- change:native-daemon-supervision -->
 No runtime caller — systemd units, launchd agents, the API self-update —
 sources or activates anything.
-<!-- /planned-change:native-daemon-supervision -->
 
 This exists because the prior `bin/itsup` (`#!/usr/bin/env python3`) bound the
 interpreter to whatever python was active, and read cwd-relative data paths, so
@@ -90,17 +85,10 @@ interpreter binding, root resolution, and PATH exposure.
 4. **Single-root, not cwd/project-aware.** itsup binds to one install root; it
    does not select a project from the current directory the way `telec` does.
    See `project/adr/0001-itsup-cli-single-root`.
-<!-- planned-change:native-daemon-supervision -->
-5. **No sourcing required, anywhere.** Runtime callers (systemd units,
-   `start-api.sh`, the API self-update) invoke the absolute `<repo>/.venv/bin/itsup`
-   (or the venv python) with `ITSUP_ROOT` set; interactive users and agents reach
-   the bare `itsup` through the global symlink. Developers run project tools via
-<!-- change:native-daemon-supervision -->
 5. **No sourcing required, anywhere.** Runtime callers (systemd units, launchd
    agents, the API self-update) invoke the absolute `<repo>/.venv/bin/itsup`
    (or the venv python) with `ITSUP_ROOT` set; interactive users and agents reach
    the bare `itsup` through the global symlink. Developers run project tools via
-<!-- /planned-change:native-daemon-supervision -->
    `uv run` and opt into completion via `source bin/itsup-completion.sh`.
 
 ## Primary flows

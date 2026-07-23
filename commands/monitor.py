@@ -2,14 +2,21 @@
 
 """Container security monitor management"""
 
-import os
 import subprocess
 import sys
 
 import click
 
 from commands.common import fail, ok, step
+from lib import supervisor
 from lib.paths import root
+from lib.supervisor import Unit
+
+
+def _require_supervision() -> None:
+    if not supervisor.supports(Unit.MONITOR):
+        fail("The container security monitor is supported on Linux only")
+        raise SystemExit(1)
 
 
 @click.group()
@@ -56,10 +63,12 @@ def start(skip_sync: bool, report_only: bool, use_opensnitch: bool) -> None:
 
     flags_str = " ".join(flags)
     step(f"Starting container security monitor{' with flags: ' + flags_str if flags else ''}...")
+    _require_supervision()
 
     try:
-        env = {"FLAGS": flags_str} if flags else {}
-        subprocess.run([str(root() / "bin" / "start-monitor.sh")], env={**os.environ, **env}, check=True)
+        supervisor.write_monitor_flags(flags)
+        supervisor.restart(Unit.MONITOR)
+        ok("Monitor started")
     except subprocess.CalledProcessError as e:
         fail("Failed to start monitor")
         sys.exit(e.returncode)
@@ -77,17 +86,14 @@ def stop() -> None:
         itsup monitor stop
     """
     step("Stopping container security monitor...")
+    _require_supervision()
 
     try:
-        subprocess.run(["sudo", "pkill", "-f", "bin/monitor.py"], check=True)
+        supervisor.stop(Unit.MONITOR)
         ok("Monitor stopped")
     except subprocess.CalledProcessError as e:
-        if e.returncode == 1:
-            # pkill returns 1 if no process found
-            step("Monitor is not running")
-        else:
-            fail("Failed to stop monitor")
-            sys.exit(e.returncode)
+        fail("Failed to stop monitor")
+        sys.exit(e.returncode)
 
 
 @monitor.command()

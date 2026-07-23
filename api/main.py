@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import sys
 from functools import cache
-from logging import info
 from typing import List
 from urllib.parse import urlparse
 
@@ -12,19 +11,24 @@ import dotenv
 import uvicorn
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
+from instrukt_ai_logging import get_logger
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from lib import supervisor
 from lib.auth import verify_apikey
 from lib.data import list_projects
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack
+from lib.log_setup import configure_daemon_logging
 from lib.paths import root
 from lib.reconcile import reconcile
+from lib.supervisor import Unit
 
 dotenv.load_dotenv()
 
 app = FastAPI(title="itsUP API", version="2.0")
+logger = get_logger(f"itsup.{__name__}")
 
 
 @cache
@@ -42,35 +46,35 @@ def _uv_bin() -> str:
 def _handle_update_upstream(project: str, service: str = None) -> None:
     """Handle incoming requests to update the upstream - delegates to itsup apply command"""
     try:
-        info(f"Updating {project} via webhook...")
+        logger.info(f"Updating {project} via webhook...")
         # Use the CLI command which has all the logic. Pass ITSUP_ROOT so the
         # child itsup resolves the same install root regardless of the API's env.
         env = {**os.environ, "ITSUP_ROOT": str(root())}
         subprocess.run([str(root() / ".venv" / "bin" / "itsup"), "apply", project], check=True, env=env)
-        info(f"✓ {project} updated successfully")
+        logger.info(f"✓ {project} updated successfully")
     except subprocess.CalledProcessError as e:
-        info(f"✗ Failed to update {project}: {e}")
+        logger.info(f"✗ Failed to update {project}: {e}")
         raise
 
 
 def _handle_itsup_update() -> None:
     """Handle updates to itsUP itself (git pull and apply changes)"""
     try:
-        # ITSUP_ROOT for every child runtime process (itsup apply, start-api.sh),
+        # ITSUP_ROOT for every child runtime process,
         # so root() resolves the same install root regardless of the API's env.
         env = {**os.environ, "ITSUP_ROOT": str(root())}
 
         # Update repository
         if os.environ.get("PYTHON_ENV") == "production":
-            info("Updating repository from origin/main")
+            logger.info("Updating repository from origin/main")
             subprocess.run(["git", "fetch", "origin", "main"], cwd=str(root()), check=True)
             subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=str(root()), check=True)
-            info("Repository updated successfully")
+            logger.info("Repository updated successfully")
 
             # git reset bypasses the post-merge hook that syncs dependencies,
             # so sync explicitly — a dependency-adding update otherwise leaves
             # the API importing a missing module on restart.
-            info("Installing dependencies")
+            logger.info("Installing dependencies")
             # uv sync --no-dev re-mints the .venv/bin/itsup console-script (entry
             # point / package layout changes included) and installs runtime-only
             # deps from uv.lock, pruning the venv to exactly that set.
@@ -81,22 +85,22 @@ def _handle_itsup_update() -> None:
             )
 
         # Deploy infrastructure stacks with smart rollout
-        info("Deploying DNS stack...")
+        logger.info("Deploying DNS stack...")
         deploy_dns_stack()
 
-        info("Deploying proxy stack (regenerates artifacts + zero-downtime rollout)...")
+        logger.info("Deploying proxy stack (regenerates artifacts + zero-downtime rollout)...")
         deploy_proxy_stack()
 
         # Apply all upstream project changes
-        info("Deploying all upstream projects...")
+        logger.info("Deploying all upstream projects...")
         subprocess.run([str(root() / ".venv" / "bin" / "itsup"), "apply"], check=True, env=env)
 
         # Restart API to pick up new code
-        info("Restarting API server")
-        subprocess.run([str(root() / "bin" / "start-api.sh")], check=True, env=env)
+        logger.info("Restarting API server")
+        supervisor.restart(Unit.API)
 
     except Exception as e:
-        info(f"✗ Failed to update itsUP: {e}")
+        logger.info(f"✗ Failed to update itsUP: {e}")
         raise
 
 
@@ -109,7 +113,7 @@ def _handle_hook(project: str, background_tasks: BackgroundTasks, service: str =
     # Validate project exists
     projects = list_projects()
     if project not in projects:
-        info(f"Project {project} not found. Available: {', '.join(projects)}")
+        logger.info(f"Project {project} not found. Available: {', '.join(projects)}")
         return
 
     background_tasks.add_task(_handle_update_upstream, project=project, service=service)
@@ -165,14 +169,12 @@ def redirect_handler(url: str) -> RedirectResponse:
 
 
 if __name__ == "__main__":
-
+    configure_daemon_logging()
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=8888,
-        log_level="debug",
         reload_dirs=["."],
         forwarded_allow_ips="*",
-        log_config="api-log.conf.yaml",
         proxy_headers=os.environ.get("PYTHON_ENV", "development") == "production",
     )

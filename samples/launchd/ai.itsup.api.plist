@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.itsup.api</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ROOT}}/.venv/bin/python</string>
+        <string>{{ROOT}}/api/main.py</string>
+    </array>
+    <!-- KeepAlive starts on bootstrap; writing this plist alone is inert. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>{{HOME}}</string>
+        <key>ITSUP_ROOT</key>
+        <string>{{ROOT}}</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/itsup.api.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/itsup.api.log</string>
+</dict>
+</plist>

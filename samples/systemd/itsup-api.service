@@ -1,0 +1,19 @@
+[Unit]
+Description=itsUP management API
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User={{USER}}
+Group={{GROUP}}
+WorkingDirectory={{ROOT}}
+Environment=HOME=/home/{{USER}}
+Environment=ITSUP_ROOT={{ROOT}}
+ExecStart={{ROOT}}/.venv/bin/python {{ROOT}}/api/main.py
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# No [Install] section: itsup run owns ordered stack startup.

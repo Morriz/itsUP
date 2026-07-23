@@ -9,8 +9,10 @@ import click
 from instrukt_ai_logging import get_logger
 
 from commands.common import fail, ok, step, warn
+from lib import supervisor
 from lib.data import get_env_with_secrets, list_projects
 from lib.paths import root
+from lib.supervisor import Unit
 
 logger = get_logger(f"itsup.{__name__}")
 
@@ -58,16 +60,19 @@ def down(clean: bool) -> None:
 
     # Step 1: Stop monitor
     step("  🛡️  Stopping container security monitor...")
-    try:
-        subprocess.run(["pkill", "-f", "bin/monitor.py"], check=False)
-        ok("  Monitor stopped")
-    except subprocess.CalledProcessError:
-        warn("  Monitor may not have been running")
+    if not supervisor.supports(Unit.MONITOR):
+        warn("  Container security monitor is supported on Linux only; skipping")
+    else:
+        try:
+            supervisor.stop(Unit.MONITOR)
+            ok("  Monitor stopped")
+        except subprocess.CalledProcessError:
+            warn("  Monitor may not have been running")
 
     # Step 2: Stop API server
     step("  🌐 Stopping API server...")
     try:
-        subprocess.run(["pkill", "-f", "api/main.py"], check=False)
+        supervisor.stop(Unit.API)
         ok("  API server stopped")
     except subprocess.CalledProcessError:
         warn("  API server may not have been running")

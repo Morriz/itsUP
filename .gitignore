@@ -2,6 +2,8 @@ __pycache__
 *.bak*
 .coverage
 .env
+.itsup-monitor.env
+.itsup-supervision-state
 .history
 .*_cache
 .venv

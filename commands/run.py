@@ -8,9 +8,11 @@ import sys
 import click
 
 from bin.write_artifacts import write_proxy_artifacts
-from commands.common import fail, guard_schema_version, ok, step
+from commands.common import fail, guard_schema_version, ok, step, warn
+from lib import supervisor
 from lib.data import get_env_with_secrets
 from lib.paths import root
+from lib.supervisor import Unit
 
 
 @click.command()
@@ -78,7 +80,7 @@ def run() -> None:
     # Step 3: Start API server
     step("  🌐 Starting API server...")
     try:
-        subprocess.run([str(root() / "bin" / "start-api.sh")], check=True)
+        supervisor.start(Unit.API)
         ok("  API server started")
     except subprocess.CalledProcessError as e:
         fail("  Failed to start API server")
@@ -86,11 +88,15 @@ def run() -> None:
 
     # Step 4: Start container security monitor (report-only mode)
     step("  🛡️  Starting container security monitor (report-only mode)...")
-    try:
-        subprocess.run([str(root() / "bin" / "start-monitor.sh"), "--report-only"], check=True)
-        ok("  Monitor started in report-only mode")
-    except subprocess.CalledProcessError as e:
-        fail("  Failed to start monitor")
-        sys.exit(e.returncode)
+    if not supervisor.supports(Unit.MONITOR):
+        warn("  Container security monitor is supported on Linux only; skipping")
+    else:
+        try:
+            supervisor.write_monitor_flags(["--report-only"])
+            supervisor.restart(Unit.MONITOR)
+            ok("  Monitor started in report-only mode")
+        except subprocess.CalledProcessError as e:
+            fail("  Failed to start monitor")
+            sys.exit(e.returncode)
 
     ok("Complete stack running")

@@ -1,0 +1,22 @@
+[Unit]
+Description=itsUP container security monitor
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+# The monitor runs as root but needs the itsUP user's SOPS and state location.
+Environment=HOME=/home/{{USER}}
+Environment=ITSUP_ROOT={{ROOT}}
+WorkingDirectory={{ROOT}}
+# The leading dash makes a first start without a mode file non-fatal.
+EnvironmentFile=-{{ROOT}}/.itsup-monitor.env
+# systemd expands this unquoted value into the requested monitor flags.
+ExecStart={{ROOT}}/.venv/bin/python {{ROOT}}/bin/monitor.py $MONITOR_FLAGS
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# No [Install] section: itsup run owns ordered stack startup.
