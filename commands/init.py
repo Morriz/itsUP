@@ -45,7 +45,7 @@ def _get_project_root() -> Path:
     return root()
 
 
-def _validate_project_structure(root: Path) -> None:
+def _validate_project_structure(install_root: Path) -> None:
     """Validate the resolved root is an itsUP checkout before seeding into it.
 
     The itsUP-specific ``samples/projects/itsup.yml`` template is the marker: it
@@ -53,8 +53,8 @@ def _validate_project_structure(root: Path) -> None:
     ``root()`` already anchors identity by the package location; this guards the
     ``ITSUP_ROOT`` override, which resolves to any directory.
     """
-    if not (root / "samples" / "projects" / "itsup.yml").is_file():
-        _error("Must be run from itsUP project root\n" "  Expected to find samples/projects/itsup.yml")
+    if not (install_root / "samples" / "projects" / "itsup.yml").is_file():
+        _error("Must be run from itsUP project root\n  Expected to find samples/projects/itsup.yml")
 
 
 def _is_git_repo(path: Path) -> bool:
@@ -109,9 +109,9 @@ def _setup_sops_diff(repo_path: Path) -> None:
         _warning(f"Could not configure sops-diff: {e}")
 
 
-def _setup_repo(root: Path, name: str) -> None:
+def _setup_repo(install_root: Path, name: str) -> None:
     """Setup a git repository (clone if needed, or verify existing)"""
-    repo_path = root / name
+    repo_path = install_root / name
 
     # Check if already exists and is a git repo
     if repo_path.exists() and _is_git_repo(repo_path):
@@ -190,14 +190,15 @@ def _copy_dir_if_missing(src: Path, dst: Path) -> None:
     _success(f"Copied {display_path(src)} → {display_path(dst)}")
 
 
-def _require_source(src: Path) -> None:
-    """Fail loudly when a required sample source is absent — a corrupted checkout.
+def _require_source(src: Path, *, kind: str) -> None:
+    """Fail loudly when a required sample source is absent or the wrong type.
 
-    A missing required template is not a normal skip: seeding on would silently
-    produce an incomplete install.
+    A missing or mistyped required template is a corrupted checkout, not a normal
+    skip: seeding on would silently produce an incomplete install.
     """
-    if not src.exists():
-        _error(f"Required sample source is missing: {display_path(src)}\n" "  The itsUP checkout is incomplete.")
+    present = src.is_dir() if kind == "dir" else src.is_file()
+    if not present:
+        _error(f"Required sample {kind} is missing: {display_path(src)}\n  The itsUP checkout is incomplete.")
 
 
 def _seed_from(src_dir: Path, dst_dir: Path) -> None:
@@ -244,6 +245,13 @@ def init(force: bool) -> None:
             _success("Already initialized (use --force to re-run)")
             return
 
+    # Validate the required sample sources up front — fail before touching any
+    # repository so an incomplete checkout never leaves a partial install.
+    samples = project_root / "samples"
+    _require_source(samples / ".env", kind="file")
+    _require_source(samples / "projects", kind="dir")
+    _require_source(samples / "secrets", kind="dir")
+
     # Setup git repositories
     click.echo("Setting up configuration repositories...")
     _setup_repo(project_root, "projects")
@@ -253,10 +261,6 @@ def init(force: bool) -> None:
     # Initialize configuration files by mirroring the samples/ templates, so the
     # seeded set tracks the samples/ layout with no hardcoded manifest.
     click.echo("Copying configuration files...")
-    samples = project_root / "samples"
-    _require_source(samples / ".env")
-    _require_source(samples / "projects")
-    _require_source(samples / "secrets")
     _copy_if_missing(samples / ".env", project_root / ".env")
     _seed_from(samples / "projects", projects_dir())
     _seed_from(samples / "secrets", secrets_dir())

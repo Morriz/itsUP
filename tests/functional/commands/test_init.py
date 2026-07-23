@@ -25,7 +25,10 @@ SECRETS_ALREADY_EXISTS = "secrets/ already exists"
 ENV_VAR_LINE = "ENV_VAR=test_value"
 ENV_ALREADY_EXISTS = ".env already exists"
 EXISTING_ENV_CONTENT = "EXISTING=value"
-REQUIRED_SOURCE_MISSING = "Required sample source is missing"
+REQUIRED_SOURCE_MISSING = "Required sample file is missing"
+# An entry no hardcoded manifest would list — proves seeding mirrors the tree.
+UNLISTED_PROJECT = "unlisted-project.yml"
+UNLISTED_SECRET = "unlisted-secret.txt"
 
 
 def _make_itsup_samples(root: Path) -> None:
@@ -35,6 +38,7 @@ def _make_itsup_samples(root: Path) -> None:
     (projects / "itsup.yml").write_text("routerIP: 1.2.3.4\n")
     (projects / "traefik.yml").write_text("log:\n  level: INFO\n")
     (projects / "middlewares.yml").write_text("http: {}\n")
+    (projects / UNLISTED_PROJECT).write_text("services: {}\n")
     example = projects / "example-project"
     example.mkdir()
     (example / "docker-compose.yml").write_text("services: {}\n")
@@ -42,6 +46,7 @@ def _make_itsup_samples(root: Path) -> None:
     secrets = root / "samples" / "secrets"
     secrets.mkdir(parents=True)
     (secrets / "itsup.txt").write_text("TRAEFIK_ADMIN=changeme\n")
+    (secrets / UNLISTED_SECRET).write_text("EXTRA=changeme\n")
 
     (root / "samples" / ".env").write_text(f"{ENV_VAR_LINE}\n")
 
@@ -103,6 +108,10 @@ def test_init_seeds_projects_and_secrets_by_mirroring(tmp_path: Path, monkeypatc
     for name in ("itsup.yml", "traefik.yml", "middlewares.yml", "example-project"):
         assert (tmp_path / "projects" / name).exists(), f"projects/{name} not seeded"
     assert (tmp_path / "secrets" / "itsup.txt").exists()
+    # Entries no hardcoded manifest would name are seeded too — the mirror tracks
+    # the tree, so a reversion to a static list would leave these behind.
+    assert (tmp_path / "projects" / UNLISTED_PROJECT).exists()
+    assert (tmp_path / "secrets" / UNLISTED_SECRET).exists()
 
 
 @pytest.mark.functional
