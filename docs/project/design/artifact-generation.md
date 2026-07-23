@@ -78,6 +78,21 @@ overrides. This snippet is the contract for that translation. Network assignment
    only when content differs. Unchanged artifacts keep their bytes, so deploys
    become no-ops via Docker's config-hash (see
    `project/design/deployment-orchestration`).
+<!-- planned:gated-file-endpoint -->
+9. **External-host router identity includes the path.** An external-host dynamic
+   router's name (`{project}-{host}-{port}`) gains a sanitized `path_prefix`
+   segment when the ingress row sets one, so two ingress rows sharing one
+   `host:port` that differ only by `path_prefix` generate two distinct routers
+   (and matching services) instead of colliding on one router key. Pathless
+   routes keep the `{project}-{host}-{port}` identity.
+10. **Per-route source-IP gate.** An ingress row carrying `allow_source_ips`
+    makes `write_dynamic_routers` emit a Traefik `ipAllowList` middleware
+    (`sourceRange` = the declared list) and attach it to that route's router
+    alone; routes without the field emit no per-route middleware. This is the
+    per-route counterpart to the global entrypoint chain
+    (`project/spec/feature/deployment/http-security-middlewares`). Contract:
+    `project/spec/feature/deployment/route-scoped-ip-allowlist`.
+<!-- /planned:gated-file-endpoint -->
 
 ## Primary flows
 
