@@ -2,6 +2,7 @@ __pycache__
 *.bak*
 .coverage
 .env
+!samples/.env
 .itsup-monitor.env
 .itsup-supervision-state
 .history

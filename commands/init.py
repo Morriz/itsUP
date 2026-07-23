@@ -14,7 +14,14 @@ from pathlib import Path
 import click
 
 from commands.common import fail, ok, warn
-from lib.paths import display_path, project_dir, projects_dir, root, secret_file
+from lib.paths import (
+    display_path,
+    project_dir,
+    projects_dir,
+    root,
+    secret_file,
+    secrets_dir,
+)
 
 
 def _error(message: str) -> None:
@@ -39,9 +46,15 @@ def _get_project_root() -> Path:
 
 
 def _validate_project_structure(root: Path) -> None:
-    """Validate we're in the correct directory"""
-    if not (root / "bin" / "itsup").exists() or not (root / "samples").exists():
-        _error("Must be run from itsUP project root\n" "  Expected to find itsup and samples/ directory")
+    """Validate the resolved root is an itsUP checkout before seeding into it.
+
+    The itsUP-specific ``samples/projects/itsup.yml`` template is the marker: it
+    identifies the checkout (no generic project ships it) and init copies from it.
+    ``root()`` already anchors identity by the package location; this guards the
+    ``ITSUP_ROOT`` override, which resolves to any directory.
+    """
+    if not (root / "samples" / "projects" / "itsup.yml").is_file():
+        _error("Must be run from itsUP project root\n" "  Expected to find samples/projects/itsup.yml")
 
 
 def _is_git_repo(path: Path) -> bool:
@@ -177,6 +190,26 @@ def _copy_dir_if_missing(src: Path, dst: Path) -> None:
     _success(f"Copied {display_path(src)} → {display_path(dst)}")
 
 
+def _require_source(src: Path) -> None:
+    """Fail loudly when a required sample source is absent — a corrupted checkout.
+
+    A missing required template is not a normal skip: seeding on would silently
+    produce an incomplete install.
+    """
+    if not src.exists():
+        _error(f"Required sample source is missing: {display_path(src)}\n" "  The itsUP checkout is incomplete.")
+
+
+def _seed_from(src_dir: Path, dst_dir: Path) -> None:
+    """Seed dst_dir with each entry of src_dir, copy-if-missing (never overwriting)."""
+    for entry in sorted(src_dir.iterdir()):
+        dst = dst_dir / entry.name
+        if entry.is_dir():
+            _copy_dir_if_missing(entry, dst)
+        else:
+            _copy_if_missing(entry, dst)
+
+
 @click.command()
 @click.option("--force", is_flag=True, help="Force re-initialization even if already initialized")
 def init(force: bool) -> None:
@@ -217,14 +250,16 @@ def init(force: bool) -> None:
     _setup_repo(project_root, "secrets")
     click.echo()
 
-    # Initialize configuration files
+    # Initialize configuration files by mirroring the samples/ templates, so the
+    # seeded set tracks the samples/ layout with no hardcoded manifest.
     click.echo("Copying configuration files...")
     samples = project_root / "samples"
-    _copy_if_missing(samples / "env", project_root / ".env")
-    for config in ("itsup.yml", "traefik.yml", "middlewares.yml"):
-        _copy_if_missing(samples / config, projects_dir() / config)
-    _copy_dir_if_missing(samples / "example-project", project_dir("example-project"))
-    _copy_if_missing(samples / "secrets" / "itsup.txt", secret_file("itsup", encrypted=False))
+    _require_source(samples / ".env")
+    _require_source(samples / "projects")
+    _require_source(samples / "secrets")
+    _copy_if_missing(samples / ".env", project_root / ".env")
+    _seed_from(samples / "projects", projects_dir())
+    _seed_from(samples / "secrets", secrets_dir())
     click.echo()
 
     # Done
