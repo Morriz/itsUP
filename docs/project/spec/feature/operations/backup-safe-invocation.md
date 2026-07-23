@@ -1,10 +1,8 @@
 ---
-description:
-  Acceptance scenario for bin/backup.py's argument boundary — a non-destructive
+description: Acceptance scenario for bin/backup.py's argument boundary — a non-destructive
   invocation such as --help or an unrecognised argument exits without running the
-  production backup, so the script can be inspected without shipping an archive
-  to S3.
-delivered_by: [backup-script-has-no-safe-invocation]
+  production backup, so the script can be inspected without shipping an archive to
+  S3.
 ---
 
 # Backup Safe Invocation — Spec

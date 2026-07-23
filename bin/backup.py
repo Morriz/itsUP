@@ -1,3 +1,4 @@
+import argparse
 import os
 import subprocess
 import sys
@@ -249,7 +250,12 @@ def upload_to_s3() -> None:
         os.remove(DB_FILE)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Run the full production backup. This script takes no arguments."
+    )
+    parser.parse_args(argv)
+
     os.environ.setdefault("ITSUP_LOG_LEVEL", os.getenv("LOG_LEVEL", "INFO"))
     configure_logging("itsup", source="backup")
 
