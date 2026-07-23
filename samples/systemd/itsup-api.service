@@ -2,6 +2,7 @@
 Description=itsUP management API
 After=network-online.target docker.service
 Requires=docker.service
+OnFailure=itsup-alert@%n.service
 
 [Service]
 Type=simple

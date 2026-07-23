@@ -290,6 +290,17 @@ write_if_changed() {
 
 # ── systemd (Linux) ────────────────────────────────────────────────────────
 
+ensure_systemd_journal_group() {
+  # The alert unit runs as the itsUP user (never root) and reads other units'
+  # journals to compose an alert body; systemd-journal membership is what
+  # makes that possible without privilege escalation (D3).
+  if id -nG "${ITSUP_USER}" | tr ' ' '\n' | grep -qx systemd-journal; then
+    return
+  fi
+  echo "Adding ${ITSUP_USER} to the systemd-journal group..."
+  sudo usermod -aG systemd-journal "${ITSUP_USER}"
+}
+
 install_systemd_units() {
   local units=(
     "itsup-bringup.service"
@@ -301,7 +312,10 @@ install_systemd_units() {
     "pi-healthcheck.timer"
     "itsup-api.service"
     "itsup-monitor.service"
+    "itsup-alert@.service"
   )
+
+  ensure_systemd_journal_group
 
   local bringup_changed=false
   for unit in "${units[@]}"; do

@@ -2,6 +2,7 @@
 Description=Periodic health check with auto-recovery
 After=network-online.target docker.service
 Requires=docker.service
+OnFailure=itsup-alert@%n.service
 
 [Service]
 Type=oneshot

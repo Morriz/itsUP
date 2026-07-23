@@ -1,5 +1,6 @@
 [Unit]
 Description=Run itsUP backup nightly at 05:00
+OnFailure=itsup-alert@%n.service
 
 [Timer]
 OnCalendar=*-*-* 05:00:00

@@ -45,6 +45,7 @@ dev = [
   "pytest-timeout",
   "pytest-xdist",
   "qdrant-client",
+  "syrupy>=5.5.3",
   "types-netifaces",
   "types-PyYAML",
 ]

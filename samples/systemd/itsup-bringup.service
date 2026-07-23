@@ -3,11 +3,13 @@ Description=Orchestrate full itsUP stack lifecycle (start on boot, stop on shutd
 After=docker.service network-online.target
 Requires=docker.service network-online.target
 PartOf=docker.service
+OnFailure=itsup-alert@%n.service
 
 [Service]
 Type=oneshot
 User={{USER}}
 Group={{GROUP}}
+StateDirectory=itsup
 WorkingDirectory={{ROOT}}
 Environment=HOME=/home/{{USER}}
 Environment=ITSUP_ROOT={{ROOT}}
@@ -20,6 +22,7 @@ Environment=ITSUP_ROOT={{ROOT}}
 ExecStartPre=/bin/sh -c 'i=0; until ip route | grep -q ^default; do i=$((i+1)); [ $i -ge 60 ] && echo "no default route after 120s" >&2 && exit 1; sleep 2; done'
 ExecStart={{ROOT}}/.venv/bin/itsup run
 ExecStartPost={{ROOT}}/.venv/bin/itsup apply
+ExecStartPost=/bin/sh -c 'touch "$STATE_DIRECTORY/apply-success"'
 # On shutdown, stop containers in dependency order but DO NOT remove them —
 # leaves them in `exited` state so Docker's restart policy brings them back
 # sub-second on next boot (vs minutes to recreate from compose).

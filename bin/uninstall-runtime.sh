@@ -195,6 +195,7 @@ remove_systemd_units() {
     "pi-healthcheck.service" "pi-healthcheck.timer"
     "itsup-api.service"
     "itsup-monitor.service"
+    "itsup-alert@.service"
   )
   local removed=0
   for unit in "${units[@]}"; do

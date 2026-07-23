@@ -32,3 +32,8 @@ crowdsec:
 versions:
   traefik: v3.7.8
   crowdsec: v1.7.8
+
+# Ops failure alerting (optional): itsUP composes the alert, you own the
+# transport. Unset (the default) is a clean no-op. See docs/project/spec/itsup-config.md#alert-command.
+# alert:
+#   command: '${TRANSPORT_BIN} --to ops-channel'

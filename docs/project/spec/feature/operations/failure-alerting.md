@@ -1,6 +1,8 @@
 ---
-description: Acceptance scenarios for itsUP's transport-agnostic ops failure alerting — the supervisor failure hook that announces a failed unit exactly once through an operator-configured command, the clean no-op when no command is configured, and the deadman assertion that catches a nightly apply that never succeeded.
-delivered_by: [ops-failure-alerting]
+description: Acceptance scenarios for itsUP's transport-agnostic ops failure alerting
+  — the supervisor failure hook that announces a failed unit exactly once through
+  an operator-configured command, the clean no-op when no command is configured, and
+  the deadman assertion that catches a nightly apply that never succeeded.
 ---
 
 # Failure Alerting — Spec

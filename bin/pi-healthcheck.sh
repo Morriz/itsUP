@@ -39,6 +39,12 @@ if ! docker ps >/dev/null 2>&1; then ok=0; reasons+=("docker_down"); fi
 
 log() { echo "$NOW $*"; }
 
+# The apply deadman catches the failure class the OnFailure= hook cannot see —
+# a masked unit or a timer that never fired. Its own failure must never abort
+# this health check, which owns host-level auto-recovery including reboot.
+"${REPO_ROOT}/.venv/bin/python" "${REPO_ROOT}/bin/alert.py" --deadman \
+  || log "ERROR apply deadman assertion failed"
+
 if (( ok )); then
   rm -f "$STAMP"
   log "OK mem=${mem_avail_kb}kb load1=${load1} conn=${conn}/${conn_max} disk=${root_pct}%"

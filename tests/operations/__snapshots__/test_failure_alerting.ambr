@@ -1,0 +1,24 @@
+# serializer version: 1
+# name: test_journal_read_failure_marks_the_body_degraded
+  '''
+  itsUP alert: unit itsup-apply.service failed
+  
+  (journal context unavailable — see the alert composer's diagnostic log)
+  '''
+# ---
+# name: test_malformed_shell_syntax_fails_fast_with_no_transport_execution
+  '''
+  alert: alert.command is not valid shell syntax: No closing quotation
+  
+  '''
+# ---
+# name: test_uc_ofa1_failed_unit_alerts_once_with_journal_context
+  '''
+  itsUP alert: unit itsup-apply.service failed
+  
+  Last 20 journal lines:
+  Jul 22 03:00:01 host unit[123]: starting
+  Jul 22 03:00:02 host unit[123]: fatal error
+  
+  '''
+# ---
