@@ -105,7 +105,7 @@ def _setup_sops_diff(repo_path: Path) -> None:
             capture_output=True,
         )
         _success("Configured git diff integration for SOPS files")
-    except Exception as e:
+    except (OSError, subprocess.CalledProcessError) as e:
         _warning(f"Could not configure sops-diff: {e}")
 
 
