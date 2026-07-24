@@ -49,12 +49,13 @@ Then the response is refused with a client-error status
 And no file bytes are returned
 ```
 
-#### UC-GFS3: A missing or non-regular-file path is refused
+#### UC-GFS3: A missing, non-regular, or unresolvable path is refused
 
 ```gherkin
-Given a path that does not resolve to an existing regular file
+Given a path that does not resolve to an existing regular file (missing, not a regular file, or unresolvable such as a symlink loop)
 When GET /file is requested with that path
 Then the response is refused with a client-error status
+And no server error is returned
 ```
 
 #### UC-GFS4: A symlink whose resolved target is a non-allowlisted file is refused
