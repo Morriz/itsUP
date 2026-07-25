@@ -43,14 +43,21 @@ surface only lists and downloads them.
 ### Logs
 
 Caddy writes lifecycle and error events as structured JSON to
-`~/Library/Logs/InstruktAI/outbox.log`. Caddy's native file writer owns rotation
-and retention; HTTP access logging remains disabled.
+`~/.local/state/instrukt-ai/outbox/outbox.log`; HTTP access logging remains
+disabled. Caddy-side rolling is disabled so the host's shared newsyslog service
+is the single rotation owner.
 
-- Follow current events: `tail -F ~/Library/Logs/InstruktAI/outbox.log`
+- Follow current events:
+  `tail -F ~/.local/state/instrukt-ai/outbox/outbox.log`
 - Show warnings and errors:
-  `jq -c 'select(.level == "warn" or .level == "error")' ~/Library/Logs/InstruktAI/outbox.log`
+  `jq -Rrc 'fromjson? | select(.level == "warn" or .level == "error")' ~/.local/state/instrukt-ai/outbox/outbox.log`
 - Find retained rolls:
-  `ls -lt ~/Library/Logs/InstruktAI/outbox*.log*`
+  `ls -lt ~/.local/state/instrukt-ai/outbox/outbox.log*`
+
+The exact Outbox rule in `~/.config/instrukt-ai/newsyslog.conf` takes
+precedence over the generic service-log glob. On rotation it sends `SIGTERM`
+through Caddy's PID file; the per-user LaunchAgent's `KeepAlive` restarts Caddy,
+which opens the fresh log inode. The shared rule keeps five compressed rolls.
 
 ### Operational boundaries
 
@@ -67,5 +74,5 @@ and retention; HTTP access logging remains disabled.
 - The service is intentionally limited to listing and downloading files.
 - Access control, when required, is owned by the ingress layer rather than this
   application.
-- Runtime and access logging are distinct: the native runtime log is retained;
-  per-request access logging is not enabled.
+- Runtime and access logging are distinct: the house-managed runtime log is
+  retained; per-request access logging is not enabled.
