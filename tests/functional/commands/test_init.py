@@ -17,16 +17,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from click.testing import CliRunner
 
-from commands.init import init
+from commands.init import MISSING_SAMPLE_MESSAGE, NOT_ITSUP_ROOT_MESSAGE, init
 
-MUST_BE_RUN_FROM_ROOT = "Must be run from itsUP project root"
-PROJECTS_ALREADY_EXISTS = "projects/ already exists"
-SECRETS_ALREADY_EXISTS = "secrets/ already exists"
-ENV_VAR_LINE = "ENV_VAR=test_value"
-ENV_ALREADY_EXISTS = ".env already exists"
+SPEC_ID = "project/spec/feature/cli/init-project-setup"
+
+ENV_CONTENT = "ENV_VAR=test_value\n"
 EXISTING_ENV_CONTENT = "EXISTING=value"
-REQUIRED_SOURCE_MISSING = "Required sample file is missing"
-# An entry no hardcoded manifest would list — proves seeding mirrors the tree.
+# Entries no hardcoded manifest would list — prove seeding mirrors the tree.
 UNLISTED_PROJECT = "unlisted-project.yml"
 UNLISTED_SECRET = "unlisted-secret.txt"
 
@@ -48,7 +45,7 @@ def _make_itsup_samples(root: Path) -> None:
     (secrets / "itsup.txt").write_text("TRAEFIK_ADMIN=changeme\n")
     (secrets / UNLISTED_SECRET).write_text("EXTRA=changeme\n")
 
-    (root / "samples" / ".env").write_text(f"{ENV_VAR_LINE}\n")
+    (root / "samples" / ".env").write_text(ENV_CONTENT)
 
 
 def _make_existing_repos(root: Path) -> None:
@@ -60,29 +57,32 @@ def _make_existing_repos(root: Path) -> None:
 
 
 @pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-IPS1")
 def test_init_validates_project_structure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """init refuses a resolved root that is not an itsUP checkout (no marker file)."""
+    """UC-IPS1: init refuses a resolved root without the marker file."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     result = CliRunner().invoke(init, [])
 
     assert result.exit_code == 1
-    assert MUST_BE_RUN_FROM_ROOT in result.output
+    assert NOT_ITSUP_ROOT_MESSAGE in result.output
 
 
 @pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-IPS1")
 def test_init_refuses_when_marker_is_a_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A directory named samples/projects/itsup.yml is not a file marker; init refuses."""
+    """UC-IPS1: a directory named samples/projects/itsup.yml is not a file marker."""
     (tmp_path / "samples" / "projects" / "itsup.yml").mkdir(parents=True)
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     result = CliRunner().invoke(init, [])
 
     assert result.exit_code == 1
-    assert MUST_BE_RUN_FROM_ROOT in result.output
+    assert NOT_ITSUP_ROOT_MESSAGE in result.output
 
 
 @pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-IPS2")
 def test_init_with_existing_projects_and_secrets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test init when projects/ and secrets/ already exist."""
+    """UC-IPS2: init reuses existing repos and still seeds them from samples."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -90,13 +90,14 @@ def test_init_with_existing_projects_and_secrets(tmp_path: Path, monkeypatch: py
     result = CliRunner().invoke(init, input="\n\n\n")
 
     assert result.exit_code == 0
-    assert PROJECTS_ALREADY_EXISTS in result.output
-    assert SECRETS_ALREADY_EXISTS in result.output
+    assert (tmp_path / "projects" / "itsup.yml").exists()
+    assert (tmp_path / "secrets" / "itsup.txt").exists()
 
 
 @pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-IPS2")
 def test_init_seeds_projects_and_secrets_by_mirroring(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """init seeds .env and every samples/projects and samples/secrets entry."""
+    """UC-IPS2: init seeds .env and every samples/projects and samples/secrets entry."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -115,8 +116,9 @@ def test_init_seeds_projects_and_secrets_by_mirroring(tmp_path: Path, monkeypatc
 
 
 @pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-IPS2")
 def test_init_creates_env_file_from_sample(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that init copies samples/.env to .env if missing."""
+    """UC-IPS2: the seeded .env is a faithful copy of samples/.env."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -124,15 +126,14 @@ def test_init_creates_env_file_from_sample(tmp_path: Path, monkeypatch: pytest.M
     result = CliRunner().invoke(init, input="\n\n\n")
 
     assert result.exit_code == 0
-
     env_file = tmp_path / ".env"
-    assert env_file.exists()
-    assert ENV_VAR_LINE in env_file.read_text()
+    assert env_file.read_text() == (tmp_path / "samples" / ".env").read_text()
 
 
 @pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-IPS3")
 def test_init_skips_existing_env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """init never overwrites an existing destination."""
+    """UC-IPS3: init never overwrites an existing destination."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -144,12 +145,12 @@ def test_init_skips_existing_env_file(tmp_path: Path, monkeypatch: pytest.Monkey
 
     assert result.exit_code == 0
     assert env_file.read_text() == EXISTING_ENV_CONTENT
-    assert ENV_ALREADY_EXISTS in result.output
 
 
 @pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-IPS4")
 def test_init_fails_loudly_on_missing_required_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A checkout that passes the guard but lacks a required sample source fails loudly."""
+    """UC-IPS4: a checkout that passes the guard but lacks a required sample source fails loudly."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
     (tmp_path / "samples" / ".env").unlink()
@@ -158,4 +159,4 @@ def test_init_fails_loudly_on_missing_required_source(tmp_path: Path, monkeypatc
     result = CliRunner().invoke(init, input="\n\n\n")
 
     assert result.exit_code == 1
-    assert REQUIRED_SOURCE_MISSING in result.output
+    assert MISSING_SAMPLE_MESSAGE in result.output

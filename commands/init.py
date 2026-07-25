@@ -23,6 +23,10 @@ from lib.paths import (
     secrets_dir,
 )
 
+# Operator-facing messages, exported so tests assert on identity rather than literals.
+NOT_ITSUP_ROOT_MESSAGE = "Must be run from itsUP project root"
+MISSING_SAMPLE_MESSAGE = "Required sample"
+
 
 def _error(message: str) -> None:
     """Print error message and exit"""
@@ -54,7 +58,7 @@ def _validate_project_structure(install_root: Path) -> None:
     ``ITSUP_ROOT`` override, which resolves to any directory.
     """
     if not (install_root / "samples" / "projects" / "itsup.yml").is_file():
-        _error("Must be run from itsUP project root\n  Expected to find samples/projects/itsup.yml")
+        _error(f"{NOT_ITSUP_ROOT_MESSAGE}\n  Expected to find samples/projects/itsup.yml")
 
 
 def _is_git_repo(path: Path) -> bool:
@@ -198,7 +202,7 @@ def _require_source(src: Path, *, kind: str) -> None:
     """
     present = src.is_dir() if kind == "dir" else src.is_file()
     if not present:
-        _error(f"Required sample {kind} is missing: {display_path(src)}\n  The itsUP checkout is incomplete.")
+        _error(f"{MISSING_SAMPLE_MESSAGE} {kind} is missing: {display_path(src)}\n  The itsUP checkout is incomplete.")
 
 
 def _seed_from(src_dir: Path, dst_dir: Path) -> None:
