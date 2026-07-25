@@ -68,14 +68,6 @@ When the dynamic Traefik routers are generated
 Then that route's router carries no ipAllowList middleware
 ```
 
-#### UC-RSIP5: Ingress rows whose path prefixes collapse to the same router identity are rejected
-
-```gherkin
-Given two ingress rows on one external host and port whose path_prefixes sanitize to the same router identity
-When the project configuration is loaded and validated
-Then validation fails naming the colliding router identity
-```
-
 ## Canonical fields
 
 - Trigger: an `Ingress` row with a non-empty `allow_source_ips`
@@ -88,11 +80,9 @@ Then validation fails naming the colliding router identity
   global and unchanged.
 - Router identity: external-host router and service names include a sanitized
   `path_prefix` segment when the ingress row sets one; pathless routes keep their
-  prior `{project}-{host}-{port}` identity. Because sanitization is lossy (two
-  distinct prefixes such as `/a/b` and `/a-b` can collapse to one key),
-  validation rejects a project whose external-host ingress rows produce a
-  duplicate router identity, naming the collision rather than silently
-  overwriting one route.
+  prior `{project}-{host}-{port}` identity. This lets two routes on one
+  `host:port` (e.g. an open `/redirect` and a gated `/file`) render as distinct
+  routers instead of one overwriting the other.
 - IP strategy: none set — Traefik matches `sourceRange` against the request's
   remote address, which is the PROXY-protocol-conveyed client IP under the
   `routerIP` trust configured on every entrypoint.
