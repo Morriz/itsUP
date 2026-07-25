@@ -17,6 +17,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SYSTEMD_DIR = REPO_ROOT / "samples" / "systemd"
+SPEC_ID = "project/spec/feature/operations/failure-alerting"
 
 ALERT_TEMPLATE = "itsup-alert@.service"
 ALERT_REFERENCE_MARKER = "itsup-alert@"
@@ -52,7 +53,7 @@ def _render(unit_name: str, dest_dir: Path) -> Path:
     rendered = (
         template.replace("{{USER}}", "testuser")
         .replace("{{GROUP}}", "testgroup")
-        .replace("{{ROOT}}", "/opt/itsup")
+        .replace("{{ROOT}}", str(REPO_ROOT))
         .replace("{{HOME}}", "/home/testuser")
     )
     dest = dest_dir / unit_name
@@ -66,6 +67,7 @@ def test_every_covered_unit_declares_the_failure_hook() -> None:
         assert ALERT_ON_FAILURE in content, unit_name
 
 
+@pytest.mark.spec(SPEC_ID, "UC-OFA3")
 def test_alert_template_is_referenced_only_by_onfailure() -> None:
     """UC-OFA3's exclusivity proof: no covered unit — or the template itself —
     reaches the composer through anything but the supervisor's failure hook."""

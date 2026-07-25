@@ -3,6 +3,8 @@ Description=itsUP container security monitor
 After=docker.service
 Requires=docker.service
 OnFailure=itsup-alert@%n.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -17,7 +19,5 @@ EnvironmentFile=-{{ROOT}}/.itsup-monitor.env
 ExecStart={{ROOT}}/.venv/bin/python {{ROOT}}/bin/monitor.py $MONITOR_FLAGS
 Restart=always
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 # No [Install] section: itsup run owns ordered stack startup.

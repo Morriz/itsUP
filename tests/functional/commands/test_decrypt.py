@@ -11,6 +11,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
+
+import pytest
+from syrupy.assertion import SnapshotAssertion
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
@@ -18,13 +22,17 @@ from click.testing import CliRunner
 
 from commands.decrypt import decrypt
 
-SECRETS_DIR_NOT_FOUND = "secrets/ directory not found"
-FILE_NOT_FOUND = "File not found: secrets/nonexistent.enc.txt"
+SPEC_ID = "project/spec/feature/cli/secrets-target-resolution"
 NO_ENCRYPTED_SECRETS = "No encrypted secrets found"
 FAILED_TO_DECRYPT = "Failed to decrypt"
 
 
-def test_decrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
+class AgeKey(TypedDict):
+    private_key_file: Path
+    public_key: str
+
+
+def test_decrypt_command_with_real_sops(tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test 'itsup decrypt' command end-to-end.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -35,11 +43,9 @@ def test_decrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
 
     # Create .sops.yaml in secrets directory
     sops_config = secrets_dir / ".sops.yaml"
-    sops_config.write_text(
-        f"""creation_rules:
+    sops_config.write_text(f"""creation_rules:
   - age: {real_age_key["public_key"]}
-"""
-    )
+""")
 
     # Create and encrypt a file using real sops
     plaintext_content = "DB_PASSWORD=secret123\nAPI_KEY=xyz789"
@@ -84,17 +90,21 @@ def test_decrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
     assert plaintext.read_text() == plaintext_content, "Decrypted content should match original"
 
 
-def test_decrypt_no_secrets_directory(tmp_path, monkeypatch):
+@pytest.mark.spec(SPEC_ID, "UC-STR1")
+def test_decrypt_no_secrets_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, snapshot: SnapshotAssertion
+) -> None:
     """Test decrypt command when secrets/ directory doesn't exist."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     runner = CliRunner()
     result = runner.invoke(decrypt, [])
 
     assert result.exit_code == 1
-    assert SECRETS_DIR_NOT_FOUND in result.output
+    assert result.output.replace(str(tmp_path), "<ROOT>") == snapshot
 
 
-def test_decrypt_file_not_found(tmp_path, monkeypatch):
+@pytest.mark.spec(SPEC_ID, "UC-STR1")
+def test_decrypt_file_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, snapshot: SnapshotAssertion) -> None:
     """Test decrypt command when specific file doesn't exist."""
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
@@ -104,10 +114,10 @@ def test_decrypt_file_not_found(tmp_path, monkeypatch):
     result = runner.invoke(decrypt, ["nonexistent"])
 
     assert result.exit_code == 1
-    assert FILE_NOT_FOUND in result.output
+    assert result.output.replace(str(tmp_path), "<ROOT>") == snapshot
 
 
-def test_decrypt_no_encrypted_files(tmp_path, monkeypatch):
+def test_decrypt_no_encrypted_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test decrypt command when no encrypted files exist."""
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
@@ -120,7 +130,7 @@ def test_decrypt_no_encrypted_files(tmp_path, monkeypatch):
     assert NO_ENCRYPTED_SECRETS in result.output
 
 
-def test_decrypt_failure_handling(tmp_path, monkeypatch):
+def test_decrypt_failure_handling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test decrypt command handles decryption failures."""
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
