@@ -83,7 +83,6 @@ origin/main`** (destructive — discards local changes to the itsUP checkout),
 then redeploys DNS + proxy stacks (`smart_deploy`) and `.venv/bin/itsup apply` (all
 projects), then restarts the API. This is the unattended self-update path.
 
-<!-- planned:deploy-installs-changed-unit-templates -->
 After the dependency sync and before the redeploy, the self-update renders any
 changed `samples/systemd/*` unit templates onto the host and reloads systemd
 (`bin/install-bringup.sh --render-only`: for each changed unit a `sudo tee` into
@@ -96,7 +95,6 @@ bounces the stack mid-self-update; a changed unit takes effect on its next start
 `itsup-bringup.service`. It is host- and canonical-checkout-gated like the full
 installer, and its `sudo tee` + `daemon-reload` surface is a subset of what
 `make install-runtime` already runs under the itsUP service account.
-<!-- /planned:deploy-installs-changed-unit-templates -->
 
 ### Server
 

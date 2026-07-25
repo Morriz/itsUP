@@ -430,6 +430,59 @@ def test_uc_ofa5_stale_apply_trips_the_deadman_once_per_period(env_dirs: dict[st
 
 
 @pytest.mark.functional
+def test_drift_units_alert_names_the_drifted_units_and_remedy(
+    env_dirs: dict[str, Path], snapshot: SnapshotAssertion
+) -> None:
+    """`--drift-units` dispatches through the same transport, body naming the
+    drifted unit identities and the `make install-runtime` remedy.
+
+    Verifies `project/spec/api-surface#self-update`'s drift-alert contract — a
+    contract-defining declaration rather than a gherkin UC (TQ-01's sanctioned
+    exception): no feature spec owns the self-update sequence.
+    """
+    root, fake_bin, recorder_dir = env_dirs["root"], env_dirs["fake_bin"], env_dirs["recorder_dir"]
+    transport = recorder_dir / "transport.sh"
+    _write_recording_transport(transport, exit_code=0)
+    _write_config(root, alert_command=str(transport))
+
+    result = _run_alert(
+        root,
+        ["--drift-units", "itsup-api.service,itsup-monitor.service"],
+        fake_bin=fake_bin,
+        state_dir=env_dirs["state_dir"],
+        runtime_dir=env_dirs["runtime_dir"],
+        log_home=env_dirs["log_home"],
+    )
+
+    assert result.returncode == 0, result.stderr
+    calls = _call_files(recorder_dir)
+    assert len(calls) == 1
+    body = (recorder_dir / "call-0.stdin").read_text()
+    assert body == snapshot
+
+
+@pytest.mark.functional
+def test_drift_units_alert_suppresses_when_alert_command_is_unset(env_dirs: dict[str, Path]) -> None:
+    """No `alert.command` configured means `--drift-units` is a clean no-op,
+    exactly as the other alert kinds are (UC-OFA2's sibling for this kind)."""
+    root, fake_bin, recorder_dir = env_dirs["root"], env_dirs["fake_bin"], env_dirs["recorder_dir"]
+    _write_config(root, alert_command=None)
+
+    result = _run_alert(
+        root,
+        ["--drift-units", "itsup-api.service"],
+        fake_bin=fake_bin,
+        state_dir=env_dirs["state_dir"],
+        runtime_dir=env_dirs["runtime_dir"],
+        log_home=env_dirs["log_home"],
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip()
+    assert not _call_files(recorder_dir)
+
+
+@pytest.mark.functional
 @pytest.mark.spec(SPEC_ID, "UC-OFA6")
 def test_uc_ofa6_fresh_apply_keeps_the_deadman_silent(env_dirs: dict[str, Path]) -> None:
     """UC-OFA6: a fresh last-successful-apply produces no alert."""

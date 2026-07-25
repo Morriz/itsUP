@@ -29,6 +29,18 @@ DEADMAN_WINDOW_SECONDS = 26 * 60 * 60  # 03:00 cadence plus two hours slack
 APPLY_STAMP_FILENAME = "apply-success"
 DEADMAN_MARKER_FILENAME = "deadman-alerted"
 DEADMAN_UNIT_IDENTITY = "itsup-apply-deadman"
+DRIFT_UNIT_IDENTITY = "itsup-unit-drift"
+DRIFT_UNITS_FLAG = "--drift-units"
+DRIFT_UNITS_CSV_SEPARATOR = ","
+
+DRIFT_ALERT_SUPPRESSED_DETAIL = "alert.command not configured; suppressing drift alert for {units}"
+DRIFT_UNIT_LIST_DISPLAY_SEPARATOR = ", "
+
+DRIFT_BODY_TEMPLATE = (
+    "itsUP alert: {count} systemd unit(s) drifted from delivered templates\n{units}\n\nRemedy: make install-runtime"
+)
+DRIFT_BODY_UNIT_BULLET = "  - {unit}"
+DRIFT_BODY_UNIT_SEPARATOR = "\n"
 
 DEFAULT_STATE_DIRECTORY = Path("/var/lib/itsup")
 DEFAULT_RUNTIME_DIRECTORY = Path("/run/itsup")
@@ -119,6 +131,21 @@ def check_deadman() -> AlertOutcome:
     secrets = load_secrets(None)
     body = _compose_deadman_body(age)
     return _dispatch(argv_template, secrets, unit_identity=DEADMAN_UNIT_IDENTITY, body=body)
+
+
+def send_drift_alert(units: list[str]) -> AlertOutcome:
+    """Compose and dispatch an alert for units drifted from their delivered templates."""
+    config = load_itsup_config()
+    argv_template = _resolve_command_template(config)
+    if argv_template is None:
+        return AlertOutcome(
+            status=AlertStatus.SUPPRESSED,
+            detail=DRIFT_ALERT_SUPPRESSED_DETAIL.format(units=DRIFT_UNIT_LIST_DISPLAY_SEPARATOR.join(units)),
+        )
+
+    secrets = load_secrets(None)
+    body = _compose_drift_body(units)
+    return _dispatch(argv_template, secrets, unit_identity=DRIFT_UNIT_IDENTITY, body=body)
 
 
 def _resolve_command_template(config: dict[str, Any]) -> list[str] | None:
@@ -243,6 +270,11 @@ def _compose_unit_body(unit: str) -> str:
         lines.append(f"Last {JOURNAL_LINES} journal lines:")
         lines.append(journal_text)
     return "\n".join(lines)
+
+
+def _compose_drift_body(units: list[str]) -> str:
+    unit_lines = DRIFT_BODY_UNIT_SEPARATOR.join(DRIFT_BODY_UNIT_BULLET.format(unit=unit) for unit in units)
+    return DRIFT_BODY_TEMPLATE.format(count=len(units), units=unit_lines)
 
 
 def _compose_deadman_body(age_seconds: float) -> str:
