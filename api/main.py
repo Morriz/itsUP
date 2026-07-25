@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -17,6 +18,7 @@ from instrukt_ai_logging import get_logger
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lib import supervisor
+from lib.alerting import DRIFT_UNITS_CSV_SEPARATOR, DRIFT_UNITS_FLAG
 from lib.auth import verify_apikey
 from lib.data import list_projects
 from lib.deploy import deploy_dns_stack, deploy_proxy_stack
@@ -29,6 +31,20 @@ dotenv.load_dotenv()
 
 app = FastAPI(title="itsUP API", version="2.0")
 logger = get_logger(f"itsup.{__name__}")
+
+LINUX_PLATFORM = "Linux"
+CHECK_DRIFT_FLAG = "--check-drift"
+INSTALL_BRINGUP_SCRIPT_RELATIVE_PATH = "bin/install-bringup.sh"
+ALERT_SCRIPT_RELATIVE_PATH = "bin/alert.py"
+VENV_PYTHON_RELATIVE_PATH = ".venv/bin/python"
+UNIT_DRIFT_DISPLAY_SEPARATOR = ", "
+
+UNIT_DRIFT_LINUX_ONLY_LOG = "Unit-drift check is Linux-only; skipping on %s"
+UNIT_DRIFT_CHECK_FAILED_LOG = "Unit-drift check failed: %s"
+UNIT_DRIFT_DETECTED_LOG = (
+    "Unit-template drift detected (%s); run `make install-runtime` to install the delivered templates"
+)
+UNIT_DRIFT_CHECK_RAISED_LOG = "Unit-drift check raised: %s"
 
 
 @cache
@@ -57,6 +73,50 @@ def _handle_update_upstream(project: str, service: str = None) -> None:
         raise
 
 
+def _check_and_alert_unit_drift(env: dict[str, str]) -> None:
+    """Detect systemd-unit drift from the delivered templates and surface it.
+
+    Read-only: `bin/install-bringup.sh --check-drift` never mutates the host.
+    Linux-only, and never lets a failure here abort the self-update — a
+    checker error or an unexpected exception is logged and swallowed.
+    """
+    if platform.system() != LINUX_PLATFORM:
+        logger.info(UNIT_DRIFT_LINUX_ONLY_LOG, platform.system())
+        return
+
+    try:
+        result = subprocess.run(
+            [str(root() / INSTALL_BRINGUP_SCRIPT_RELATIVE_PATH), CHECK_DRIFT_FLAG],
+            cwd=str(root()),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.warning(UNIT_DRIFT_CHECK_FAILED_LOG, result.stderr.strip())
+            return
+
+        units = [line for line in result.stdout.splitlines() if line.strip()]
+        if not units:
+            return
+
+        logger.warning(UNIT_DRIFT_DETECTED_LOG, UNIT_DRIFT_DISPLAY_SEPARATOR.join(units))
+        subprocess.run(
+            [
+                str(root() / VENV_PYTHON_RELATIVE_PATH),
+                str(root() / ALERT_SCRIPT_RELATIVE_PATH),
+                DRIFT_UNITS_FLAG,
+                DRIFT_UNITS_CSV_SEPARATOR.join(units),
+            ],
+            cwd=str(root()),
+            env=env,
+            check=False,
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(UNIT_DRIFT_CHECK_RAISED_LOG, e)
+
+
 def _handle_itsup_update() -> None:
     """Handle updates to itsUP itself (git pull and apply changes)"""
     try:
@@ -83,6 +143,8 @@ def _handle_itsup_update() -> None:
                 cwd=str(root()),
                 check=True,
             )
+
+            _check_and_alert_unit_drift(env)
 
         # Deploy infrastructure stacks with smart rollout
         logger.info("Deploying DNS stack...")

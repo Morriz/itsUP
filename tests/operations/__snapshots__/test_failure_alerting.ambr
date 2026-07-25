@@ -1,4 +1,13 @@
 # serializer version: 1
+# name: test_drift_units_alert_names_the_drifted_units_and_remedy
+  '''
+  itsUP alert: 2 systemd unit(s) drifted from delivered templates
+    - itsup-api.service
+    - itsup-monitor.service
+  
+  Remedy: make install-runtime
+  '''
+# ---
 # name: test_journal_read_failure_marks_the_body_degraded
   '''
   itsUP alert: unit itsup-apply.service failed

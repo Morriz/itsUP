@@ -12,12 +12,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Refuse to run from a linked git worktree — this installs systemd/launchd units
-# carrying absolute repo paths; they must bind the canonical checkout.
-GUARD_OP="make install-runtime"
-. "${REPO_ROOT}/bin/lib/assert-canonical-checkout.sh"
-PYTHONPATH="${REPO_ROOT}" "${REPO_ROOT}/.venv/bin/python" -c "from lib.host_gate import require_host; require_host('make install-runtime')"
-
 ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
 ITSUP_GROUP="${ITSUP_GROUP:-$(id -gn "${ITSUP_USER}")}"
 ITSUP_ROOT="${ITSUP_ROOT:-${REPO_ROOT}}"
@@ -38,6 +32,112 @@ else
   TEMPLATE_DIR="${REPO_ROOT}/samples/systemd"
   SERVICE_DIR="${SERVICE_DIR:-/etc/systemd/system}"
 fi
+
+# ── Template rendering ─────────────────────────────────────────────────────
+
+render_template() {
+  local template_file="$1"
+  sed \
+    -e "s|{{USER}}|${ITSUP_USER}|g" \
+    -e "s|{{GROUP}}|${ITSUP_GROUP}|g" \
+    -e "s|{{ROOT}}|${ITSUP_ROOT}|g" \
+    -e "s|{{HOME}}|${ITSUP_HOME}|g" \
+    "${template_file}"
+}
+
+# Systemd units this script installs; shared by install_systemd_units and
+# --check-drift so the two can never compare against divergent lists.
+SYSTEMD_UNITS=(
+  "itsup-bringup.service"
+  "itsup-apply.service"
+  "itsup-apply.timer"
+  "itsup-backup.service"
+  "itsup-backup.timer"
+  "pi-healthcheck.service"
+  "pi-healthcheck.timer"
+  "itsup-api.service"
+  "itsup-monitor.service"
+  "itsup-alert@.service"
+)
+
+# Renders each systemd unit template and compares it to the installed file at
+# SERVICE_DIR. Read-only: no write, no daemon-reload, no host mutation of any
+# kind. Templates are sourced solely from REPO_ROOT/samples/systemd (never the
+# platform-selected TEMPLATE_DIR, which has no env override) so a webhook-
+# controlled environment cannot redirect the trusted comparison inputs.
+# stdout carries only the identities of drifted units, one per line, and only
+# when the comparison completed cleanly (exit 0). A non-zero exit means the
+# checker itself failed (unreadable template, or an installed path that
+# exists but is not a regular file) — distinct from drift and never printed
+# to stdout, so callers must not treat a non-zero exit as "no drift".
+check_drift() {
+  local drift_template_dir="${REPO_ROOT}/samples/systemd"
+  local unit template_file dest_path
+  local had_error=false
+  local -a drifted=()
+
+  for unit in "${SYSTEMD_UNITS[@]}"; do
+    template_file="${drift_template_dir}/${unit}"
+    dest_path="${SERVICE_DIR}/${unit}"
+
+    if [ -e "${dest_path}" ] && [ ! -f "${dest_path}" ]; then
+      echo "ERROR: ${dest_path} exists but is not a regular file" >&2
+      had_error=true
+      continue
+    fi
+
+    if [ ! -r "${template_file}" ]; then
+      echo "ERROR: template not readable: ${template_file}" >&2
+      had_error=true
+      continue
+    fi
+
+    if [ ! -e "${dest_path}" ]; then
+      drifted+=("${unit}")
+      continue
+    fi
+
+    # Captured, not folded into a bare `if ! ... | cmp ...`: pipefail's
+    # rightmost-nonzero rule would otherwise mask a render failure behind
+    # cmp's own exit, and any cmp exit above 1 (its own operational error —
+    # e.g. dest_path unreadable) would be misreported as drift instead of a
+    # checker error.
+    if render_template "${template_file}" | cmp -s - "${dest_path}"; then
+      : # identical — clean
+    else
+      local -a pipe_rc=("${PIPESTATUS[@]}")
+      local render_rc="${pipe_rc[0]}" cmp_rc="${pipe_rc[1]}"
+      if [ "${render_rc}" -ne 0 ]; then
+        echo "ERROR: failed to render ${template_file}" >&2
+        had_error=true
+      elif [ "${cmp_rc}" -eq 1 ]; then
+        drifted+=("${unit}")
+      else
+        echo "ERROR: failed to compare rendered ${unit} against ${dest_path} (cmp exit ${cmp_rc})" >&2
+        had_error=true
+      fi
+    fi
+  done
+
+  if [ "${had_error}" = "true" ]; then
+    exit 1
+  fi
+
+  if [ "${#drifted[@]}" -gt 0 ]; then
+    printf '%s\n' "${drifted[@]}"
+  fi
+  exit 0
+}
+
+if [ "${1:-}" = "--check-drift" ]; then
+  check_drift
+fi
+
+# Refuse to run from a linked git worktree — this installs systemd/launchd units
+# carrying absolute repo paths; they must bind the canonical checkout.
+GUARD_OP="make install-runtime"
+. "${REPO_ROOT}/bin/lib/assert-canonical-checkout.sh"
+PYTHONPATH="${REPO_ROOT}" "${REPO_ROOT}/.venv/bin/python" -c "from lib.host_gate import require_host; require_host('make install-runtime')"
 
 ITSUP="${ITSUP_ROOT}/.venv/bin/itsup"
 STATE_FILE="${ITSUP_ROOT}/.itsup-supervision-state"
@@ -233,18 +333,6 @@ ensure_host_prereqs() {
   echo ""
 }
 
-# ── Template rendering ─────────────────────────────────────────────────────
-
-render_template() {
-  local template_file="$1"
-  sed \
-    -e "s|{{USER}}|${ITSUP_USER}|g" \
-    -e "s|{{GROUP}}|${ITSUP_GROUP}|g" \
-    -e "s|{{ROOT}}|${ITSUP_ROOT}|g" \
-    -e "s|{{HOME}}|${ITSUP_HOME}|g" \
-    "${template_file}"
-}
-
 # Writes the rendered template only if it differs from what's on disk.
 # Returns 0 if it wrote (changed), 1 if unchanged (skipped), 2 if the render
 # or write itself failed. Call sites must capture the exit status via
@@ -302,23 +390,10 @@ ensure_systemd_journal_group() {
 }
 
 install_systemd_units() {
-  local units=(
-    "itsup-bringup.service"
-    "itsup-apply.service"
-    "itsup-apply.timer"
-    "itsup-backup.service"
-    "itsup-backup.timer"
-    "pi-healthcheck.service"
-    "pi-healthcheck.timer"
-    "itsup-api.service"
-    "itsup-monitor.service"
-    "itsup-alert@.service"
-  )
-
   ensure_systemd_journal_group
 
   local bringup_changed=false
-  for unit in "${units[@]}"; do
+  for unit in "${SYSTEMD_UNITS[@]}"; do
     local write_rc=0
     write_if_changed "${TEMPLATE_DIR}/${unit}" "${SERVICE_DIR}/${unit}" true || write_rc=$?
     if [ "${write_rc}" -eq 2 ]; then
