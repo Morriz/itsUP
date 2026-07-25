@@ -29,9 +29,11 @@ inert on disk until an operator notices and restarts Traefik by hand.
 
 ### Use cases
 
-The scenario below is bound by the proxy-deploy rollout tests in
-`lib/deploy_test.py`, which drive `deploy_proxy_stack` with the static-config
-changed signal and assert whether a `traefik` rollout is invoked.
+The scenario below is bound by the path-mirrored functional test
+`tests/deployment/test_mounted_config_propagation.py`, which drives the real
+`deploy_proxy_stack` (and through it the real proxy artifact writer) against an
+isolated itsUP tree, faking only the Docker subprocess line, and asserts whether
+a `traefik` rollout is invoked.
 
 #### UC-MCP1: A changed mounted static config rolls out Traefik on deploy
 
@@ -41,6 +43,7 @@ And a proxy deploy regenerates proxy/traefik/traefik.yml with changed content
 When the proxy stack is deployed
 Then the deploy rolls out the traefik service so a fresh container loads the new static config
 And when the regenerated static config content is unchanged the deploy does not roll out traefik on that account
+And when Traefik was not running before the deploy the changed static config is served by the first-time up -d fresh container without a rollout
 ```
 
 ## Canonical fields
