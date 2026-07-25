@@ -84,22 +84,18 @@ then redeploys DNS + proxy stacks (`smart_deploy`) and `.venv/bin/itsup apply` (
 projects), then restarts the API. This is the unattended self-update path.
 
 <!-- planned:deploy-installs-changed-unit-templates -->
-After the dependency sync and before the redeploy — on Linux only, where the
-container host runs — the self-update triggers `itsup-render.service`, a
-root-owned `Type=oneshot` unit that renders any changed `samples/systemd/*` unit
-templates onto the host and `daemon-reload`s (`bin/install-bringup.sh
---render-only`), so a delivery that changes a unit template becomes installed and
-daemon-reloaded without a manual `make install-runtime`. The unprivileged API
-only *starts* that unit, through the same `sudo systemctl start itsup-*`
-capability it already uses for `itsup-monitor` — it holds no authority to write
-unit files, and the renderer runs a fixed command over the git-checked-out
-templates. Render-only neither enables nor restarts units and skips the
-installer's journal-group, enable, and bringup-restart steps, so it never bounces
-the stack mid-self-update; a changed unit takes effect on its next start — the API
-restart above for `itsup-api.service`, the next bringup cycle for
-`itsup-bringup.service`. On macOS, a non-deployment context, the self-update skips
-the render with a logged notice. The render is host- and canonical-checkout-gated
-like the full installer.
+After the dependency sync — on Linux only, where the container host runs — the
+self-update **detects** whether the delivery left the host's installed systemd
+units drifted from the delivered `samples/systemd/*` templates
+(`bin/install-bringup.sh --check-drift`: a read-only render-and-compare of each
+template against `/etc/systemd/system`, no host mutation and no privilege). On
+drift it logs the drifted units and raises the operator alert through the
+configured `alert.command` (a third alert kind alongside unit-failure and the
+apply deadman), naming the units and the one-command remedy `make
+install-runtime`. Installing the units stays the operator's privileged, gated
+step; the self-update guarantees the operator is told rather than left to discover
+stale units. The detection and alert are non-fatal — a failure logs but never
+aborts the self-update — and are skipped with a logged notice on macOS.
 <!-- /planned:deploy-installs-changed-unit-templates -->
 
 ### Server
