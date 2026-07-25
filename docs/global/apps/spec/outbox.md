@@ -1,5 +1,5 @@
 ---
-description: Browser-based, read-only listing of files from a cloud-synced Outbox folder hosted on a Mac.
+description: Caddy-served, read-only listing of files from a cloud-synced Outbox folder hosted on a Mac.
 visibility: internal
 ---
 # Outbox — Spec
@@ -10,38 +10,62 @@ Outbox provides a simple URL that lists files from a cloud-synced folder and
 lets a visitor download them. It is intended for collecting documents on the go
 and retrieving them later from another computer, such as at a print shop.
 
-The application runs on a host of type Mac. Files are added, renamed, organized,
-and removed through the cloud-storage client; the web surface only lists and
-downloads them.
+The application runs on a host of type Mac. Caddy serves the folder; the itsUP
+proxy owns public ingress and forwards requests to Caddy. Files are added,
+renamed, organized, and removed through the cloud-storage client; the web
+surface only lists and downloads them.
 
 ## Canonical fields
 
-### Application contract
+### Operational shape
 
 - The source is a cloud-synced folder named `Outbox` on the Mac host.
-- A lightweight file server exposes the folder through a browser.
-- A reverse proxy maps the configured public URL to the file server.
+- Caddy exposes the folder as a browser directory listing.
+- A per-user macOS LaunchAgent supervises Caddy in the user's GUI session so it
+  retains access to that user's cloud-storage folder.
+- The itsUP proxy maps the configured public URL to Caddy.
+- The cloud folder stays locally materialized; on-demand cloud placeholders are
+  not a reliable serving surface.
+- macOS privacy controls and the host firewall form the boundary between Caddy,
+  the cloud folder, and the itsUP proxy.
 - Directory listing and file download are supported.
 - Uploading and file management through the browser are not supported.
 
-### Deployment boundary
+### Configuration ownership
 
-The app contract records only the portable behavior. Machine identity, network
-addresses, filesystem paths, listener ports, process-supervisor configuration,
-firewall rules, credentials, and log locations belong to deployment state and
-are not part of this app-domain documentation.
+- The Mac runtime repository owns `Caddyfile`,
+  `ai.instrukt.outbox.plist`, and the runtime `README.md`.
+- The itsUP repository owns ingress in `projects/outbox/itsup-project.yml`.
+- Concrete machine identity, network addresses, listener ports, public domains,
+  and cloud-folder paths stay in those runtime-state sources rather than this
+  global contract.
+
+### Logs
+
+Caddy writes lifecycle and error events as structured JSON to
+`~/Library/Logs/InstruktAI/outbox.log`. Caddy's native file writer owns rotation
+and retention; HTTP access logging remains disabled.
+
+- Follow current events: `tail -F ~/Library/Logs/InstruktAI/outbox.log`
+- Show warnings and errors:
+  `jq -c 'select(.level == "warn" or .level == "error")' ~/Library/Logs/InstruktAI/outbox.log`
+- Find retained rolls:
+  `ls -lt ~/Library/Logs/InstruktAI/outbox*.log*`
 
 ### Operational boundaries
 
 | Symptom | Owning boundary |
 | --- | --- |
 | A cloud file is missing or unavailable | Cloud synchronization or local materialization on the Mac host |
-| The file server is unreachable from the proxy | Host networking, firewall, or the file-server process |
-| The file server works directly but the URL fails | Reverse-proxy routing or public ingress |
-| The service does not return after a restart | The Mac host's process supervisor |
+| Caddy is running but cannot list the folder | macOS privacy access for the user's cloud-storage folder |
+| Caddy is unreachable from the proxy | Host networking, firewall, or the Caddy process |
+| Caddy works directly but the URL fails | itsUP reverse-proxy routing or public ingress |
+| The service does not return after a restart | The per-user LaunchAgent and GUI session |
 
 ## Known caveats
 
 - The service is intentionally limited to listing and downloading files.
 - Access control, when required, is owned by the ingress layer rather than this
   application.
+- Runtime and access logging are distinct: the native runtime log is retained;
+  per-request access logging is not enabled.
