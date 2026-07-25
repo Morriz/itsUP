@@ -19,8 +19,6 @@ from click.testing import CliRunner
 
 from commands.init import MISSING_SAMPLE_MESSAGE, NOT_ITSUP_ROOT_MESSAGE, init
 
-SPEC_ID = "project/spec/feature/cli/init-project-setup"
-
 ENV_CONTENT = "ENV_VAR=test_value\n"
 EXISTING_ENV_CONTENT = "EXISTING=value"
 # Entries no hardcoded manifest would list — prove seeding mirrors the tree.
@@ -57,9 +55,8 @@ def _make_existing_repos(root: Path) -> None:
 
 
 @pytest.mark.functional
-@pytest.mark.spec(SPEC_ID, "UC-IPS1")
 def test_init_validates_project_structure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """UC-IPS1: init refuses a resolved root without the marker file."""
+    """init refuses a resolved root without the marker file."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     result = CliRunner().invoke(init, [])
 
@@ -68,9 +65,8 @@ def test_init_validates_project_structure(tmp_path: Path, monkeypatch: pytest.Mo
 
 
 @pytest.mark.functional
-@pytest.mark.spec(SPEC_ID, "UC-IPS1")
 def test_init_refuses_when_marker_is_a_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """UC-IPS1: a directory named samples/projects/itsup.yml is not a file marker."""
+    """a directory named samples/projects/itsup.yml is not a file marker."""
     (tmp_path / "samples" / "projects" / "itsup.yml").mkdir(parents=True)
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     result = CliRunner().invoke(init, [])
@@ -80,9 +76,8 @@ def test_init_refuses_when_marker_is_a_directory(tmp_path: Path, monkeypatch: py
 
 
 @pytest.mark.functional
-@pytest.mark.spec(SPEC_ID, "UC-IPS2")
 def test_init_with_existing_projects_and_secrets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """UC-IPS2: init reuses existing repos and still seeds them from samples."""
+    """init reuses existing repos and still seeds them from samples."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -95,9 +90,8 @@ def test_init_with_existing_projects_and_secrets(tmp_path: Path, monkeypatch: py
 
 
 @pytest.mark.functional
-@pytest.mark.spec(SPEC_ID, "UC-IPS2")
 def test_init_seeds_projects_and_secrets_by_mirroring(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """UC-IPS2: init seeds .env and every samples/projects and samples/secrets entry."""
+    """init seeds .env and every samples/projects and samples/secrets entry."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -116,9 +110,8 @@ def test_init_seeds_projects_and_secrets_by_mirroring(tmp_path: Path, monkeypatc
 
 
 @pytest.mark.functional
-@pytest.mark.spec(SPEC_ID, "UC-IPS2")
 def test_init_creates_env_file_from_sample(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """UC-IPS2: the seeded .env is a faithful copy of samples/.env."""
+    """the seeded .env is a faithful copy of samples/.env."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -131,9 +124,8 @@ def test_init_creates_env_file_from_sample(tmp_path: Path, monkeypatch: pytest.M
 
 
 @pytest.mark.functional
-@pytest.mark.spec(SPEC_ID, "UC-IPS3")
 def test_init_skips_existing_env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """UC-IPS3: init never overwrites an existing destination."""
+    """init never overwrites an existing destination."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
 
@@ -148,9 +140,8 @@ def test_init_skips_existing_env_file(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 @pytest.mark.functional
-@pytest.mark.spec(SPEC_ID, "UC-IPS4")
 def test_init_fails_loudly_on_missing_required_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """UC-IPS4: a checkout that passes the guard but lacks a required sample source fails loudly."""
+    """a checkout that passes the guard but lacks a required sample source fails loudly."""
     _make_itsup_samples(tmp_path)
     _make_existing_repos(tmp_path)
     (tmp_path / "samples" / ".env").unlink()

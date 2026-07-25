@@ -110,6 +110,9 @@ def _setup_sops_diff(repo_path: Path) -> None:
         )
         _success("Configured git diff integration for SOPS files")
     except (OSError, subprocess.CalledProcessError) as e:
+        # sops-diff is an optional developer convenience for readable secret diffs;
+        # it is not required for a working install. A setup failure is surfaced as a
+        # visible warning and init continues rather than aborting a good clone.
         _warning(f"Could not configure sops-diff: {e}")
 
 
