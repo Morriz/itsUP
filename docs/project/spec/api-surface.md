@@ -83,7 +83,6 @@ origin/main`** (destructive — discards local changes to the itsUP checkout),
 then redeploys DNS + proxy stacks (`smart_deploy`) and `.venv/bin/itsup apply` (all
 projects), then restarts the API. This is the unattended self-update path.
 
-<!-- planned:deploy-installs-changed-unit-templates -->
 After the dependency sync — on Linux only, where the container host runs — the
 self-update **detects** whether the delivery left the host's installed systemd
 units drifted from the delivered `samples/systemd/*` templates
@@ -98,7 +97,6 @@ as those do when the transport is unset. Installing the units stays the operator
 privileged, gated step; the self-update guarantees the staleness is recorded rather
 than passing unnoticed. The detection and alert are non-fatal — a failure logs but
 never aborts the self-update — and are skipped with a logged notice on macOS.
-<!-- /planned:deploy-installs-changed-unit-templates -->
 
 ### Server
 
