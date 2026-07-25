@@ -381,7 +381,7 @@ def deep_merge(
     return result
 
 
-def write_traefik_config() -> None:
+def write_traefik_config() -> bool:
     """Generate proxy/traefik/traefik.yml from minimal template + user overrides"""
     logger.info("Generating proxy/traefik/traefik.yml")
 
@@ -457,7 +457,7 @@ def write_traefik_config() -> None:
     output = StringIO()
     ryaml.dump(final_config, output)
     content = output.getvalue()
-    write_file_if_changed(traefik_config_file, content, "proxy/traefik/traefik.yml")
+    return write_file_if_changed(traefik_config_file, content, "proxy/traefik/traefik.yml")
 
 
 def write_middleware_config() -> None:
@@ -695,12 +695,13 @@ def write_proxy_compose() -> None:
     write_file_if_changed(proxy_compose_file, compose_content, "proxy/docker-compose.yml")
 
 
-def write_proxy_artifacts() -> None:
+def write_proxy_artifacts() -> bool:
     """Generate all proxy-related artifacts"""
-    write_traefik_config()
+    static_config_changed = write_traefik_config()
     write_middleware_config()  # Dynamic middlewares (base + overrides)
     write_dynamic_routers()  # Dynamic routers (infrastructure + external hosts)
     write_proxy_compose()
+    return static_config_changed
 
 
 if __name__ == "__main__":

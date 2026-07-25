@@ -177,6 +177,7 @@ def smart_deploy(
     stateless_services: Optional[List[str]] = None,
     env: Optional[Dict[str, str]] = None,
     service_filter: Optional[str] = None,
+    force_rollout: set[str] | None = None,
 ) -> None:
     """Deploy a Docker Compose stack with smart rollout for stateless services
 
@@ -194,6 +195,7 @@ def smart_deploy(
         stateless_services: List of service names that are stateless and safe for rollout
         env: Environment variables to pass to docker compose
         service_filter: Optional service name to deploy (if None, deploys all)
+        force_rollout: Stateless services to roll out even when their compose hash is unchanged
 
     Example:
         # Deploy proxy stack with traefik as stateless
@@ -212,6 +214,8 @@ def smart_deploy(
     """
     if stateless_services is None:
         stateless_services = []
+    if force_rollout is None:
+        force_rollout = set()
 
     logger.info(f"Deploying {compose_dir}..." + (f" (service: {service_filter})" if service_filter else ""))
 
@@ -254,7 +258,7 @@ def smart_deploy(
                 continue
 
             # Check if service needs update (skip if unchanged)
-            if not service_needs_update(compose_dir, service, env):
+            if service not in force_rollout and not service_needs_update(compose_dir, service, env):
                 logger.info(f"Skipping rollout for {service} (no changes)")
                 continue
 
@@ -291,7 +295,7 @@ def deploy_proxy_stack(service: Optional[str] = None) -> None:
     Stateful services: dockerproxy, dns (fast restart ok)
     """
     # Always regenerate proxy artifacts (templates depend on projects/)
-    write_proxy_artifacts()
+    static_config_changed = write_proxy_artifacts()
 
     # Deploy with rollout for traefik only
     smart_deploy(
@@ -299,6 +303,7 @@ def deploy_proxy_stack(service: Optional[str] = None) -> None:
         stateless_services=["traefik"],  # Only traefik is stateless
         env=get_env_with_secrets(),
         service_filter=service,
+        force_rollout={"traefik"} if static_config_changed else set(),
     )
 
 

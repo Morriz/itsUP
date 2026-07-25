@@ -1,6 +1,7 @@
 ---
-description: Acceptance scenario for mounted static Traefik config propagation — a deploy that regenerates a changed bind-mounted proxy/traefik/traefik.yml rolls out Traefik so the running proxy serves the new static config without a manual restart.
-delivered_by: [proxy-restarts-on-mounted-config-change]
+description: Acceptance scenario for mounted static Traefik config propagation — a
+  deploy that regenerates a changed bind-mounted proxy/traefik/traefik.yml rolls out
+  Traefik so the running proxy serves the new static config without a manual restart.
 ---
 # Mounted Config Propagation — Spec
 

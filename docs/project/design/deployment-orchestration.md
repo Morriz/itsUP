@@ -31,12 +31,6 @@ per-context secrets via `get_env_with_secrets` (`lib/data.py:88`).
    `Service.stateless` model field (`lib/models.py:151`) is **never read** (dead;
    see `project/spec/project-config`). Infra stacks hardcode their lists: proxy
    `["traefik"]` (`:299`), DNS `[]` (`:281`).
-<!-- planned-change:proxy-restarts-on-mounted-config-change -->
-3. **Rollout fires only when needed.** A stateless service is rolled out only if
-   it was running **before** this deploy (`:252`) **and** its config hash changed
-   (`:257`). First-time deploy = plain `up -d`, no rollout. A rollout failure is
-   logged and **does not fail the deploy** (`:264-266`).
-<!-- change:proxy-restarts-on-mounted-config-change -->
 3. **Rollout fires only when needed.** A stateless service is rolled out only if
    it was running **before** this deploy (`:252`) **and** either its config hash
    changed (`:257`) **or** the deploy forces its rollout. First-time deploy =
@@ -46,7 +40,6 @@ per-context secrets via `get_env_with_secrets` (`lib/data.py:88`).
    content invariant 4's Docker-native hash cannot see, since it is bind-mounted
    rather than part of the compose definition
    (`project/spec/feature/deployment/mounted-config-propagation`).
-<!-- /planned-change:proxy-restarts-on-mounted-config-change -->
 
 4. **Change detection is Docker-native.** `service_needs_update` compares
    `docker compose config --hash <service>` against the running container's
