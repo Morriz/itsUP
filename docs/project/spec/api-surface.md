@@ -88,14 +88,16 @@ After the dependency sync — on Linux only, where the container host runs — t
 self-update **detects** whether the delivery left the host's installed systemd
 units drifted from the delivered `samples/systemd/*` templates
 (`bin/install-bringup.sh --check-drift`: a read-only render-and-compare of each
-template against `/etc/systemd/system`, no host mutation and no privilege). On
-drift it logs the drifted units and raises the operator alert through the
-configured `alert.command` (a third alert kind alongside unit-failure and the
-apply deadman), naming the units and the one-command remedy `make
-install-runtime`. Installing the units stays the operator's privileged, gated
-step; the self-update guarantees the operator is told rather than left to discover
-stale units. The detection and alert are non-fatal — a failure logs but never
-aborts the self-update — and are skipped with a logged notice on macOS.
+template against `/etc/systemd/system`, dispatched before the installer's host gate
+and any mutating step, so it holds no privilege and mutates nothing). On drift it
+**always logs** the drifted units and the one-command remedy `make install-runtime`
+to the journal, and — **when `alert.command` is configured** — additionally raises
+the operator alert with the same content through `bin/alert.py --drift-units` (a
+third alert kind alongside unit-failure and the apply deadman), suppressing exactly
+as those do when the transport is unset. Installing the units stays the operator's
+privileged, gated step; the self-update guarantees the staleness is recorded rather
+than passing unnoticed. The detection and alert are non-fatal — a failure logs but
+never aborts the self-update — and are skipped with a logged notice on macOS.
 <!-- /planned:deploy-installs-changed-unit-templates -->
 
 ### Server
