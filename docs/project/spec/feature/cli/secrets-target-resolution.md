@@ -1,5 +1,4 @@
 ---
-delivered_by: [main-red-blocks-deploy-two-clusters]
 description: Acceptance scenario for the secrets commands' missing-target refusal — decrypt, encrypt, and diff-secrets resolve their target under the install root and, when the secrets directory or a named secret file is absent, refuse without side effects and report the missing target as a path usable from the caller's current directory.
 ---
 # Secrets Target Resolution — Spec
