@@ -85,15 +85,15 @@ projects), then restarts the API. This is the unattended self-update path.
 
 <!-- planned:deploy-installs-changed-unit-templates -->
 After the dependency sync and before the redeploy — on Linux only, where the
-container host runs — the self-update renders any changed `samples/systemd/*`
-unit templates onto the host and reloads systemd (`bin/install-bringup.sh
---render-only`: for each changed unit a `sudo tee` into `/etc/systemd/system`,
-then `sudo systemctl daemon-reload`), so a delivery that changes a unit template
-becomes installed and daemon-reloaded without a manual `make install-runtime`.
-The non-interactive authority for those two commands is a least-privilege
-`/etc/sudoers.d/itsup-render` drop-in that `make install-runtime` provisions,
-scoped to the itsUP-managed unit files plus `daemon-reload` — a bounded grant,
-never blanket sudo. Render-only neither enables nor restarts units and skips the
+container host runs — the self-update triggers `itsup-render.service`, a
+root-owned `Type=oneshot` unit that renders any changed `samples/systemd/*` unit
+templates onto the host and `daemon-reload`s (`bin/install-bringup.sh
+--render-only`), so a delivery that changes a unit template becomes installed and
+daemon-reloaded without a manual `make install-runtime`. The unprivileged API
+only *starts* that unit, through the same `sudo systemctl start itsup-*`
+capability it already uses for `itsup-monitor` — it holds no authority to write
+unit files, and the renderer runs a fixed command over the git-checked-out
+templates. Render-only neither enables nor restarts units and skips the
 installer's journal-group, enable, and bringup-restart steps, so it never bounces
 the stack mid-self-update; a changed unit takes effect on its next start — the API
 restart above for `itsup-api.service`, the next bringup cycle for
