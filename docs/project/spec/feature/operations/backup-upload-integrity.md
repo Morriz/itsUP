@@ -68,6 +68,24 @@ And retention evicts an unvalidated object before any validated generation
 And bin/restore.py offers only validated generations by default
 ```
 
+<!-- planned:fix-backup-staged-upload-size-mismatch-for-s -->
+#### UC-BUI2: A complete upload passes verification against a strict S3-compatible provider
+
+The completeness check compares the staged object's stored length to the local
+archive's, so the upload request must land the archive's exact bytes on any
+S3-compatible provider — including one that stores each request body verbatim and
+does not decode aws-chunked transfer framing. This scenario is bound by one test
+that inspects the request `bin/backup.py`'s S3 client emits for the staging upload.
+
+```gherkin
+Given an S3-compatible endpoint that stores each request body exactly as received and does not decode aws-chunked transfer framing
+And bin/backup.py has produced a complete local archive
+When bin/backup.py issues the staging upload
+Then the upload request sends the archive as an unframed body of the archive's exact byte length
+And the staged object's stored length equals the local archive's, so the completeness check passes and the generation is published and validated
+```
+<!-- /planned:fix-backup-staged-upload-size-mismatch-for-s -->
+
 ## Canonical fields
 
 - **Staging key** — the key the archive is uploaded to first, held outside the
