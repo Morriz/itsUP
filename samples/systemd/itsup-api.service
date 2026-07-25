@@ -3,6 +3,8 @@ Description=itsUP management API
 After=network-online.target docker.service
 Requires=docker.service
 OnFailure=itsup-alert@%n.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -14,7 +16,5 @@ Environment=ITSUP_ROOT={{ROOT}}
 ExecStart={{ROOT}}/.venv/bin/python {{ROOT}}/api/main.py
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 # No [Install] section: itsup run owns ordered stack startup.

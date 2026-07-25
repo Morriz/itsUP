@@ -1,0 +1,13 @@
+# serializer version: 1
+# name: test_encrypt_file_not_found
+  '''
+  ✗ File not found: <ROOT>/secrets/nonexistent.txt
+  
+  '''
+# ---
+# name: test_encrypt_no_secrets_directory
+  '''
+  ✗ Secrets directory not found: <ROOT>/secrets
+  
+  '''
+# ---

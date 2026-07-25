@@ -11,7 +11,11 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 from unittest.mock import patch
+
+import pytest
+from syrupy.assertion import SnapshotAssertion
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
@@ -23,13 +27,17 @@ from lib.sops import encrypt_file
 SOPS_METADATA_MARKER = "sops"
 ENCRYPTED_ONE_FILE = "Encrypted 1 file"
 SKIPPED_ONE_FILE = "Skipped 1 file"
-SECRETS_DIR_NOT_FOUND = "secrets/ directory not found"
-FILE_NOT_FOUND_NONEXISTENT = "File not found: secrets/nonexistent.txt"
+SPEC_ID = "project/spec/feature/cli/secrets-target-resolution"
 NO_PLAINTEXT_SECRETS = "No plaintext secrets found"
 FAILED_TO_ENCRYPT = "Failed to encrypt"
 
 
-def test_encrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
+class AgeKey(TypedDict):
+    private_key_file: Path
+    public_key: str
+
+
+def test_encrypt_command_with_real_sops(tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test 'itsup encrypt' command end-to-end.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -40,11 +48,9 @@ def test_encrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
 
     # Create .sops.yaml in secrets directory
     sops_config = secrets_dir / ".sops.yaml"
-    sops_config.write_text(
-        f"""creation_rules:
+    sops_config.write_text(f"""creation_rules:
   - age: {real_age_key["public_key"]}
-"""
-    )
+""")
 
     # Create plaintext secret
     plaintext = secrets_dir / "test.txt"
@@ -85,17 +91,15 @@ def test_encrypt_command_with_real_sops(tmp_path, real_age_key, monkeypatch):
     assert decrypted_content == plaintext_content, "Decrypted content should match original"
 
 
-def test_encrypt_temp_plaintext_uses_secrets_config(tmp_path, real_age_key):
+def test_encrypt_temp_plaintext_uses_secrets_config(tmp_path: Path, real_age_key: AgeKey) -> None:
     """Ensure encryption uses secrets/.sops.yaml when plaintext lives elsewhere."""
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
 
     sops_config = secrets_dir / ".sops.yaml"
-    sops_config.write_text(
-        f"""creation_rules:
+    sops_config.write_text(f"""creation_rules:
   - age: {real_age_key["public_key"]}
-"""
-    )
+""")
 
     plaintext = tmp_path / "temp-edit.txt"
     plaintext_content = "API_TOKEN=temp123"
@@ -126,7 +130,7 @@ def test_encrypt_temp_plaintext_uses_secrets_config(tmp_path, real_age_key):
     assert decrypted_content == plaintext_content, "Decrypted content should match original"
 
 
-def test_encrypt_with_delete_flag(tmp_path, real_age_key, monkeypatch):
+def test_encrypt_with_delete_flag(tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test 'itsup encrypt --delete' removes plaintext files.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -137,11 +141,9 @@ def test_encrypt_with_delete_flag(tmp_path, real_age_key, monkeypatch):
 
     # Create .sops.yaml in secrets directory
     sops_config = secrets_dir / ".sops.yaml"
-    sops_config.write_text(
-        f"""creation_rules:
+    sops_config.write_text(f"""creation_rules:
   - age: {real_age_key["public_key"]}
-"""
-    )
+""")
 
     # Create plaintext secret
     plaintext = secrets_dir / "delete-test.txt"
@@ -167,7 +169,7 @@ def test_encrypt_with_delete_flag(tmp_path, real_age_key, monkeypatch):
     assert not plaintext.exists(), "Plaintext should be deleted with --delete flag"
 
 
-def test_encrypt_skip_unchanged(tmp_path, real_age_key, monkeypatch):
+def test_encrypt_skip_unchanged(tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test 'itsup encrypt' skips files when content is unchanged.
 
     FUNCTIONAL TEST - uses real sops binary.
@@ -178,11 +180,9 @@ def test_encrypt_skip_unchanged(tmp_path, real_age_key, monkeypatch):
 
     # Create .sops.yaml in secrets directory
     sops_config = secrets_dir / ".sops.yaml"
-    sops_config.write_text(
-        f"""creation_rules:
+    sops_config.write_text(f"""creation_rules:
   - age: {real_age_key["public_key"]}
-"""
-    )
+""")
 
     # Create plaintext secret
     plaintext = secrets_dir / "unchanged.txt"
@@ -213,17 +213,21 @@ def test_encrypt_skip_unchanged(tmp_path, real_age_key, monkeypatch):
     assert ENCRYPTED_ONE_FILE in result.output, "Should re-encrypt with --force"
 
 
-def test_encrypt_no_secrets_directory(tmp_path, monkeypatch):
+@pytest.mark.spec(SPEC_ID, "UC-STR1")
+def test_encrypt_no_secrets_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, snapshot: SnapshotAssertion
+) -> None:
     """Test encrypt command when secrets/ directory doesn't exist."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     runner = CliRunner()
     result = runner.invoke(encrypt, [])
 
     assert result.exit_code == 1
-    assert SECRETS_DIR_NOT_FOUND in result.output
+    assert result.output.replace(str(tmp_path), "<ROOT>") == snapshot
 
 
-def test_encrypt_file_not_found(tmp_path, monkeypatch):
+@pytest.mark.spec(SPEC_ID, "UC-STR1")
+def test_encrypt_file_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, snapshot: SnapshotAssertion) -> None:
     """Test encrypt command when specific file doesn't exist."""
     # Create empty secrets directory
     secrets_dir = tmp_path / "secrets"
@@ -234,10 +238,10 @@ def test_encrypt_file_not_found(tmp_path, monkeypatch):
     result = runner.invoke(encrypt, ["nonexistent"])
 
     assert result.exit_code == 1
-    assert FILE_NOT_FOUND_NONEXISTENT in result.output
+    assert result.output.replace(str(tmp_path), "<ROOT>") == snapshot
 
 
-def test_encrypt_no_plaintext_files(tmp_path, monkeypatch):
+def test_encrypt_no_plaintext_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test encrypt command when no plaintext files exist."""
     # Create empty secrets directory
     secrets_dir = tmp_path / "secrets"
@@ -251,7 +255,7 @@ def test_encrypt_no_plaintext_files(tmp_path, monkeypatch):
     assert NO_PLAINTEXT_SECRETS in result.output
 
 
-def test_encrypt_failure_handling(tmp_path, real_age_key, monkeypatch):
+def test_encrypt_failure_handling(tmp_path: Path, real_age_key: AgeKey, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test encrypt command handles encryption failures."""
     # Setup secrets directory WITHOUT .sops.yaml
     secrets_dir = tmp_path / "secrets"

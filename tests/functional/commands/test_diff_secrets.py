@@ -15,6 +15,7 @@ from typing import TypedDict
 from unittest.mock import patch
 
 import pytest
+from syrupy.assertion import SnapshotAssertion
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
@@ -22,8 +23,8 @@ from click.testing import CliRunner
 
 from commands.diff_secrets import diff_secrets
 
+SPEC_ID = "project/spec/feature/cli/secrets-target-resolution"
 HELP_DESCRIPTION = "Show meaningful diffs of encrypted secrets"
-SECRETS_DIR_NOT_FOUND = "secrets/ directory not found"
 NO_ENCRYPTED_FILES = "No encrypted files found"
 NEW_FILE_MARKER = "New file (not yet in git)"
 DECRYPTED_SECRET_CONTENT = "SECRET=value"
@@ -37,14 +38,17 @@ class AgeKey(TypedDict):
     public_key: str
 
 
-def test_diff_secrets_no_secrets_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.spec(SPEC_ID, "UC-STR1")
+def test_diff_secrets_no_secrets_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, snapshot: SnapshotAssertion
+) -> None:
     """Test error handling when secrets/ directory doesn't exist."""
     monkeypatch.setenv("ITSUP_ROOT", str(tmp_path))
     runner = CliRunner()
     result = runner.invoke(diff_secrets)
 
     assert result.exit_code == 1
-    assert SECRETS_DIR_NOT_FOUND in result.output
+    assert result.output.replace(str(tmp_path), "<ROOT>") == snapshot
 
 
 def test_diff_secrets_no_encrypted_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
