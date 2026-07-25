@@ -84,18 +84,22 @@ then redeploys DNS + proxy stacks (`smart_deploy`) and `.venv/bin/itsup apply` (
 projects), then restarts the API. This is the unattended self-update path.
 
 <!-- planned:deploy-installs-changed-unit-templates -->
-After the dependency sync and before the redeploy, the self-update renders any
-changed `samples/systemd/*` unit templates onto the host and reloads systemd
-(`bin/install-bringup.sh --render-only`: for each changed unit a `sudo tee` into
-`/etc/systemd/system`, then `sudo systemctl daemon-reload`), so a delivery that
-changes a unit template becomes installed and daemon-reloaded without a manual
-`make install-runtime`. Render-only neither enables nor restarts units and skips
-the installer's journal-group, enable, and bringup-restart steps, so it never
-bounces the stack mid-self-update; a changed unit takes effect on its next start
-— the API restart above for `itsup-api.service`, the next bringup cycle for
-`itsup-bringup.service`. It is host- and canonical-checkout-gated like the full
-installer, and its `sudo tee` + `daemon-reload` surface is a subset of what
-`make install-runtime` already runs under the itsUP service account.
+After the dependency sync and before the redeploy — on Linux only, where the
+container host runs — the self-update renders any changed `samples/systemd/*`
+unit templates onto the host and reloads systemd (`bin/install-bringup.sh
+--render-only`: for each changed unit a `sudo tee` into `/etc/systemd/system`,
+then `sudo systemctl daemon-reload`), so a delivery that changes a unit template
+becomes installed and daemon-reloaded without a manual `make install-runtime`.
+The non-interactive authority for those two commands is a least-privilege
+`/etc/sudoers.d/itsup-render` drop-in that `make install-runtime` provisions,
+scoped to the itsUP-managed unit files plus `daemon-reload` — a bounded grant,
+never blanket sudo. Render-only neither enables nor restarts units and skips the
+installer's journal-group, enable, and bringup-restart steps, so it never bounces
+the stack mid-self-update; a changed unit takes effect on its next start — the API
+restart above for `itsup-api.service`, the next bringup cycle for
+`itsup-bringup.service`. On macOS, a non-deployment context, the self-update skips
+the render with a logged notice. The render is host- and canonical-checkout-gated
+like the full installer.
 <!-- /planned:deploy-installs-changed-unit-templates -->
 
 ### Server
