@@ -8,10 +8,9 @@ description: Acceptance scenario for the secrets commands' missing-target refusa
 
 The `itsup decrypt`, `itsup encrypt`, and `itsup diff-secrets` commands operate
 on a target under the install root: the `secrets/` directory, or a named secret
-file within it. Before doing any cryptographic or diff work, each command
-resolves that target and refuses when it is absent — a missing `secrets/`
-directory, or a named file that does not exist — exiting non-zero without
-loading keys, decrypting, encrypting, or writing anything.
+file within it. Each command resolves that target and refuses when it is absent
+— a missing `secrets/` directory, or a named file that does not exist —
+exiting non-zero.
 
 The refusal names the missing target through the shared location renderer
 (`lib/paths.py` `display_path`), so the reported path is usable from the
@@ -23,7 +22,7 @@ globally (`project/spec/cli`).
 The business value is that an operator who runs a secrets command in the wrong
 place, or names a file that is not there, gets an actionable refusal — the exact
 missing path, resolvable from where they are — instead of a crash or a
-misleading relative string, and no partial secret operation is performed.
+misleading relative string.
 
 ### Use cases
 
@@ -37,7 +36,7 @@ install root with no target present.
 ```gherkin
 Given the install root has no secrets directory, or a named secret file that does not exist
 When an operator runs decrypt, encrypt, or diff-secrets against that target from outside the install root
-Then the command exits non-zero without loading keys or performing any secret operation
+Then the command exits non-zero
 And the refusal reports the missing target as a path usable from the operator's current directory
 ```
 
@@ -46,10 +45,9 @@ And the refusal reports the missing target as a path usable from the operator's 
 - **Inputs** — the invoked secrets command (`decrypt`, `encrypt`,
   `diff-secrets`) and the resolved install root (`ITSUP_ROOT`); the target is
   either the `secrets/` directory or a named secret file under it.
-- **Output** — a non-zero exit and a refusal message naming the missing target;
-  no key load, no decrypt/encrypt, no diff, and no file written. The reported
-  path is absolute when the caller's current directory is not the install root,
-  and install-root-relative when it is (`display_path`).
+- **Output** — a non-zero exit and a refusal message naming the missing target.
+  The reported path is absolute when the caller's current directory is not the
+  install root, and install-root-relative when it is (`display_path`).
 
 ## Known caveats
 
