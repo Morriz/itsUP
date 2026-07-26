@@ -146,6 +146,21 @@ caveats).
   and `ExecStop=itsup down`, an unconditional restart would otherwise stop every
   upstream project before starting them back up on every install invocation,
   regardless of whether anything changed.
+<!-- planned:traefik-access-log-dead-after-rotation -->
+- **itsUP owns the host logrotate config for its `logs/` files.**
+  `make install-runtime` renders `samples/logrotate/itsup` to
+  `/etc/logrotate.d/itsup` (Linux only; macOS has no logrotate), and
+  `make uninstall-runtime` removes it. The host's own daily `logrotate.timer`
+  runs it — itsUP schedules nothing. The Traefik **access log** rotates with
+  `copytruncate`: Traefik holds the file open with `O_APPEND`, so truncating in
+  place keeps it writing to the same inode across rotation with no reopen signal,
+  which keeps the single-writer CrowdSec feed (`logs/access.log`) live. The
+  accepted cost is `copytruncate`'s sub-second copy-to-truncate window at the
+  00:00 rotation, during which a few request records can be lost — negligible
+  against the failure it replaces (a rename+`USR1` reopen that silently failed
+  and left the feed dead for days). The `api.log`/`monitor.log` blocks are
+  unchanged (already `copytruncate`).
+<!-- /planned:traefik-access-log-dead-after-rotation -->
 
 ## See Also
 
