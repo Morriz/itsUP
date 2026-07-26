@@ -34,12 +34,12 @@ The scenarios below are bound by functional tests in
 project tree and assert the generated `routers-http.yml` structure, plus one
 model-validation test.
 
-#### UC-RSIP1: Two path-prefixed routes on one external host:port render as distinct routers
+#### UC-RSIP1: Two routes on one external host:port render as distinct routers
 
 ```gherkin
-Given an external-host project with two ingress rows sharing one host and port that differ only by path_prefix
+Given an external-host project with two ingress rows sharing one host and port
 When the dynamic Traefik routers are generated
-Then the generated routers-http.yml contains two distinct routers whose identities include their path_prefix
+Then the generated routers-http.yml contains two distinct routers with distinct identities
 And each router references its own matching service
 ```
 
@@ -52,10 +52,10 @@ Then that route's router lists a per-route ipAllowList middleware in its middlew
 And the generated ipAllowList middleware's sourceRange equals the declared allow_source_ips
 ```
 
-#### UC-RSIP3: A malformed allow_source_ips value is rejected by validation
+#### UC-RSIP3: A malformed or empty allow_source_ips value is rejected by validation
 
 ```gherkin
-Given an ingress row whose allow_source_ips contains a value that is not a valid IP or CIDR
+Given an ingress row whose allow_source_ips is an empty list or contains a value that is not a valid IP or CIDR
 When the project configuration is loaded and validated
 Then validation fails naming the offending value
 ```
@@ -78,11 +78,12 @@ Then that route's router carries no ipAllowList middleware
   in the same file. Distinct from the entrypoint-level chain
   (`project/spec/feature/deployment/http-security-middlewares`), which stays
   global and unchanged.
-- Router identity: external-host router and service names include a sanitized
-  `path_prefix` segment when the ingress row sets one; pathless routes keep their
-  prior `{project}-{host}-{port}` identity. This lets two routes on one
+- Router identity: each external-host route gets a per-route-unique
+  (collision-free) router/service identity — `{project}-{host}-{port}` plus the
+  route's index within that host's ingress list — so two routes on one
   `host:port` (e.g. an open `/redirect` and a gated `/file`) render as distinct
-  routers instead of one overwriting the other.
+  routers instead of one overwriting the other. The suffix is unique by
+  construction, so no separate uniqueness validation is needed.
 - IP strategy: none set — Traefik matches `sourceRange` against the request's
   remote address, which is the PROXY-protocol-conveyed client IP under the
   `routerIP` trust configured on every entrypoint.

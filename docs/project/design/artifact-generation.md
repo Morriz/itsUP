@@ -79,14 +79,13 @@ overrides. This snippet is the contract for that translation. Network assignment
    become no-ops via Docker's config-hash (see
    `project/design/deployment-orchestration`).
 <!-- planned:gated-file-endpoint -->
-9. **External-host router identity includes the path.** An external-host dynamic
-   router's name (`{project}-{host}-{port}`) gains a sanitized `path_prefix`
-   segment when the ingress row sets one, so two ingress rows sharing one
-   `host:port` that differ only by `path_prefix` generate two distinct routers
-   (and matching services) instead of colliding on one router key. Pathless
-   routes keep the `{project}-{host}-{port}` identity. This lets two routes on
-   one `host:port` (e.g. an open `/redirect` and a gated `/file`) render as
-   distinct routers instead of one overwriting the other.
+9. **External-host router identity is per-route unique.** An external-host
+   dynamic router's name is `{project}-{host}-{port}` plus the route's index
+   within that host's ingress list, so two ingress rows sharing one `host:port`
+   (e.g. an open `/redirect` and a gated `/file`) generate two distinct routers
+   (and matching services) instead of colliding on one router key. The index
+   suffix is unique by construction — no lossy path transform, so no separate
+   uniqueness validation is needed.
 10. **Per-route source-IP gate.** An ingress row carrying `allow_source_ips`
     makes `write_dynamic_routers` emit a Traefik `ipAllowList` middleware
     (`sourceRange` = the declared list) and attach it to that route's router
