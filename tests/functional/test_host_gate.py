@@ -40,6 +40,10 @@ EXPECTED_ANYWHERE = frozenset(
         "projects",
     }
 )
+UNINSTALL_RUNTIME = REPO_ROOT / "bin" / "uninstall-runtime.sh"
+LAUNCHD_LABELS = ("ai.itsup.apply", "ai.itsup.backup", "ai.itsup.bringup", "ai.itsup.api")
+OFF_HOST_TEARDOWN_NOTICE = "skipping host-only 'itsup down --clean'"
+BROAD_COMPOSE_INVOCATION = "compose -f"
 
 
 def _write_env(root: Path, ssh_host: str | None) -> None:
@@ -60,6 +64,11 @@ def _run_itsup(args: list[str], root: Path) -> subprocess.CompletedProcess[str]:
     env["ITSUP_ROOT"] = str(root)
     command = [str(ITSUP), *args]
     return subprocess.run(command, cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, timeout=60, check=False)
+
+
+def _write_executable(path: Path, content: str) -> None:
+    path.write_text(content)
+    path.chmod(0o755)
 
 
 def test_host_only_split_refuses_only_runtime_commands_off_host(tmp_path: Path) -> None:
@@ -144,3 +153,65 @@ def test_install_runtime_guard_refuses_off_host(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert INSTALL_RUNTIME_LABEL in result.stderr
+
+
+@pytest.mark.functional
+def test_uninstall_runtime_decommissions_stale_launchd_integration_off_host(tmp_path: Path) -> None:
+    """Off-host uninstall removes stale local launchd integration without invoking `itsup down`."""
+    service_dir = tmp_path / "LaunchAgents"
+    service_dir.mkdir()
+    install_root = tmp_path / "itsup-root"
+    (install_root / ".venv" / "bin").mkdir(parents=True)
+    (install_root / "proxy").mkdir()
+    (install_root / "dns").mkdir()
+    (install_root / "upstream").mkdir()
+    (install_root / "proxy" / "docker-compose.yml").write_text("services: {}\n")
+    (install_root / "dns" / "docker-compose.yml").write_text("services: {}\n")
+
+    for label in LAUNCHD_LABELS:
+        (service_dir / f"{label}.plist").write_text("<plist />\n")
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_executable(fake_bin / "uname", "#!/usr/bin/env bash\nprintf 'Darwin\\n'\n")
+    _write_executable(
+        fake_bin / "launchctl",
+        '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "${LAUNCHCTL_LOG}"\nexit 0\n',
+    )
+    _write_executable(
+        fake_bin / "docker",
+        '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "${DOCKER_LOG}"\nexit 0\n',
+    )
+    _write_executable(fake_bin / "pgrep", "#!/usr/bin/env bash\nexit 1\n")
+    _write_executable(fake_bin / "sudo", '#!/usr/bin/env bash\n"$@"\n')
+    _write_executable(fake_bin / "rm", '#!/usr/bin/env bash\n/bin/rm "$@"\n')
+    _write_executable(
+        install_root / ".venv" / "bin" / "python",
+        "#!/usr/bin/env bash\nexit 1\n",
+    )
+    _write_executable(
+        install_root / ".venv" / "bin" / "itsup",
+        "#!/usr/bin/env bash\nprintf 'unexpected itsup call\\n' >&2\nexit 99\n",
+    )
+
+    env = dict(os.environ)
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["ITSUP_ROOT"] = str(install_root)
+    env["SERVICE_DIR"] = str(service_dir)
+    env["LAUNCHCTL_LOG"] = str(tmp_path / "launchctl.log")
+    env["DOCKER_LOG"] = str(tmp_path / "docker.log")
+
+    result = subprocess.run(
+        [str(UNINSTALL_RUNTIME)],
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert OFF_HOST_TEARDOWN_NOTICE in result.stdout
+    assert not list(service_dir.glob("ai.itsup*.plist"))
+    assert BROAD_COMPOSE_INVOCATION not in (tmp_path / "docker.log").read_text()

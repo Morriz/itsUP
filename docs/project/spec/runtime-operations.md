@@ -146,6 +146,15 @@ caveats).
   and `ExecStop=itsup down`, an unconditional restart would otherwise stop every
   upstream project before starting them back up on every install invocation,
   regardless of whether anything changed.
+- **`make uninstall-runtime` decommissions the current machine, including stale
+  off-host installs.** On the configured container host it tears the running
+  stack down through `.venv/bin/itsup down --clean`, then removes supervisor
+  definitions. On any other machine it skips that host-only CLI path and removes
+  only local remnants from this checkout: registered systemd/launchd integration,
+  matching `api/main.py` or `bin/monitor.py` host processes, and running
+  containers whose Docker Compose `config_files` label points at this checkout's
+  generated compose files. This makes stale development-machine installs
+  recoverable without weakening the fail-closed gate on `itsup down`.
 <!-- planned:traefik-access-log-dead-after-rotation -->
 - **itsUP owns the host logrotate config for its `logs/` files.**
   `make install-runtime` renders `samples/logrotate/itsup` to

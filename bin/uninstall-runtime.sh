@@ -33,6 +33,7 @@ ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
 ITSUP_ROOT="${ITSUP_ROOT:-${REPO_ROOT}}"
 ITSUP_HOME="${HOME:-/Users/${ITSUP_USER}}"
 ITSUP="${ITSUP_ROOT}/.venv/bin/itsup"
+PYTHON="${ITSUP_ROOT}/.venv/bin/python"
 
 case "$(uname -s)" in
   Darwin*) PLATFORM="macos";;
@@ -125,6 +126,10 @@ bootout_launchd_agents() {
 # Returns non-zero if the stack could not be fully torn down — the caller must
 # then leave host integration in place rather than claim a clean decommission.
 teardown_stack() {
+  if ! host_identity_matches; then
+    teardown_local_runtime
+    return
+  fi
   if [ ! -x "${ITSUP}" ]; then
     echo "⚠ ${ITSUP} not found — cannot run the CLI stack teardown."
     # No CLI, but if itsUP processes are somehow up they cannot be torn down
@@ -160,29 +165,118 @@ teardown_stack() {
   fi
 }
 
+host_identity_matches() {
+  [ -x "${PYTHON}" ] || return 1
+  PYTHONPATH="${REPO_ROOT}" "${PYTHON}" -c 'from lib.host_gate import is_host; raise SystemExit(0 if is_host() else 1)' \
+    >/dev/null 2>&1
+}
+
+teardown_local_runtime() {
+  echo "This machine is not the configured container host; skipping host-only 'itsup down --clean'."
+  echo "Tearing down local itsUP remnants directly..."
+  if remnant_processes; then
+    terminate_remnant_processes || return 1
+  fi
+  if remnant_containers; then
+    teardown_local_compose || return 1
+  fi
+  if remnant_processes; then
+    echo "✗ itsUP host process(es) survived local teardown." >&2
+    return 1
+  fi
+  if remnant_containers; then
+    echo "✗ itsUP container(s) survived local teardown." >&2
+    return 1
+  fi
+}
+
 # True when an itsUP-managed host process (the monitor or the API server, both
 # started by `itsup run`) is still alive.
 remnant_processes() {
-  pgrep -f 'bin/monitor.py' >/dev/null 2>&1 || pgrep -f 'api/main.py' >/dev/null 2>&1
-}
-
-# True when any container of an itsUP compose project is still running. Asks each
-# of itsUP's own compose files (the same ones `itsup down` operates on) rather
-# than re-deriving the container set — `docker compose ps -q` lists running IDs.
-remnant_containers() {
-  command -v docker >/dev/null 2>&1 || return 1
-  local files=("${ITSUP_ROOT}/proxy/docker-compose.yml" "${ITSUP_ROOT}/dns/docker-compose.yml")
-  local f
-  for f in "${ITSUP_ROOT}"/upstream/*/docker-compose.yml; do
-    [ -f "$f" ] && files+=("$f")
-  done
-  for f in "${files[@]}"; do
-    [ -f "$f" ] || continue
-    if [ -n "$(docker compose -f "$f" ps -q 2>/dev/null)" ]; then
+  local pattern match_pattern
+  for pattern in "${ITSUP_ROOT}/bin/monitor.py" "${ITSUP_ROOT}/api/main.py"; do
+    match_pattern="$(escape_pgrep_pattern "${pattern}")"
+    if pgrep -f "${match_pattern}" >/dev/null 2>&1; then
       return 0
     fi
   done
   return 1
+}
+
+escape_pgrep_pattern() {
+  printf '%s' "$1" | sed 's/[][\\.^$*+?{}|()]/\\&/g'
+}
+
+terminate_remnant_processes() {
+  local pattern match_pattern pid
+  for pattern in "${ITSUP_ROOT}/bin/monitor.py" "${ITSUP_ROOT}/api/main.py"; do
+    match_pattern="$(escape_pgrep_pattern "${pattern}")"
+    while IFS= read -r pid; do
+      [ -n "${pid}" ] || continue
+      echo "Stopping local itsUP process PID ${pid}..."
+      kill -TERM "${pid}" 2>/dev/null || sudo kill -TERM "${pid}" || return 1
+      wait_for_pid_exit "${pid}" || {
+        echo "Force-stopping local itsUP process PID ${pid}..."
+        kill -KILL "${pid}" 2>/dev/null || sudo kill -KILL "${pid}" || return 1
+      }
+    done < <(pgrep -f "${match_pattern}" || true)
+  done
+}
+
+wait_for_pid_exit() {
+  local pid="$1"
+  for _ in {1..10}; do
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+compose_files() {
+  local f
+  printf '%s\n' "${ITSUP_ROOT}/proxy/docker-compose.yml" "${ITSUP_ROOT}/dns/docker-compose.yml"
+  for f in "${ITSUP_ROOT}"/upstream/*/docker-compose.yml; do
+    [ -f "${f}" ] && printf '%s\n' "${f}"
+  done
+}
+
+teardown_local_compose() {
+  command -v docker >/dev/null 2>&1 || {
+    echo "✗ Docker is unavailable and local itsUP containers are still running." >&2
+    return 1
+  }
+
+  local f ids
+  while IFS= read -r f; do
+    [ -f "${f}" ] || continue
+    ids="$(compose_file_running_container_ids "${f}")"
+    if [ -n "${ids}" ]; then
+      echo "Stopping local containers from ${f}..."
+      docker stop ${ids} >/dev/null || return 1
+      docker rm -f ${ids} >/dev/null || return 1
+    fi
+  done < <(compose_files)
+}
+
+# True when any container from this checkout's generated compose files is still
+# running. Uses Docker's exact config_files label so a same-named compose project
+# from another checkout is not treated as an itsUP remnant.
+remnant_containers() {
+  command -v docker >/dev/null 2>&1 || return 1
+  local f
+  while IFS= read -r f; do
+    [ -f "${f}" ] || continue
+    if [ -n "$(compose_file_running_container_ids "${f}")" ]; then
+      return 0
+    fi
+  done < <(compose_files)
+  return 1
+}
+
+compose_file_running_container_ids() {
+  docker ps -q --filter "label=com.docker.compose.project.config_files=$1" 2>/dev/null
 }
 
 # ── Step 3: remove the unit / agent files ──────────────────────────────────
