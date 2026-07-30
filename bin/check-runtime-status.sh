@@ -104,7 +104,7 @@ check_unit_drift() {
   case "$(uname -s)" in
     Linux)
       local drift
-      if ! drift="$("${REPO_ROOT}/bin/install-bringup.sh" --check-drift)"; then
+      if ! drift="$(ITSUP_ROOT="${ITSUP_ROOT}" "${REPO_ROOT}/bin/install-bringup.sh" --check-drift)"; then
         fail "systemd unit drift check failed"
         return
       fi
