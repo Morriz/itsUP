@@ -312,8 +312,13 @@ validate_nonlocal_bind_state_linux() {
   if [ ! -r "${SYSCTL_STATE_FILE}" ]; then
     return 0
   fi
+  if [ -L "${SYSCTL_STATE_FILE}" ]; then
+    echo "ERROR: ${SYSCTL_STATE_FILE} is a symlink; refusing to trust recovery state" >&2
+    return 1
+  fi
 
-  local file_present runtime_value
+  local state_version file_present runtime_value
+  state_version="$(awk -F= '$1 == "state_version" { print $2 }' "${SYSCTL_STATE_FILE}")"
   file_present="$(awk -F= '$1 == "file_present" { print $2 }' "${SYSCTL_STATE_FILE}")"
   runtime_value="$(awk -F= '$1 == "runtime_value" { print $2 }' "${SYSCTL_STATE_FILE}")"
 
@@ -333,11 +338,15 @@ validate_nonlocal_bind_state_linux() {
       ;;
   esac
 
-  if [ "${file_present}" = "1" ] && [ ! -r "${SYSCTL_STATE_CONTENT_FILE}" ]; then
-    echo "ERROR: ${SYSCTL_STATE_FILE} requires readable ${SYSCTL_STATE_CONTENT_FILE}" >&2
-    return 1
-  fi
   if [ "${file_present}" = "1" ]; then
+    if [ "${state_version}" != "2" ]; then
+      echo "ERROR: legacy ${SYSCTL_STATE_FILE} cannot restore original ${SYSCTL_DEST} content" >&2
+      return 1
+    fi
+    if [ -L "${SYSCTL_STATE_CONTENT_FILE}" ] || [ ! -f "${SYSCTL_STATE_CONTENT_FILE}" ] || [ ! -r "${SYSCTL_STATE_CONTENT_FILE}" ]; then
+      echo "ERROR: ${SYSCTL_STATE_FILE} requires a readable regular ${SYSCTL_STATE_CONTENT_FILE}" >&2
+      return 1
+    fi
     local file_mode file_owner file_group
     file_mode="$(awk -F= '$1 == "file_mode" { print $2 }' "${SYSCTL_STATE_FILE}")"
     file_owner="$(awk -F= '$1 == "file_owner" { print $2 }' "${SYSCTL_STATE_FILE}")"

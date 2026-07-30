@@ -411,10 +411,15 @@ ensure_nonlocal_bind_linux() {
 
 capture_nonlocal_bind_state_linux() {
   if [ -e "${SYSCTL_STATE_FILE}" ]; then
+    validate_existing_nonlocal_bind_state_linux
     return
   fi
   local file_present=0
   if [ -e "${SYSCTL_DEST}" ]; then
+    if [ -L "${SYSCTL_DEST}" ]; then
+      echo "ERROR: ${SYSCTL_DEST} is a symlink; refusing to capture ambiguous sysctl state" >&2
+      exit 1
+    fi
     if [ ! -f "${SYSCTL_DEST}" ]; then
       echo "ERROR: ${SYSCTL_DEST} exists but is not a regular file" >&2
       exit 1
@@ -423,6 +428,13 @@ capture_nonlocal_bind_state_linux() {
   fi
   local runtime_value
   runtime_value="$(read_nonlocal_bind_linux)"
+  case "${runtime_value}" in
+    0|1) ;;
+    *)
+      echo "ERROR: net.ipv4.ip_nonlocal_bind is ${runtime_value}; refusing to capture unrecoverable state" >&2
+      exit 1
+      ;;
+  esac
   local temporary="${SYSCTL_STATE_FILE}.tmp"
   local content_temporary="${SYSCTL_STATE_CONTENT_FILE}.tmp"
   local file_mode="" file_owner="" file_group=""
@@ -438,6 +450,7 @@ capture_nonlocal_bind_state_linux() {
     fi
   fi
   {
+    printf 'state_version=2\n'
     printf 'file_present=%s\n' "${file_present}"
     printf 'runtime_value=%s\n' "${runtime_value}"
     if [ "${file_present}" = "1" ]; then
@@ -452,6 +465,50 @@ capture_nonlocal_bind_state_linux() {
     rm -f "${SYSCTL_STATE_CONTENT_FILE}"
   fi
   mv "${temporary}" "${SYSCTL_STATE_FILE}"
+}
+
+validate_existing_nonlocal_bind_state_linux() {
+  if [ -L "${SYSCTL_STATE_FILE}" ]; then
+    echo "ERROR: ${SYSCTL_STATE_FILE} is a symlink; refusing to trust recovery state" >&2
+    exit 1
+  fi
+  if [ ! -r "${SYSCTL_STATE_FILE}" ]; then
+    echo "ERROR: ${SYSCTL_STATE_FILE} exists but is not readable" >&2
+    exit 1
+  fi
+
+  local state_version file_present runtime_value
+  state_version="$(awk -F= '$1 == "state_version" { print $2 }' "${SYSCTL_STATE_FILE}")"
+  file_present="$(awk -F= '$1 == "file_present" { print $2 }' "${SYSCTL_STATE_FILE}")"
+  runtime_value="$(awk -F= '$1 == "runtime_value" { print $2 }' "${SYSCTL_STATE_FILE}")"
+
+  case "${file_present}" in
+    0|1) ;;
+    *)
+      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid file_present=${file_present}" >&2
+      exit 1
+      ;;
+  esac
+  case "${runtime_value}" in
+    0|1) ;;
+    *)
+      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid runtime_value=${runtime_value}" >&2
+      exit 1
+      ;;
+  esac
+
+  if [ "${file_present}" = "0" ]; then
+    return
+  fi
+  if [ "${state_version}" != "2" ]; then
+    echo "ERROR: legacy ${SYSCTL_STATE_FILE} cannot restore original ${SYSCTL_DEST} content." >&2
+    echo "Resolve manually, then remove ${SYSCTL_STATE_FILE} before re-running make install-runtime." >&2
+    exit 1
+  fi
+  if [ -L "${SYSCTL_STATE_CONTENT_FILE}" ] || [ ! -f "${SYSCTL_STATE_CONTENT_FILE}" ] || [ ! -r "${SYSCTL_STATE_CONTENT_FILE}" ]; then
+    echo "ERROR: ${SYSCTL_STATE_FILE} requires a readable regular ${SYSCTL_STATE_CONTENT_FILE}" >&2
+    exit 1
+  fi
 }
 
 read_nonlocal_bind_linux() {
