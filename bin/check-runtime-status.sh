@@ -206,6 +206,14 @@ check_systemd() {
       fail "${unit} is not active"
     fi
   done
+
+  for unit in itsup-bringup.service itsup-apply.timer itsup-backup.timer pi-healthcheck.timer; do
+    if systemctl is-enabled --quiet "${unit}"; then
+      ok "${unit} is enabled"
+    else
+      fail "${unit} is not enabled"
+    fi
+  done
 }
 
 check_launchd() {
