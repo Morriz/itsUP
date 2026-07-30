@@ -7,6 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ITSUP="${REPO_ROOT}/.venv/bin/itsup"
 PYTHON="${REPO_ROOT}/.venv/bin/python"
+ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
+ITSUP_GROUP="${ITSUP_GROUP:-$(id -gn "${ITSUP_USER}")}"
+ITSUP_HOME="${HOME:-/Users/${ITSUP_USER}}"
 
 failures=0
 
@@ -62,6 +65,16 @@ find_container() {
   docker ps --format '{{.Names}}' | awk -v pattern="${pattern}" '$0 ~ pattern { print; exit }'
 }
 
+render_template() {
+  local template_file="$1"
+  sed \
+    -e "s|{{USER}}|${ITSUP_USER}|g" \
+    -e "s|{{GROUP}}|${ITSUP_GROUP}|g" \
+    -e "s|{{ROOT}}|${REPO_ROOT}|g" \
+    -e "s|{{HOME}}|${ITSUP_HOME}|g" \
+    "${template_file}"
+}
+
 check_host_gate() {
   if [ ! -x "${PYTHON}" ]; then
     fail "missing Python venv: ${PYTHON}"
@@ -87,21 +100,48 @@ check_config() {
 }
 
 check_unit_drift() {
-  if [ "$(uname -s)" != "Linux" ]; then
-    skip "systemd unit drift check is Linux-only"
-    return
-  fi
-
-  local drift
-  if ! drift="$("${REPO_ROOT}/bin/install-bringup.sh" --check-drift)"; then
-    fail "systemd unit drift check failed"
-    return
-  fi
-  if [ -n "${drift}" ]; then
-    fail "installed systemd units drifted: ${drift//$'\n'/, }"
-  else
-    ok "installed systemd units match templates"
-  fi
+  case "$(uname -s)" in
+    Linux)
+      local drift
+      if ! drift="$("${REPO_ROOT}/bin/install-bringup.sh" --check-drift)"; then
+        fail "systemd unit drift check failed"
+        return
+      fi
+      if [ -n "${drift}" ]; then
+        fail "installed systemd units drifted: ${drift//$'\n'/, }"
+      else
+        ok "installed systemd units match templates"
+      fi
+      ;;
+    Darwin*)
+      local service_dir="${SERVICE_DIR:-${ITSUP_HOME}/Library/LaunchAgents}"
+      local label template dest
+      local -a drifted=()
+      for label in ai.itsup.bringup ai.itsup.apply ai.itsup.backup ai.itsup.api; do
+        template="${REPO_ROOT}/samples/launchd/${label}.plist"
+        dest="${service_dir}/${label}.plist"
+        if [ ! -r "${template}" ]; then
+          fail "launchd template not readable: ${template}"
+          continue
+        fi
+        if [ ! -f "${dest}" ]; then
+          drifted+=("${label}")
+          continue
+        fi
+        if ! render_template "${template}" | cmp -s - "${dest}"; then
+          drifted+=("${label}")
+        fi
+      done
+      if [ "${#drifted[@]}" -gt 0 ]; then
+        fail "installed launchd agents drifted: ${drifted[*]}"
+      else
+        ok "installed launchd agents match templates"
+      fi
+      ;;
+    *)
+      fail "unsupported platform: $(uname -s)"
+      ;;
+  esac
 }
 
 check_systemd() {
@@ -112,7 +152,10 @@ check_systemd() {
   require_cmd systemctl || return
 
   local failed_units
-  failed_units="$(systemctl --failed --no-legend --no-pager 2>/dev/null || true)"
+  if ! failed_units="$(systemctl --failed --no-legend --no-pager 2>/dev/null)"; then
+    fail "systemd failed-unit query failed"
+    return
+  fi
   if [ -n "${failed_units}" ]; then
     fail "systemd has failed units: ${failed_units//$'\n'/, }"
   else
@@ -120,11 +163,27 @@ check_systemd() {
   fi
 
   local unit
-  for unit in itsup-bringup.service itsup-apply.timer itsup-backup.timer pi-healthcheck.timer; do
+  for unit in itsup-bringup.service itsup-api.service itsup-monitor.service itsup-apply.timer itsup-backup.timer pi-healthcheck.timer; do
     if systemctl is-active --quiet "${unit}"; then
       ok "${unit} is active"
     else
       fail "${unit} is not active"
+    fi
+  done
+}
+
+check_launchd() {
+  if [[ "$(uname -s)" != Darwin* ]]; then
+    return
+  fi
+  require_cmd launchctl || return
+
+  local label
+  for label in ai.itsup.bringup ai.itsup.apply ai.itsup.backup ai.itsup.api; do
+    if launchctl print "gui/$(id -u "${ITSUP_USER}")/${label}" >/dev/null 2>&1; then
+      ok "${label} is registered with launchd"
+    else
+      fail "${label} is not registered with launchd"
     fi
   done
 }
@@ -139,8 +198,16 @@ check_docker() {
     return
   fi
 
-  local bad
-  bad="$(docker ps --filter health=unhealthy --filter status=restarting --format '{{.Names}} {{.Status}}' || true)"
+  local unhealthy restarting bad
+  if ! unhealthy="$(docker ps --filter health=unhealthy --format '{{.Names}} {{.Status}}')"; then
+    fail "unhealthy-container query failed"
+    return
+  fi
+  if ! restarting="$(docker ps --filter status=restarting --format '{{.Names}} {{.Status}}')"; then
+    fail "restarting-container query failed"
+    return
+  fi
+  bad="$(printf '%s\n%s\n' "${unhealthy}" "${restarting}" | awk 'NF && !seen[$0]++')"
   if [ -n "${bad}" ]; then
     fail "containers unhealthy or restarting: ${bad//$'\n'/, }"
   else
@@ -172,20 +239,29 @@ check_adguard_dns() {
   require_cmd docker || return
 
   local address adguard ports
-  address="$(host_ip)"
+  if ! address="$(host_ip)"; then
+    fail "SSH_HOST lookup failed"
+    return
+  fi
   if [ -z "${address}" ]; then
     fail "SSH_HOST is not configured"
     return
   fi
 
-  adguard="$(find_container '^adguard-.*adguard.*')"
+  if ! adguard="$(find_container '^adguard-.*adguard.*')"; then
+    fail "AdGuard container query failed"
+    return
+  fi
   if [ -z "${adguard}" ]; then
     fail "AdGuard container is not running"
     return
   fi
   ok "AdGuard container is running (${adguard})"
 
-  ports="$(docker inspect "${adguard}" --format '{{range $port, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println $port .HostIp .HostPort}}{{end}}{{end}}')"
+  if ! ports="$(docker inspect "${adguard}" --format '{{range $port, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println $port .HostIp .HostPort}}{{end}}{{end}}')"; then
+    fail "AdGuard published-port query failed"
+    return
+  fi
   if grep -qx "53/tcp ${address} 53" <<<"${ports}" && grep -qx "53/udp ${address} 53" <<<"${ports}"; then
     ok "AdGuard DNS is bound to ${address}:53"
   else
@@ -214,14 +290,20 @@ check_traefik() {
   require_cmd docker || return
 
   local traefik health
-  traefik="$(find_container 'traefik')"
+  if ! traefik="$(find_container 'traefik')"; then
+    fail "Traefik container query failed"
+    return
+  fi
   if [ -z "${traefik}" ]; then
     fail "Traefik container is not running"
     return
   fi
   ok "Traefik container is running (${traefik})"
 
-  health="$(docker inspect "${traefik}" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')"
+  if ! health="$(docker inspect "${traefik}" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')"; then
+    fail "Traefik health query failed"
+    return
+  fi
   if [ "${health}" = "healthy" ]; then
     ok "Traefik container health is healthy"
   else
@@ -241,6 +323,7 @@ check_host_gate
 check_config
 check_unit_drift
 check_systemd
+check_launchd
 check_docker
 check_nonlocal_bind
 check_adguard_dns
