@@ -100,19 +100,23 @@ are not part of the `logs/` directory contract.
   `instrukt_ai_logging.cli:main`) tails the diagnostic folder: folder- and
   rotation-aware, with `--since`, `--include <source>`, and `--grep`. itsUP
   carries no diagnostic-log viewer of its own.
+<!-- planned-change:itsup-logs-router -->
 - **Operators** via direct `tail`/`zcat` (e.g. `logs/access.log` raw, or piped
   through `bin/format-logs.py`).
+<!-- change:itsup-logs-router -->
+- **Operators** via direct `tail`/`zcat` on `logs/access.log`.
+<!-- /planned-change:itsup-logs-router -->
 <!-- planned:itsup-logs-router -->
 - **`itsup logs <target>`** — the itsUP-side front door to these sinks, host-only
   like the other runtime commands because every backend it reads exists only on
   the container host. It routes each target to whichever backend already holds it:
   the supervised units (`api`, `monitor`, `bringup`, `apply`, `backup`,
   `healthcheck`) to their journal (`journalctl -u <unit>` on Linux, the launchd
-  agent's `StandardOutPath` file on macOS), and `access` to `logs/access.log`
-  rendered in-process through `lib/access_log.py`. Bare `itsup logs` lists the
-  targets with descriptions; `--follow`, `--grep`, and `--since` narrow the read,
-  with `--since` refused for a macOS unit target whose supervisor-less stream
-  carries no per-line time. No target exists for an upstream project — those stay
+  agent's `StandardOutPath` file on macOS), and `access` to `logs/access.log`,
+  whose lines it emits verbatim. Bare `itsup logs` lists the targets with
+  descriptions; `--follow`, `--grep`, and `--since` narrow the read, with
+  `--since` refused for a macOS unit target whose supervisor-less stream carries
+  no per-line time. No target exists for an upstream project — those stay
   `docker`-led via `itsup svc`/`proxy`/`dns` — and none for interactive CLI runs.
 <!-- /planned:itsup-logs-router -->
 
@@ -150,6 +154,24 @@ are not part of the `logs/` directory contract.
 - **`logs/access.log` has exactly one writer.** Traefik owns it, in JSON, because
   CrowdSec parses it for threat detection; a second writer in a second format
   would corrupt the feed. The API's access records go to its own journal.
+<!-- planned:itsup-logs-router -->
+- **The access log is read as-is; itsUP renders no access line.** Every reader —
+  operator `tail`, `itsup logs access`, CrowdSec — sees Traefik's JSON record
+  byte-for-byte. itsUP ships no formatter for it, because the record's single
+  format is the thing that makes it a parseable threat-detection feed, and a
+  second rendering of the same line is a second format to keep in step. Selecting
+  which lines to emit is not rendering: `itsup logs access --grep` matches a regex
+  against the raw line and `--since` reads the record's own timestamp field
+  (`time`, else `StartUTC` — RFC3339, emitted by default because the generated
+  static config declares no `accessLog.fields` drop), then emits the line
+  unchanged.
+- **The access log rotates in place, so `logs/access.log` is stable across
+  rotation for every reader on it.** The host's daily logrotate run rotates it
+  with `copytruncate`: Traefik holds the file open with `O_APPEND` and takes no
+  reopen signal, so an inode that survives rotation is what keeps the writer on
+  the live file instead of appending to an unlinked one. The rotation config and
+  its install path belong to `project/spec/runtime-operations`.
+<!-- /planned:itsup-logs-router -->
 - **`logs/monitor.log` is the monitor's restart watermark, not diagnostics.** The
   `[<ts>] Started` marker written by `bin/monitor.py` and read by
   `monitor/core.py:_get_last_processed_timestamp` is application state,
@@ -177,6 +199,7 @@ API's equivalent is `~/Library/Logs/itsup.api.log`.
 under `instrukt-ai/itsup/` and follows them (rotation-aware). `--include backup`
 narrows to `backup.log`; with no filter it merges every source in the folder.
 
+<!-- planned-change:itsup-logs-router -->
 **Viewing the access log:** `tail`/`zcat` on `logs/access.log`, optionally piped
 through `bin/format-logs.py` for the flat human-readable line.
 
@@ -186,6 +209,11 @@ DURATION [overhead] SIZE [retries] [TLS]` (`bin/format-logs.py:24-94`). Duration
 is ns→ms (`Duration` field ÷ 1e6, `bin/format-logs.py:19-21,52-56`), the
 `@docker` suffix is stripped from `ServiceName`, overhead is shown only when
 > 0.5ms, and non-JSON lines pass through unchanged (`bin/format-logs.py:111-113`).
+<!-- change:itsup-logs-router -->
+**Viewing the access log:** `itsup logs access` on the container host, or
+`tail`/`zcat` on `logs/access.log` directly. Either way the JSON record is what
+the reader sees; nothing reformats it.
+<!-- /planned-change:itsup-logs-router -->
 
 **Threat detection:** Traefik appends each request to `logs/access.log` → the
 CrowdSec acquisition source (`crowdsec/acquis.yml`) parses it under the `traefik`
@@ -218,10 +246,20 @@ and operator banners are unaffected.
   marker, `monitor/core.py:_get_last_processed_timestamp` returns `None` and the
   monitor reprocesses the docker-log window from scratch — correct, just less
   efficient.
+<!-- planned-change:itsup-logs-router -->
 - **Malformed access-log line.** `bin/format-logs.py` catches
   `json.JSONDecodeError` and passes the raw line through (`:111-113`); a parse
   exception inside a valid JSON object yields a `[PARSE ERROR: ...]` prefix
   rather than crashing the stream (`:96-98`).
+<!-- change:itsup-logs-router -->
+- **Access-log line with no readable timestamp.** Nothing parses the record on the
+  read path, so a malformed line reaches every reader intact and reading never
+  fails on it. Only a time filter needs the field: under `itsup logs access
+  --since`, a line whose `time`/`StartUTC` is absent or unparseable is **excluded**
+  — the reader cannot prove it falls inside the requested window, and admitting it
+  would silently widen the window the operator asked for. Without `--since` the
+  same line is emitted like any other.
+<!-- /planned-change:itsup-logs-router -->
 - **Container removal.** Container (Docker json-file) logs are lost when the
   container is removed; only the `logs/` files, the journal, and the instrukt-ai
   diagnostic folder persist.
