@@ -131,8 +131,9 @@ rather than left to the parser's own usage exit.
 
 **Targets and their backends.** Six supervised-unit targets — `api`, `monitor`,
 `bringup`, `apply`, `backup`, `healthcheck` — plus the file-backed `access`
-(Traefik's JSON access log under `logs/`, rendered by the same in-process
-renderer `bin/format-logs.py` uses).
+(Traefik's JSON access log under `logs/`, emitted verbatim: the router is a raw
+passthrough reader of that file and formats nothing, because the record's single
+JSON format is what makes it CrowdSec's parseable feed).
 The unit targets resolve per platform, following the supervision contract in
 `project/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
 launchd agent's `StandardOutPath`, read from the installed agent's own plist so
@@ -146,24 +147,31 @@ are observed live, and their diagnostic file is read with `instrukt-ai-logs
 itsup`.
 
 **One option surface, translated per backend.** `-f/--follow`, `--since`, and
-`--grep` mean the same thing on every target, and both filters apply to the
-**operator-visible line** — the text the command prints — so a pattern matches
-what the operator reads rather than an underlying representation they never see.
+`--grep` mean the same thing on every target. They **select** which lines are
+emitted; none of them changes a line's content, on any backend. Every line the
+router prints is the line its backend produced.
 
 - `--since` takes the duration grammar `<n>{s,m,h,d}`. The journal's own
   `--since` rejects a bare duration, so the router parses the duration and hands
-  the journal an absolute timestamp; a file backend compares the same cutoff
-  against the time its own rendered line carries.
+  the journal an absolute timestamp. The `access` backend has no such grammar to
+  delegate to, so the router applies the same cutoff itself, reading each JSON
+  record's own timestamp field (`time`, else `StartUTC`) to decide inclusion and
+  then emitting the record unchanged. A record whose timestamp field is absent or
+  unparseable is excluded: the router cannot prove it is inside the window, and
+  admitting it would silently widen the window that was asked for.
 - `--grep` is a case-sensitive Python regular expression, applied by the router
-  itself to each complete line just before it is printed — on every backend. The
-  journal's own `-g` is not used: it matches only the record's message field,
-  while the line the operator sees also carries the supervisor's timestamp and
-  identity, and its smart-case default would make the same pattern mean
-  different things on different backends.
+  itself to each complete line just before it is printed — on every backend. For
+  `access` that line is the raw JSON record, so a pattern can match a field name
+  as readily as a value. The journal's own `-g` is not used: it matches only the
+  record's message field, while the line the operator sees also carries the
+  supervisor's timestamp and identity, and its smart-case default would make the
+  same pattern mean different things on different backends.
 - `--follow` is future-only everywhere: it streams what arrives after the
   command starts and never replays history first. The journal is asked for
   `-n 0` alongside `-f` so it does not emit its recent window, matching the
-  file backend, which follows from the end of the file.
+  file backend, which follows from the end of the file. Following `access`
+  survives the host's `copytruncate` rotation of that file
+  (`project/design/logging`).
 - An invalid duration or an invalid regex is rejected at the option boundary with
   exit 1 before any backend is reached.
 
@@ -173,8 +181,8 @@ launchd does not. A launchd agent's `StandardOutPath` captures the daemon's
 stream verbatim, and that stream deliberately carries no timestamp because the
 supervisor is expected to add one. So `--since` against a macOS unit target exits
 1 naming that reason, while `--follow` and `--grep` remain available there. The
-`access` target is unaffected on either platform: its rendered line leads with
-Traefik's own time.
+`access` target is unaffected on either platform: its record carries its own
+RFC3339 timestamp field, which is what the router reads.
 
 **Every unavailability path refuses, never degrades.** A unit target with no
 reader on this platform, and a unit target whose unit is not installed, each exit
