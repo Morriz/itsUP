@@ -5,10 +5,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-ITSUP="${REPO_ROOT}/.venv/bin/itsup"
-PYTHON="${REPO_ROOT}/.venv/bin/python"
 ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
 ITSUP_GROUP="${ITSUP_GROUP:-$(id -gn "${ITSUP_USER}")}"
+ITSUP_ROOT="${ITSUP_ROOT:-${REPO_ROOT}}"
+ITSUP="${ITSUP_ROOT}/.venv/bin/itsup"
+PYTHON="${ITSUP_ROOT}/.venv/bin/python"
 ITSUP_HOME="${HOME:-/Users/${ITSUP_USER}}"
 
 failures=0
@@ -70,7 +71,7 @@ render_template() {
   sed \
     -e "s|{{USER}}|${ITSUP_USER}|g" \
     -e "s|{{GROUP}}|${ITSUP_GROUP}|g" \
-    -e "s|{{ROOT}}|${REPO_ROOT}|g" \
+    -e "s|{{ROOT}}|${ITSUP_ROOT}|g" \
     -e "s|{{HOME}}|${ITSUP_HOME}|g" \
     "${template_file}"
 }
@@ -80,7 +81,7 @@ check_host_gate() {
     fail "missing Python venv: ${PYTHON}"
     return
   fi
-  if PYTHONPATH="${REPO_ROOT}" "${PYTHON}" -c "from lib.host_gate import require_host; require_host('make status')" >/dev/null 2>&1; then
+  if PYTHONPATH="${ITSUP_ROOT}" "${PYTHON}" -c "from lib.host_gate import require_host; require_host('make status')" >/dev/null 2>&1; then
     ok "host identity matches SSH_HOST"
   else
     fail "host identity does not match SSH_HOST"
@@ -178,13 +179,24 @@ check_launchd() {
   fi
   require_cmd launchctl || return
 
-  local label
+  local label details
   for label in ai.itsup.bringup ai.itsup.apply ai.itsup.backup ai.itsup.api; do
-    if launchctl print "gui/$(id -u "${ITSUP_USER}")/${label}" >/dev/null 2>&1; then
-      ok "${label} is registered with launchd"
-    else
+    if ! details="$(launchctl print "gui/$(id -u "${ITSUP_USER}")/${label}" 2>/dev/null)"; then
       fail "${label} is not registered with launchd"
+      continue
     fi
+    ok "${label} is registered with launchd"
+
+    # Apply and backup are calendar jobs; only resident daemons should be running.
+    case "${label}" in
+      ai.itsup.bringup|ai.itsup.api)
+        if grep -Eq 'state = running|pid = [0-9]+' <<<"${details}"; then
+          ok "${label} is running"
+        else
+          fail "${label} is not running"
+        fi
+        ;;
+    esac
   done
 }
 

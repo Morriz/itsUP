@@ -114,6 +114,12 @@ caveats).
   before changing it, including the original file content when the file already
   existed; `make uninstall-runtime` validates and restores that recorded state
   before deleting the recovery record.
+  Recovery records are versioned. A legacy record that says a sysctl file
+  existed but lacks the companion content/metadata is intentionally
+  unrecoverable by automation: install and uninstall both validate the recovery
+  record before mutating the host, then fail closed and require an operator to
+  restore or accept the host file state manually, remove the stale record, and
+  re-run.
   While the cutover is fresh or `attempting` it reloads the bringup agent even
   when its plist is unchanged — the only launchd-owned way to make a resident
   guardian execute a new run — then waits for the record to reach `complete`,
