@@ -62,7 +62,7 @@ services:
       - CROWDSEC_CAPI_PASSWORD=${CROWDSEC_CAPI_PASSWORD:?}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:?}
     healthcheck:
-      test: ["CMD-SHELL", "test ! -f /tmp/drain && traefik healthcheck"]
+      test: ["CMD-SHELL", "test ! -f /tmp/drain && wget -q -O /dev/null -T 5 http://127.0.0.1:8082/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
