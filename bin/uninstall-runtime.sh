@@ -45,6 +45,8 @@ if [ "${PLATFORM}" = "macos" ]; then
   SERVICE_DIR="${SERVICE_DIR:-${ITSUP_HOME}/Library/LaunchAgents}"
 else
   SERVICE_DIR="${SERVICE_DIR:-/etc/systemd/system}"
+  SYSCTL_DEST="${SYSCTL_DEST:-/etc/sysctl.d/99-itsup-nonlocal-bind.conf}"
+  SYSCTL_STATE_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
 fi
 
 # ── Step 1: disable the resurrection sources first ─────────────────────────
@@ -305,6 +307,47 @@ remove_systemd_units() {
   fi
 }
 
+restore_nonlocal_bind_linux() {
+  if [ ! -r "${SYSCTL_STATE_FILE}" ]; then
+    echo "No ip_nonlocal_bind state file found; leaving host sysctl policy unchanged."
+    return
+  fi
+
+  local file_present runtime_value
+  file_present="$(awk -F= '$1 == "file_present" { print $2 }' "${SYSCTL_STATE_FILE}")"
+  runtime_value="$(awk -F= '$1 == "runtime_value" { print $2 }' "${SYSCTL_STATE_FILE}")"
+
+  case "${file_present}" in
+    0)
+      if [ -e "${SYSCTL_DEST}" ]; then
+        echo "Removing ${SYSCTL_DEST}..."
+        sudo rm -f "${SYSCTL_DEST}"
+      fi
+      ;;
+    1) ;;
+    *)
+      echo "⚠ ${SYSCTL_STATE_FILE} has invalid file_present=${file_present}; leaving ${SYSCTL_DEST} unchanged."
+      ;;
+  esac
+
+  case "${runtime_value}" in
+    0|1)
+      echo "Restoring net.ipv4.ip_nonlocal_bind=${runtime_value}..."
+      write_nonlocal_bind_linux "${runtime_value}"
+      ;;
+    *)
+      echo "⚠ ${SYSCTL_STATE_FILE} has invalid runtime_value=${runtime_value}; leaving runtime sysctl unchanged."
+      ;;
+  esac
+}
+
+write_nonlocal_bind_linux() {
+  local value="$1"
+  sudo /sbin/sysctl -w "net.ipv4.ip_nonlocal_bind=${value}" >/dev/null 2>&1 \
+    || sudo /usr/sbin/sysctl -w "net.ipv4.ip_nonlocal_bind=${value}" >/dev/null 2>&1 \
+    || sudo sysctl -w "net.ipv4.ip_nonlocal_bind=${value}" >/dev/null
+}
+
 remove_launchd_agents() {
   local agents=("ai.itsup.bringup" "ai.itsup.apply" "ai.itsup.backup" "ai.itsup.api")
   for label in "${agents[@]}"; do
@@ -339,6 +382,7 @@ case "${PLATFORM}" in
     fi
     teardown_stack || abort_incomplete
     if command -v systemctl >/dev/null 2>&1; then remove_systemd_units; fi
+    restore_nonlocal_bind_linux
     ;;
   macos)
     bootout_launchd_agents
@@ -348,6 +392,7 @@ case "${PLATFORM}" in
 esac
 
 rm -f "${ITSUP_ROOT}/.itsup-supervision-state"
+rm -f "${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
 
 echo ""
 echo "✅ itsUP runtime decommissioned."

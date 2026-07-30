@@ -5,6 +5,7 @@ __pycache__
 !samples/.env
 .itsup-monitor.env
 .itsup-supervision-state
+.itsup-nonlocal-bind-state
 .history
 .*_cache
 .venv
