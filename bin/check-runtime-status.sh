@@ -27,6 +27,10 @@ skip() {
   printf 'SKIP %s\n' "$*"
 }
 
+warn() {
+  printf 'WARN %s\n' "$*" >&2
+}
+
 have() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -97,6 +101,37 @@ check_config() {
     ok "project configuration validates"
   else
     fail "project configuration validation failed"
+  fi
+}
+
+check_alert_command() {
+  if [ ! -x "${PYTHON}" ]; then
+    fail "missing Python venv: ${PYTHON}"
+    return
+  fi
+
+  local result
+  if ! result="$(PYTHONPATH="${ITSUP_ROOT}" "${PYTHON}" - <<'PY'
+from lib.alerting import _resolve_command_template
+from lib.data import load_itsup_config
+
+template = _resolve_command_template(load_itsup_config())
+if template is None:
+    print("missing")
+else:
+    print(f"configured:{template[0]}")
+PY
+  )"; then
+    fail "alert.command configuration check failed: ${result//$'\n'/, }"
+    return
+  fi
+
+  if [ "${result}" = "missing" ]; then
+    warn "alert.command is not configured; failure alerts will be suppressed"
+  elif [[ "${result}" == configured:* ]]; then
+    ok "alert.command is configured (${result#configured:})"
+  else
+    fail "alert.command configuration check returned unexpected result: ${result//$'\n'/, }"
   fi
 }
 
@@ -395,6 +430,7 @@ cd "${REPO_ROOT}"
 
 check_host_gate
 check_config
+check_alert_command
 check_unit_drift
 check_systemd
 check_launchd
