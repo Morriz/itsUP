@@ -1,4 +1,4 @@
-.PHONY: help install install-runtime uninstall-runtime test test-integration test-all lint format clean
+.PHONY: help install install-runtime uninstall-runtime status test test-integration test-all lint format clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -17,6 +17,9 @@ install-runtime: ## Make this host a live deployment: install host integration (
 
 uninstall-runtime: ## Decommission this host: stop the whole stack, flush monitor rules, remove host integration
 	@./bin/uninstall-runtime.sh
+
+status: ## Check live host runtime health without mutating the host
+	@./bin/check-runtime-status.sh
 
 test: ## Fast test gate (excludes the integration tier)
 	@./bin/test.sh
