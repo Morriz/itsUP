@@ -329,6 +329,58 @@ check_traefik() {
   fi
 }
 
+check_openvpn() {
+  require_cmd docker || return
+
+  if [ ! -f "${ITSUP_ROOT}/projects/vpn/docker-compose.yml" ]; then
+    skip "OpenVPN project is not configured"
+    return
+  fi
+
+  local address openvpn ports health
+  if ! address="$(host_ip)"; then
+    fail "SSH_HOST lookup failed"
+    return
+  fi
+  if [ -z "${address}" ]; then
+    fail "SSH_HOST is not configured"
+    return
+  fi
+
+  if ! openvpn="$(find_container '^vpn-.*openvpn.*')"; then
+    fail "OpenVPN container query failed"
+    return
+  fi
+  if [ -z "${openvpn}" ]; then
+    fail "OpenVPN container is not running"
+    return
+  fi
+  ok "OpenVPN container is running (${openvpn})"
+
+  if ! health="$(docker inspect "${openvpn}" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')"; then
+    fail "OpenVPN health query failed"
+    return
+  fi
+  if [ "${health}" = "healthy" ]; then
+    ok "OpenVPN container health is healthy"
+  elif [ "${health}" = "none" ]; then
+    skip "OpenVPN container has no healthcheck"
+  else
+    fail "OpenVPN container health is ${health}"
+  fi
+
+  if ! ports="$(docker inspect "${openvpn}" --format '{{range $port, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println $port .HostIp .HostPort}}{{end}}{{end}}')"; then
+    fail "OpenVPN published-port query failed"
+    return
+  fi
+  if grep -qx "1194/udp ${address} 1194" <<<"${ports}"; then
+    ok "OpenVPN UDP is bound directly to ${address}:1194"
+  else
+    fail "OpenVPN UDP is not bound directly to ${address}:1194"
+    printf '%s\n' "${ports}" >&2
+  fi
+}
+
 cd "${REPO_ROOT}"
 
 check_host_gate
@@ -340,6 +392,7 @@ check_docker
 check_nonlocal_bind
 check_adguard_dns
 check_traefik
+check_openvpn
 
 if [ "${failures}" -gt 0 ]; then
   printf 'Runtime status failed: %d issue(s)\n' "${failures}" >&2
