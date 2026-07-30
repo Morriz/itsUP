@@ -35,6 +35,7 @@ else
   SYSCTL_DEST="${SYSCTL_DEST:-/etc/sysctl.d/99-itsup-nonlocal-bind.conf}"
   SYSCTL_STATE_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
   SYSCTL_STATE_CONTENT_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state.content"
+  . "${REPO_ROOT}/bin/lib/nonlocal-bind-state.sh"
 fi
 
 # ── Template rendering ─────────────────────────────────────────────────────
@@ -410,8 +411,8 @@ ensure_nonlocal_bind_linux() {
 }
 
 capture_nonlocal_bind_state_linux() {
-  if [ -e "${SYSCTL_STATE_FILE}" ]; then
-    validate_existing_nonlocal_bind_state_linux
+  if [ -e "${SYSCTL_STATE_FILE}" ] || [ -L "${SYSCTL_STATE_FILE}" ]; then
+    validate_nonlocal_bind_state_linux || exit 1
     return
   fi
   local file_present=0
@@ -465,50 +466,6 @@ capture_nonlocal_bind_state_linux() {
     rm -f "${SYSCTL_STATE_CONTENT_FILE}"
   fi
   mv "${temporary}" "${SYSCTL_STATE_FILE}"
-}
-
-validate_existing_nonlocal_bind_state_linux() {
-  if [ -L "${SYSCTL_STATE_FILE}" ]; then
-    echo "ERROR: ${SYSCTL_STATE_FILE} is a symlink; refusing to trust recovery state" >&2
-    exit 1
-  fi
-  if [ ! -r "${SYSCTL_STATE_FILE}" ]; then
-    echo "ERROR: ${SYSCTL_STATE_FILE} exists but is not readable" >&2
-    exit 1
-  fi
-
-  local state_version file_present runtime_value
-  state_version="$(awk -F= '$1 == "state_version" { print $2 }' "${SYSCTL_STATE_FILE}")"
-  file_present="$(awk -F= '$1 == "file_present" { print $2 }' "${SYSCTL_STATE_FILE}")"
-  runtime_value="$(awk -F= '$1 == "runtime_value" { print $2 }' "${SYSCTL_STATE_FILE}")"
-
-  case "${file_present}" in
-    0|1) ;;
-    *)
-      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid file_present=${file_present}" >&2
-      exit 1
-      ;;
-  esac
-  case "${runtime_value}" in
-    0|1) ;;
-    *)
-      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid runtime_value=${runtime_value}" >&2
-      exit 1
-      ;;
-  esac
-
-  if [ "${file_present}" = "0" ]; then
-    return
-  fi
-  if [ "${state_version}" != "2" ]; then
-    echo "ERROR: legacy ${SYSCTL_STATE_FILE} cannot restore original ${SYSCTL_DEST} content." >&2
-    echo "Resolve manually, then remove ${SYSCTL_STATE_FILE} before re-running make install-runtime." >&2
-    exit 1
-  fi
-  if [ -L "${SYSCTL_STATE_CONTENT_FILE}" ] || [ ! -f "${SYSCTL_STATE_CONTENT_FILE}" ] || [ ! -r "${SYSCTL_STATE_CONTENT_FILE}" ]; then
-    echo "ERROR: ${SYSCTL_STATE_FILE} requires a readable regular ${SYSCTL_STATE_CONTENT_FILE}" >&2
-    exit 1
-  fi
 }
 
 read_nonlocal_bind_linux() {
@@ -676,6 +633,9 @@ install_launchd_agents() {
 
 # ── Dispatch ───────────────────────────────────────────────────────────────
 
+if [ "${PLATFORM}" = "linux" ]; then
+  validate_nonlocal_bind_state_linux || exit 1
+fi
 ensure_host_prereqs
 require_unambiguous_cutover
 sweep_legacy_daemons
