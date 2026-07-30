@@ -111,7 +111,9 @@ caveats).
   LAN-address-bound DNS containers before DHCP has assigned the LAN address,
   without widening DNS publication to every host interface. The installer
   records the pre-install file/runtime state in `.itsup-nonlocal-bind-state`
-  before changing it; `make uninstall-runtime` restores that recorded state.
+  before changing it, including the original file content when the file already
+  existed; `make uninstall-runtime` validates and restores that recorded state
+  before deleting the recovery record.
   While the cutover is fresh or `attempting` it reloads the bringup agent even
   when its plist is unchanged — the only launchd-owned way to make a resident
   guardian execute a new run — then waits for the record to reach `complete`,

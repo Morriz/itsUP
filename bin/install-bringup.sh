@@ -34,6 +34,7 @@ else
   SYSCTL_TEMPLATE="${REPO_ROOT}/samples/sysctl/99-itsup-nonlocal-bind.conf"
   SYSCTL_DEST="${SYSCTL_DEST:-/etc/sysctl.d/99-itsup-nonlocal-bind.conf}"
   SYSCTL_STATE_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
+  SYSCTL_STATE_CONTENT_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state.content"
 fi
 
 # ── Template rendering ─────────────────────────────────────────────────────
@@ -413,14 +414,43 @@ capture_nonlocal_bind_state_linux() {
     return
   fi
   local file_present=0
-  [ -e "${SYSCTL_DEST}" ] && file_present=1
+  if [ -e "${SYSCTL_DEST}" ]; then
+    if [ ! -f "${SYSCTL_DEST}" ]; then
+      echo "ERROR: ${SYSCTL_DEST} exists but is not a regular file" >&2
+      exit 1
+    fi
+    file_present=1
+  fi
   local runtime_value
   runtime_value="$(read_nonlocal_bind_linux)"
   local temporary="${SYSCTL_STATE_FILE}.tmp"
+  local content_temporary="${SYSCTL_STATE_CONTENT_FILE}.tmp"
+  local file_mode="" file_owner="" file_group=""
+  rm -f "${content_temporary}"
+  if [ "${file_present}" = "1" ]; then
+    file_mode="$(stat -c '%a' "${SYSCTL_DEST}")"
+    file_owner="$(stat -c '%u' "${SYSCTL_DEST}")"
+    file_group="$(stat -c '%g' "${SYSCTL_DEST}")"
+    if ! sudo cat "${SYSCTL_DEST}" > "${content_temporary}"; then
+      echo "ERROR: failed to capture original ${SYSCTL_DEST}" >&2
+      rm -f "${content_temporary}"
+      exit 1
+    fi
+  fi
   {
     printf 'file_present=%s\n' "${file_present}"
     printf 'runtime_value=%s\n' "${runtime_value}"
+    if [ "${file_present}" = "1" ]; then
+      printf 'file_mode=%s\n' "${file_mode}"
+      printf 'file_owner=%s\n' "${file_owner}"
+      printf 'file_group=%s\n' "${file_group}"
+    fi
   } > "${temporary}"
+  if [ "${file_present}" = "1" ]; then
+    mv "${content_temporary}" "${SYSCTL_STATE_CONTENT_FILE}"
+  else
+    rm -f "${SYSCTL_STATE_CONTENT_FILE}"
+  fi
   mv "${temporary}" "${SYSCTL_STATE_FILE}"
 }
 
