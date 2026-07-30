@@ -4,6 +4,8 @@ After=docker.service network-online.target
 Requires=docker.service network-online.target
 PartOf=docker.service
 OnFailure=itsup-alert@%n.service
+StartLimitIntervalSec=10min
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
@@ -29,6 +31,8 @@ ExecStartPost=/bin/sh -c 'touch "$STATE_DIRECTORY/apply-success"'
 ExecStop={{ROOT}}/.venv/bin/itsup down
 TimeoutStopSec=120
 RemainAfterExit=yes
+Restart=on-failure
+RestartSec=30
 
 [Install]
 WantedBy=multi-user.target

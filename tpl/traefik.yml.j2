@@ -29,7 +29,7 @@ experimental:
       version: v1.6.0
 
 ping:
-  entryPoint: web
+  entryPoint: ping
 
 
 providers:
@@ -42,6 +42,9 @@ providers:
     watch: true
 
 entryPoints:
+  ping:
+    address: '127.0.0.1:8082'
+
   web:
     address: ':8080'
     reusePort: true
