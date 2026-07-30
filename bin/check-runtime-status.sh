@@ -233,7 +233,7 @@ check_nonlocal_bind() {
     return
   fi
 
-  local sysctl_bin value
+  local sysctl_bin value sysctl_file sysctl_template
   if ! sysctl_bin="$(find_cmd sysctl /sbin/sysctl /usr/sbin/sysctl)"; then
     fail "missing command: sysctl"
     return
@@ -244,6 +244,16 @@ check_nonlocal_bind() {
     ok "net.ipv4.ip_nonlocal_bind is active"
   else
     fail "net.ipv4.ip_nonlocal_bind is ${value:-unreadable}"
+  fi
+
+  sysctl_file="/etc/sysctl.d/99-itsup-nonlocal-bind.conf"
+  sysctl_template="${REPO_ROOT}/samples/sysctl/99-itsup-nonlocal-bind.conf"
+  if [ ! -r "${sysctl_file}" ]; then
+    fail "persistent ip_nonlocal_bind sysctl file is missing: ${sysctl_file}"
+  elif cmp -s "${sysctl_template}" "${sysctl_file}"; then
+    ok "persistent ip_nonlocal_bind sysctl file matches template"
+  else
+    fail "persistent ip_nonlocal_bind sysctl file drifted: ${sysctl_file}"
   fi
 }
 

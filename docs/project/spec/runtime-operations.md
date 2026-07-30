@@ -15,8 +15,8 @@ dependency-only `make install` — as a systemd unit/timer (Linux) or launchd jo
 (macOS). The monitor is Linux-only. `make status` is the read-only host runtime
 health check for the same installed surface: host identity, configuration,
 supervisor drift, systemd/launchd state, Docker health, DNS bind/resolution,
-Traefik health, and the OpenVPN direct UDP bind when the VPN project is
-configured.
+runtime and persistent DNS-bind sysctl state, Traefik health, and the OpenVPN
+direct UDP bind when the VPN project is configured.
 
 This spec is the single place an operator goes when one of those operations
 fails: for each operation it records what fires it, how often, what it actually
