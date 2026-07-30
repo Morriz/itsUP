@@ -1,4 +1,4 @@
-.PHONY: help install install-runtime uninstall-runtime status test test-integration test-all lint format clean
+.PHONY: help install install-runtime uninstall-runtime restart status test test-integration test-all lint format clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -17,6 +17,10 @@ install-runtime: ## Make this host a live deployment: install host integration (
 
 uninstall-runtime: ## Decommission this host: stop the whole stack, flush monitor rules, remove host integration
 	@./bin/uninstall-runtime.sh
+
+restart: ## Restart supervised itsUP daemons without stopping containers
+	@test -x .venv/bin/python || { echo "Run 'make install' first — no .venv/bin/python found"; exit 1; }
+	@.venv/bin/python -c "from lib import supervisor; from lib.supervisor import Unit; supervisor.restart(Unit.API); supervisor.supports(Unit.MONITOR) and supervisor.restart(Unit.MONITOR)"
 
 status: ## Check live host runtime health without mutating the host
 	@./bin/check-runtime-status.sh

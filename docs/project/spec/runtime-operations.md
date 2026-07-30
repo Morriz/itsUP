@@ -20,6 +20,9 @@ direct UDP bind when the VPN project is configured.
 `bin/wait-for-runtime-status.sh` is the non-mutating post-reboot verifier: it
 waits for the configured host to answer SSH, then runs the installed `make
 status` there. It never initiates a reboot.
+`make restart` reloads the supervised API and monitor daemons without stopping
+containers; use it after code-only runtime updates that need the daemon process
+to re-read installed Python code.
 
 This spec is the single place an operator goes when one of those operations
 fails: for each operation it records what fires it, how often, what it actually
