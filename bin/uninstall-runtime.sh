@@ -46,6 +46,7 @@ else
   SERVICE_DIR="${SERVICE_DIR:-/etc/systemd/system}"
   SYSCTL_DEST="${SYSCTL_DEST:-/etc/sysctl.d/99-itsup-nonlocal-bind.conf}"
   SYSCTL_STATE_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
+  SYSCTL_STATE_CONTENT_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state.content"
 fi
 
 # ── Step 1: disable the resurrection sources first ─────────────────────────
@@ -213,11 +214,62 @@ remove_systemd_units() {
   fi
 }
 
+validate_nonlocal_bind_state_linux() {
+  if [ ! -r "${SYSCTL_STATE_FILE}" ]; then
+    return 0
+  fi
+
+  local file_present runtime_value
+  file_present="$(awk -F= '$1 == "file_present" { print $2 }' "${SYSCTL_STATE_FILE}")"
+  runtime_value="$(awk -F= '$1 == "runtime_value" { print $2 }' "${SYSCTL_STATE_FILE}")"
+
+  case "${file_present}" in
+    0|1) ;;
+    *)
+      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid file_present=${file_present}" >&2
+      return 1
+      ;;
+  esac
+
+  case "${runtime_value}" in
+    0|1) ;;
+    *)
+      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid runtime_value=${runtime_value}" >&2
+      return 1
+      ;;
+  esac
+
+  if [ "${file_present}" = "1" ] && [ ! -r "${SYSCTL_STATE_CONTENT_FILE}" ]; then
+    echo "ERROR: ${SYSCTL_STATE_FILE} requires readable ${SYSCTL_STATE_CONTENT_FILE}" >&2
+    return 1
+  fi
+  if [ "${file_present}" = "1" ]; then
+    local file_mode file_owner file_group
+    file_mode="$(awk -F= '$1 == "file_mode" { print $2 }' "${SYSCTL_STATE_FILE}")"
+    file_owner="$(awk -F= '$1 == "file_owner" { print $2 }' "${SYSCTL_STATE_FILE}")"
+    file_group="$(awk -F= '$1 == "file_group" { print $2 }' "${SYSCTL_STATE_FILE}")"
+    if ! grep -Eq '^[0-7]{3,4}$' <<<"${file_mode}"; then
+      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid file_mode=${file_mode}" >&2
+      return 1
+    fi
+    if ! grep -Eq '^[0-9]+$' <<<"${file_owner}"; then
+      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid file_owner=${file_owner}" >&2
+      return 1
+    fi
+    if ! grep -Eq '^[0-9]+$' <<<"${file_group}"; then
+      echo "ERROR: ${SYSCTL_STATE_FILE} has invalid file_group=${file_group}" >&2
+      return 1
+    fi
+  fi
+}
+
 restore_nonlocal_bind_linux() {
   if [ ! -r "${SYSCTL_STATE_FILE}" ]; then
     echo "No ip_nonlocal_bind state file found; leaving host sysctl policy unchanged."
     return
   fi
+
+  validate_nonlocal_bind_state_linux
 
   local file_present runtime_value
   file_present="$(awk -F= '$1 == "file_present" { print $2 }' "${SYSCTL_STATE_FILE}")"
@@ -230,21 +282,21 @@ restore_nonlocal_bind_linux() {
         sudo rm -f "${SYSCTL_DEST}"
       fi
       ;;
-    1) ;;
-    *)
-      echo "⚠ ${SYSCTL_STATE_FILE} has invalid file_present=${file_present}; leaving ${SYSCTL_DEST} unchanged."
+    1)
+      echo "Restoring ${SYSCTL_DEST}..."
+      local temporary="${SYSCTL_DEST}.tmp.$$"
+      local file_mode file_owner file_group
+      file_mode="$(awk -F= '$1 == "file_mode" { print $2 }' "${SYSCTL_STATE_FILE}")"
+      file_owner="$(awk -F= '$1 == "file_owner" { print $2 }' "${SYSCTL_STATE_FILE}")"
+      file_group="$(awk -F= '$1 == "file_group" { print $2 }' "${SYSCTL_STATE_FILE}")"
+      sudo install -m "${file_mode}" "${SYSCTL_STATE_CONTENT_FILE}" "${temporary}"
+      sudo chown "${file_owner}:${file_group}" "${temporary}"
+      sudo mv "${temporary}" "${SYSCTL_DEST}"
       ;;
   esac
 
-  case "${runtime_value}" in
-    0|1)
-      echo "Restoring net.ipv4.ip_nonlocal_bind=${runtime_value}..."
-      write_nonlocal_bind_linux "${runtime_value}"
-      ;;
-    *)
-      echo "⚠ ${SYSCTL_STATE_FILE} has invalid runtime_value=${runtime_value}; leaving runtime sysctl unchanged."
-      ;;
-  esac
+  echo "Restoring net.ipv4.ip_nonlocal_bind=${runtime_value}..."
+  write_nonlocal_bind_linux "${runtime_value}"
 }
 
 write_nonlocal_bind_linux() {
@@ -282,6 +334,7 @@ abort_incomplete() {
 
 case "${PLATFORM}" in
   linux)
+    validate_nonlocal_bind_state_linux || abort_incomplete
     if command -v systemctl >/dev/null 2>&1; then
       disable_systemd_units
       assert_systemd_inactive || abort_incomplete
@@ -299,6 +352,7 @@ esac
 
 rm -f "${ITSUP_ROOT}/.itsup-supervision-state"
 rm -f "${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
+rm -f "${ITSUP_ROOT}/.itsup-nonlocal-bind-state.content"
 
 echo ""
 echo "✅ itsUP runtime decommissioned."
