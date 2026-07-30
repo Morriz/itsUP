@@ -17,6 +17,9 @@ health check for the same installed surface: host identity, configuration,
 supervisor drift, systemd/launchd state, Docker health, DNS bind/resolution,
 runtime and persistent DNS-bind sysctl state, Traefik health, and the OpenVPN
 direct UDP bind when the VPN project is configured.
+`bin/wait-for-runtime-status.sh` is the non-mutating post-reboot verifier: it
+waits for the configured host to answer SSH, then runs the installed `make
+status` there. It never initiates a reboot.
 
 This spec is the single place an operator goes when one of those operations
 fails: for each operation it records what fires it, how often, what it actually
