@@ -45,6 +45,9 @@ UNIT_DRIFT_DETECTED_LOG = (
     "Unit-template drift detected (%s); run `make install-runtime` to install the delivered templates"
 )
 UNIT_DRIFT_CHECK_RAISED_LOG = "Unit-drift check raised: %s"
+ITSUP_PUBLIC_REPO_URL = "https://github.com/Morriz/itsUP.git"
+GIT_FETCH_TIMEOUT_SECONDS = 60
+GIT_RESET_TIMEOUT_SECONDS = 30
 
 
 @cache
@@ -117,6 +120,38 @@ def _check_and_alert_unit_drift(env: dict[str, str]) -> None:
         logger.warning(UNIT_DRIFT_CHECK_RAISED_LOG, e)
 
 
+def _git_env(env: dict[str, str]) -> dict[str, str]:
+    return {
+        **env,
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=15",
+    }
+
+
+def _fetch_itsup_main(env: dict[str, str]) -> None:
+    git_env = _git_env(env)
+    try:
+        subprocess.run(
+            ["git", "fetch", "origin", "main"],
+            cwd=str(root()),
+            env=git_env,
+            check=True,
+            timeout=GIT_FETCH_TIMEOUT_SECONDS,
+        )
+        return
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        logger.warning("origin/main fetch failed through origin remote; retrying public HTTPS: %s", exc)
+
+    fallback_env = {**git_env, "GIT_CONFIG_GLOBAL": "/dev/null"}
+    subprocess.run(
+        ["git", "fetch", ITSUP_PUBLIC_REPO_URL, "main:refs/remotes/origin/main"],
+        cwd=str(root()),
+        env=fallback_env,
+        check=True,
+        timeout=GIT_FETCH_TIMEOUT_SECONDS,
+    )
+
+
 def _handle_itsup_update() -> None:
     """Handle updates to itsUP itself (git pull and apply changes)"""
     try:
@@ -127,8 +162,14 @@ def _handle_itsup_update() -> None:
         # Update repository
         if os.environ.get("PYTHON_ENV") == "production":
             logger.info("Updating repository from origin/main")
-            subprocess.run(["git", "fetch", "origin", "main"], cwd=str(root()), check=True)
-            subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=str(root()), check=True)
+            _fetch_itsup_main(env)
+            subprocess.run(
+                ["git", "reset", "--hard", "origin/main"],
+                cwd=str(root()),
+                env=_git_env(env),
+                check=True,
+                timeout=GIT_RESET_TIMEOUT_SECONDS,
+            )
             logger.info("Repository updated successfully")
 
             # git reset bypasses the post-merge hook that syncs dependencies,

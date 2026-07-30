@@ -69,6 +69,16 @@ caveats).
 ## Known caveats
 
 
+- **itsUP self-update cannot depend exclusively on host GitHub SSH auth.**
+  `/update-upstream/itsUP` updates the install root by fetching `origin/main`
+  and resetting the checkout before reinstalling dependencies and restarting
+  the API. The primary fetch uses the configured `origin` remote with terminal
+  prompting disabled and a bounded timeout. If that path fails or times out,
+  the updater fetches the public itsUP repository over HTTPS into
+  `refs/remotes/origin/main` and then performs the same hard reset. This keeps a
+  missing or deauthorized host SSH key from making the GitHub workflow report
+  success while the background self-update is stuck behind it.
+
 - **The supervision cutover record is host state, and its absence is not a
   licence to restart the stack.** `.itsup-supervision-state` at the install root
   holds exactly one of the literals `attempting` or `complete`, written
