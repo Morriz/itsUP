@@ -104,6 +104,13 @@ caveats).
   `KeepAlive={SuccessfulExit: false}`, so a failed run exits the guardian and
   launchd relaunches it — the guardian owns the retry. The installer performs no
   direct run there.
+  On Linux, `make install-runtime` also installs
+  `/etc/sysctl.d/99-itsup-nonlocal-bind.conf` and activates
+  `net.ipv4.ip_nonlocal_bind=1`. That host prerequisite lets Docker recreate
+  LAN-address-bound DNS containers before DHCP has assigned the LAN address,
+  without widening DNS publication to every host interface. The installer
+  records the pre-install file/runtime state in `.itsup-nonlocal-bind-state`
+  before changing it; `make uninstall-runtime` restores that recorded state.
   While the cutover is fresh or `attempting` it reloads the bringup agent even
   when its plist is unchanged — the only launchd-owned way to make a resident
   guardian execute a new run — then waits for the record to reach `complete`,

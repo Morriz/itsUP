@@ -31,6 +31,9 @@ if [ "${PLATFORM}" = "macos" ]; then
 else
   TEMPLATE_DIR="${REPO_ROOT}/samples/systemd"
   SERVICE_DIR="${SERVICE_DIR:-/etc/systemd/system}"
+  SYSCTL_TEMPLATE="${REPO_ROOT}/samples/sysctl/99-itsup-nonlocal-bind.conf"
+  SYSCTL_DEST="${SYSCTL_DEST:-/etc/sysctl.d/99-itsup-nonlocal-bind.conf}"
+  SYSCTL_STATE_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
 fi
 
 # ── Template rendering ─────────────────────────────────────────────────────
@@ -328,7 +331,14 @@ assert_dnsmasq_absent_linux() {
 ensure_host_prereqs() {
   if [ "${PLATFORM}" = "linux" ]; then
     assert_dnsmasq_absent_linux
+  fi
+  echo ""
+}
+
+ensure_mutating_host_prereqs() {
+  if [ "${PLATFORM}" = "linux" ]; then
     ensure_dns_fallback_linux
+    ensure_nonlocal_bind_linux
   fi
   echo ""
 }
@@ -374,6 +384,58 @@ write_if_changed() {
     return 2
   fi
   return 0
+}
+
+ensure_nonlocal_bind_linux() {
+  # AdGuard intentionally binds DNS to the configured LAN address only, but
+  # Docker may recreate it before DHCP has assigned that address during boot.
+  # ip_nonlocal_bind keeps that narrow bind possible without publishing DNS on
+  # every host interface.
+  echo "Ensuring LAN-address port binding works before DHCP..."
+  capture_nonlocal_bind_state_linux
+  local write_rc=0
+  write_if_changed "${SYSCTL_TEMPLATE}" "${SYSCTL_DEST}" true || write_rc=$?
+  if [ "${write_rc}" -eq 2 ]; then
+    echo "ERROR: aborting install — failed to write ${SYSCTL_DEST}" >&2
+    exit 1
+  fi
+
+  if [ "$(read_nonlocal_bind_linux)" = "1" ]; then
+    echo "  net.ipv4.ip_nonlocal_bind already active"
+  else
+    write_nonlocal_bind_linux 1
+    echo "  net.ipv4.ip_nonlocal_bind activated"
+  fi
+}
+
+capture_nonlocal_bind_state_linux() {
+  if [ -e "${SYSCTL_STATE_FILE}" ]; then
+    return
+  fi
+  local file_present=0
+  [ -e "${SYSCTL_DEST}" ] && file_present=1
+  local runtime_value
+  runtime_value="$(read_nonlocal_bind_linux)"
+  local temporary="${SYSCTL_STATE_FILE}.tmp"
+  {
+    printf 'file_present=%s\n' "${file_present}"
+    printf 'runtime_value=%s\n' "${runtime_value}"
+  } > "${temporary}"
+  mv "${temporary}" "${SYSCTL_STATE_FILE}"
+}
+
+read_nonlocal_bind_linux() {
+  /sbin/sysctl -n net.ipv4.ip_nonlocal_bind 2>/dev/null \
+    || /usr/sbin/sysctl -n net.ipv4.ip_nonlocal_bind 2>/dev/null \
+    || sysctl -n net.ipv4.ip_nonlocal_bind 2>/dev/null \
+    || printf 'unknown'
+}
+
+write_nonlocal_bind_linux() {
+  local value="$1"
+  sudo /sbin/sysctl -w "net.ipv4.ip_nonlocal_bind=${value}" >/dev/null 2>&1 \
+    || sudo /usr/sbin/sysctl -w "net.ipv4.ip_nonlocal_bind=${value}" >/dev/null 2>&1 \
+    || sudo sysctl -w "net.ipv4.ip_nonlocal_bind=${value}" >/dev/null
 }
 
 # ── systemd (Linux) ────────────────────────────────────────────────────────
@@ -530,6 +592,7 @@ install_launchd_agents() {
 ensure_host_prereqs
 require_unambiguous_cutover
 sweep_legacy_daemons
+ensure_mutating_host_prereqs
 
 case "${PLATFORM}" in
   linux) install_systemd_units;;
