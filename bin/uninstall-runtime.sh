@@ -26,7 +26,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Refuse to run from a linked git worktree — runtime teardown operates on the
 # canonical checkout's stacks/units, never a transient worktree copy.
+# shellcheck disable=SC2034
 GUARD_OP="make uninstall-runtime"
+# shellcheck disable=SC1091
 . "${REPO_ROOT}/bin/lib/assert-canonical-checkout.sh"
 
 ITSUP_USER="${ITSUP_USER:-${USER:-$(id -un)}}"
@@ -48,6 +50,7 @@ else
   SYSCTL_DEST="${SYSCTL_DEST:-/etc/sysctl.d/99-itsup-nonlocal-bind.conf}"
   SYSCTL_STATE_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state"
   SYSCTL_STATE_CONTENT_FILE="${ITSUP_ROOT}/.itsup-nonlocal-bind-state.content"
+  # shellcheck disable=SC1091
   . "${REPO_ROOT}/bin/lib/nonlocal-bind-state.sh"
 fi
 
@@ -165,7 +168,6 @@ teardown_stack() {
       1) return 0 ;;
       *) return 1 ;;
     esac
-    return 0
   fi
   echo "Stopping the full itsUP stack (itsup down --clean)..."
   if ! ( cd "${ITSUP_ROOT}" && ITSUP_ROOT="${ITSUP_ROOT}" "${ITSUP}" down --clean ); then
@@ -363,14 +365,26 @@ teardown_local_compose() {
     return 1
   }
 
-  local f ids
+  local f id ids_output status
+  local -a ids
   while IFS= read -r f; do
     [ -f "${f}" ] || continue
-    ids="$(compose_file_running_container_ids "${f}")"
-    if [ -n "${ids}" ]; then
+    set +e
+    ids_output="$(compose_file_running_container_ids "${f}" 2>&1)"
+    status=$?
+    set -e
+    if [ "${status}" -ne 0 ]; then
+      echo "✗ Failed to inspect Docker containers for ${f}: ${ids_output}" >&2
+      return 1
+    fi
+    if [ -n "${ids_output}" ]; then
+      ids=()
+      while IFS= read -r id; do
+        [ -n "${id}" ] && ids+=("${id}")
+      done <<< "${ids_output}"
       echo "Stopping local containers from ${f}..."
-      docker stop ${ids} >/dev/null || return 1
-      docker rm -f ${ids} >/dev/null || return 1
+      docker stop "${ids[@]}" >/dev/null || return 1
+      docker rm -f "${ids[@]}" >/dev/null || return 1
     fi
   done < <(compose_files)
 }
