@@ -100,6 +100,8 @@ reachability by network membership. (OpenSnitch + iptables, documented in
 
 ### Network assignment (during `itsup apply` / `bin/write_artifacts.py`)
 
+<!-- planned-change:dns-fallback-off-proxynet -->
+
 ```mermaid
 flowchart TD
     A[service in itsup-project.yml] --> B{has ingress row<br/>with domain/tls?}
@@ -112,6 +114,23 @@ flowchart TD
     D --> H
     F --> H
 ```
+
+<!-- change:dns-fallback-off-proxynet -->
+
+```mermaid
+flowchart TD
+    A[service in itsup-project.yml] --> B{has ingress row<br/>with domain/tls?}
+    B -- yes --> C[join proxynet<br/>Traefik can reach it]
+    B -- no --> D[stay on project default only]
+    A --> E{declaring project<br/>has egress: Q:svc ?}
+    E -- yes --> F[join edge net consumer--Q--svc external<br/>reach only Q:svc]
+    E -- no --> G[no cross-project reach]
+    C --> H[+ DNS honeypot at gateway 172.20.0.1]
+    D --> H
+    F --> H
+```
+
+<!-- /planned-change:dns-fallback-off-proxynet -->
 
 <!-- planned-change:dns-fallback-off-proxynet -->
 1. **Phase 1 — ingress + DNS.** Services with Traefik labels join `proxynet`.
