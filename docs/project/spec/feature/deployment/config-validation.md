@@ -33,6 +33,18 @@ Then the command exits nonzero
 And the reported errors surface the Compose schema violation
 ```
 
+<!-- planned:reject-unresolved-traefik-placeholders -->
+#### UC-CV2: An unresolved placeholder in generated Traefik configuration is rejected
+
+```gherkin
+Given proxy artifact generation leaves `${VAR}` syntax in a generated Traefik static or dynamic configuration file
+When the pre-deploy validation gate evaluates the generated proxy artifacts
+Then validation exits nonzero before deployment
+And the reported error identifies the generated artifact and unresolved placeholder
+And generated Docker Compose files remain subject to Compose's own environment-resolution contract
+```
+<!-- /planned:reject-unresolved-traefik-placeholders -->
+
 ## Canonical fields
 
 The gate's command surface, exit codes, and the itsUP-layer validation rules it
