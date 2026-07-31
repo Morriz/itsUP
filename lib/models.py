@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # this prefix on the `web` entrypoint ahead of router matching, so ingress
 # rows serving it must never be redirected to HTTPS or required to be TCP.
 ACME_CHALLENGE_PATH_PREFIX = "/.well-known/acme-challenge/"
+EMPTY_ALLOW_SOURCE_IPS_MESSAGE = "allow_source_ips must not be empty when configured"
+INVALID_ALLOW_SOURCE_IP_MESSAGE = "allow_source_ips entry must be a valid IP or CIDR: {entry}"
 
 
 class Env(BaseModel):
@@ -109,6 +111,8 @@ class Ingress(BaseModel):
     """Explicit DNS servers for the service. When set, written verbatim as the
     service's `dns:` block in the generated upstream docker-compose, replacing
     the default DNS honeypot injection."""
+    allow_source_ips: List[str] | None = None
+    """Source IPs or CIDRs permitted to reach this route's proxy router."""
 
     @model_validator(mode="after")
     def check_passthrough_tcp(self) -> Self:
@@ -123,6 +127,20 @@ class Ingress(BaseModel):
                 ipaddress.IPv4Address(self.ipv4_address)
             except ValueError as e:
                 raise ValueError(f"ipv4_address must be a valid IPv4 address, got: {self.ipv4_address}") from e
+        return self
+
+    @model_validator(mode="after")
+    def check_allow_source_ips(self) -> Self:
+        allow_source_ips = self.allow_source_ips
+        if allow_source_ips is None:
+            return self
+        if not allow_source_ips:
+            raise ValueError(EMPTY_ALLOW_SOURCE_IPS_MESSAGE)
+        for entry in allow_source_ips:
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError as error:
+                raise ValueError(INVALID_ALLOW_SOURCE_IP_MESSAGE.format(entry=entry)) from error
         return self
 
 

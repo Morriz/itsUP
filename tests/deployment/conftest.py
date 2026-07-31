@@ -13,7 +13,11 @@ from typing import cast
 
 import yaml
 
-from bin.write_artifacts import write_middleware_config, write_traefik_config
+from bin.write_artifacts import (
+    write_dynamic_routers,
+    write_middleware_config,
+    write_traefik_config,
+)
 
 ROUTER_IP = "192.168.1.1"
 
@@ -66,6 +70,24 @@ def generate(itsup_root: Path) -> tuple[ConfigMap, ConfigMap]:
     traefik_config = cast(ConfigMap, yaml.safe_load(traefik_yml.read_text()))
     middlewares_config = cast(ConfigMap, yaml.safe_load(middlewares_yml.read_text()))
     return traefik_config, middlewares_config
+
+
+def write_external_host_project(itsup_root: Path, ingress_rows: str) -> None:
+    project_dir = itsup_root / "projects" / "api-host"
+    project_dir.mkdir(parents=True)
+    (project_dir / "itsup-project.yml").write_text(f"""
+enabled: true
+host: 127.0.0.1
+ingress:
+{ingress_rows}
+""")
+
+
+def generate_dynamic_routers(itsup_root: Path) -> ConfigMap:
+    write_dynamic_routers()
+
+    routers_yml = itsup_root / "proxy" / "traefik" / "dynamic" / "routers-http.yml"
+    return cast(ConfigMap, yaml.safe_load(routers_yml.read_text()))
 
 
 def entrypoint(traefik_config: ConfigMap, name: str) -> ConfigMap:

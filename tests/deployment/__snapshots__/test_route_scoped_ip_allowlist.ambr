@@ -1,0 +1,29 @@
+# serializer version: 1
+# name: test_external_host_config_rejects_empty_allow_source_ips
+  '''
+  1 validation error for TraefikConfig
+  ingress.0
+    Value error, allow_source_ips must not be empty when configured [type=value_error, input_value={'domain': 'api.example.c... 'allow_source_ips': []}, input_type=dict]
+      For further information visit https://errors.pydantic.dev/2.13/v/value_error
+  '''
+# ---
+# name: test_external_host_config_rejects_malformed_allow_source_ips
+  '''
+  1 validation error for TraefikConfig
+  ingress.0
+    Value error, allow_source_ips entry must be a valid IP or CIDR: not-an-ip [type=value_error, input_value={'domain': 'api.example.c...rce_ips': ['not-an-ip']}, input_type=dict]
+      For further information visit https://errors.pydantic.dev/2.13/v/value_error
+  '''
+# ---
+# name: test_external_host_redirect_route_has_no_ip_allowlist
+  dict({
+    'entryPoints': list([
+      'web-secure',
+    ]),
+    'rule': 'Host(`api.example.com`) && PathPrefix(`/redirect`)',
+    'service': 'api-host-127-0-0-1-8888-0',
+    'tls': dict({
+      'certResolver': 'letsencrypt',
+    }),
+  })
+# ---

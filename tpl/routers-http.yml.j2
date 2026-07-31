@@ -16,7 +16,7 @@ http:
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port ~ '-' ~ loop.index0 %}
     {{ name}}:
       entryPoints:
       {%- if i.hostport %}
@@ -26,6 +26,10 @@ http:
       {%- endif %}
       rule: 'Host(`{{ i.domain }}`){% if i.path_prefix %} && PathPrefix(`{{ i.path_prefix }}`){% endif %}'
       service: {{ name }}
+      {%- if i.allow_source_ips %}
+      middlewares:
+        - {{ name }}-ipallowlist
+      {%- endif %}
       {%- if i.port != 80 and (i.domain or i.tls) %}
       tls:
         certResolver: letsencrypt
@@ -38,11 +42,28 @@ http:
 {%- for p in projects %}
   {%- for s in p.services %}
     {%- for i in s.ingress %}
-      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port %}
+      {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port ~ '-' ~ loop.index0 %}
     {{ name}}:
       loadBalancer:
         servers:
           - url: http://{% if s.image %}{{ p.name }}-{% endif %}{{ s.host }}:{{ i.port }}/
+    {%- endfor %}
+  {%- endfor %}
+{%- endfor %}
+
+  middlewares:
+{%- for p in projects %}
+  {%- for s in p.services %}
+    {%- for i in s.ingress %}
+      {%- if i.allow_source_ips %}
+        {%- set name = p.name ~ '-' ~ s.host.replace('.', '-') ~ '-' ~ i.port ~ '-' ~ loop.index0 %}
+    {{ name }}-ipallowlist:
+      ipAllowList:
+        sourceRange:
+        {%- for source_ip in i.allow_source_ips %}
+          - {{ source_ip }}
+        {%- endfor %}
+      {%- endif %}
     {%- endfor %}
   {%- endfor %}
 {%- endfor %}

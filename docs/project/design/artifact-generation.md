@@ -89,7 +89,6 @@ overrides. This snippet is the contract for that translation. Network assignment
    only when content differs. Unchanged artifacts keep their bytes, so deploys
    become no-ops via Docker's config-hash (see
    `project/design/deployment-orchestration`).
-<!-- planned:gated-file-endpoint -->
 9. **External-host router identity is per-route unique.** An external-host
    dynamic router's name is `{project}-{host}-{port}` plus the route's index
    within that host's ingress list, so two ingress rows sharing one `host:port`
@@ -104,7 +103,6 @@ overrides. This snippet is the contract for that translation. Network assignment
     per-route counterpart to the global entrypoint chain
     (`project/spec/feature/deployment/http-security-middlewares`). Contract:
     `project/spec/feature/deployment/route-scoped-ip-allowlist`.
-<!-- /planned:gated-file-endpoint -->
 
 ## Primary flows
 

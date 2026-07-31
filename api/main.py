@@ -5,13 +5,15 @@ import shutil
 import subprocess
 import sys
 from functools import cache
+from http import HTTPStatus
+from pathlib import Path
 from typing import List
 from urllib.parse import urlparse
 
 import dotenv
 import uvicorn
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from instrukt_ai_logging import get_logger
 
 # Add parent directory to path for imports
@@ -48,6 +50,8 @@ UNIT_DRIFT_CHECK_RAISED_LOG = "Unit-drift check raised: %s"
 ITSUP_PUBLIC_REPO_URL = "https://github.com/Morriz/itsUP.git"
 GIT_FETCH_TIMEOUT_SECONDS = 60
 GIT_RESET_TIMEOUT_SECONDS = 30
+ALLOWED_FILE_CONTENT_TYPES = {".lsrules": "application/json"}
+ALLOWED_FILE_EXTENSIONS = set(ALLOWED_FILE_CONTENT_TYPES)
 
 
 @cache
@@ -269,6 +273,17 @@ def redirect_handler(url: str) -> RedirectResponse:
         raise HTTPException(status_code=400, detail="Invalid url")
 
     return RedirectResponse(url=url, status_code=307)
+
+
+@app.get("/file", response_class=FileResponse)
+def file_handler(path: str) -> FileResponse:
+    """Serve an allowlisted local file through the proxy-gated endpoint."""
+    file_path = Path(path)
+    if file_path.suffix not in ALLOWED_FILE_EXTENSIONS:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN)
+    if not file_path.is_file():
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND)
+    return FileResponse(file_path, media_type=ALLOWED_FILE_CONTENT_TYPES[file_path.suffix])
 
 
 if __name__ == "__main__":

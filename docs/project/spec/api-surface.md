@@ -11,14 +11,6 @@ systems trigger deploys via webhook and query projects. It is **not**
 containerized — it runs as a host process on `:8888`, supervised by the host as
 a daemon unit.
 
-<!-- planned-change:gated-file-endpoint -->
-Its Traefik route is scoped to the one endpoint that needs the internet: the
-public router matches `Host(...) && PathPrefix('/redirect')`. This is a **path
-prefix, not an exact route** — it admits any method and any path beginning with
-`/redirect`. Nothing else is served under that prefix, so the only endpoint it
-reaches is `GET /redirect`; a request such as `POST /redirect` or
-`/redirect-anything` is routed to the API and answered `405` or `404` by FastAPI.
-<!-- change:gated-file-endpoint -->
 Its Traefik routes are scoped to the two endpoints that need the internet, each
 its own `Host(...) && PathPrefix(...)` router: the unauthenticated `/redirect`
 bouncer and the origin-gated `/file` endpoint. Each is a **path prefix, not an
@@ -28,7 +20,6 @@ handler serves is answered `405` or `404` by FastAPI. `/redirect` is
 unauthenticated; `/file` carries a route-scoped source-IP allowlist at the proxy
 (`project/spec/feature/deployment/route-scoped-ip-allowlist`) so only the
 allowlisted origin reaches it.
-<!-- /planned-change:gated-file-endpoint -->
 
 The apikey-guarded endpoints share no prefix with it and so carry no public route
 at all — an internet request for one of them fails to match a router and is
@@ -55,7 +46,6 @@ immediately.
 | `GET /projects` | apikey | host loopback, LAN/VPN | Returns `list_projects()` (`@cache`d, `:96-100`). |
 | `GET /redirect?url=` | none | internet | 307-redirects, but **only** `message://` / `imessage://` schemes; rejects other schemes or whitespace (`:103-116`). Consumer: OtoMo (`lib/deep_links.py`) wraps iMessage deep links in this endpoint so Telegram renders them as clickable https links. |
 
-<!-- planned:gated-file-endpoint -->
 ### Gated file endpoint (`GET /file`)
 
 `GET /file?path=<host-path>` serves the bytes of a local host file selected by
@@ -70,7 +60,6 @@ with its bytes and the content type mapped for that extension. `path` is a
 required query parameter, so omitting it is rejected by FastAPI's own request
 validation rather than by the endpoint. Behaviour contract:
 `project/spec/feature/api/gated-file-serving`.
-<!-- /planned:gated-file-endpoint -->
 
 The GitOps chain reaches the apikey-guarded endpoints over loopback: the shared
 reconcile workflow's `curl` runs on the container host itself, inside the SSH

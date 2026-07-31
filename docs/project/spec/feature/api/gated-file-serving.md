@@ -1,6 +1,8 @@
 ---
-delivered_by: [gated-file-endpoint]
-description: Acceptance scenarios for the gated GET /file endpoint — it serves an allowlisted-extension local host file's bytes with a mapped content type, and refuses any non-allowlisted extension or missing path. Origin gating is the proxy's job, not the app's.
+description: Acceptance scenarios for the gated GET /file endpoint — it serves an
+  allowlisted-extension local host file's bytes with a mapped content type, and refuses
+  any non-allowlisted extension or missing path. Origin gating is the proxy's job,
+  not the app's.
 ---
 
 # Gated File Serving — Spec

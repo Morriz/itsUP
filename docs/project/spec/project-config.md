@@ -72,13 +72,11 @@ A project is one of two **types**, decided by file presence
 `TLS` (`lib/models.py:63-69`): `main: str`, `sans: str[]`.
 Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|udp`.
 
-<!-- planned:gated-file-endpoint -->
 ### Route-scoped source-IP allowlist (`Ingress.allow_source_ips`)
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
 | `allow_source_ips` | str[] \| null | `null` | Source IPs/CIDRs permitted to reach this route's Traefik router — the proxy-side origin gate. When set, generation emits a per-route `ipAllowList` middleware (`sourceRange`) attached to this route only (`project/design/artifact-generation`, `project/spec/feature/deployment/route-scoped-ip-allowlist`). Must be non-empty when set; each entry must parse as an IP address or CIDR network. |
-<!-- /planned:gated-file-endpoint -->
 
 ### Validation rules
 
@@ -94,12 +92,10 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
   format; target project must exist; target service must exist in that project.
 - **Model validators** (`lib/models.py`) — `passthrough` on port 80 is allowed
   only for `/.well-known/acme-challenge/`; `ipv4_address` must parse as IPv4.
-<!-- planned:gated-file-endpoint -->
 - **Source-IP allowlist** — when an ingress row sets `allow_source_ips`, the
   list must be non-empty and each entry must parse as an IP address or CIDR
   network (`ipaddress.ip_network`, `lib/models.py`); an empty list (which would
   emit no gate and leave the route open) or a malformed entry fails validation.
-<!-- /planned:gated-file-endpoint -->
 - **Compose schema** — a container project's `docker-compose.yml` (decided by
   file presence, the project-type discriminator) must pass Docker Compose's own
   schema/semantic validation (`docker compose config --no-interpolate`,

@@ -1,6 +1,8 @@
 ---
-delivered_by: [gated-file-endpoint]
-description: Acceptance scenarios for the route-scoped source-IP allowlist — an ingress row carrying allow_source_ips generates a per-route Traefik ipAllowList middleware attached only to that router, and external-host routers are disambiguated by a per-route ingress-loop index suffix so multiple routes can share one host:port.
+description: Acceptance scenarios for the route-scoped source-IP allowlist — an ingress
+  row carrying allow_source_ips generates a per-route Traefik ipAllowList middleware
+  attached only to that router, and external-host routers are disambiguated by a per-route
+  ingress-loop index suffix so multiple routes can share one host:port.
 ---
 
 # Route-Scoped Source-IP Allowlist — Spec
