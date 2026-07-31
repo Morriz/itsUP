@@ -491,7 +491,6 @@ def write_middleware_config() -> None:
         trusted_ips_cidrs=get_trusted_ips(),
         crowdsec={
             "enabled": crowdsec_config.get("enabled", False),
-            "apikey": crowdsec_config.get("apikey", ""),
         },
     )
 

@@ -47,12 +47,12 @@ http:
           crowdsecAppsecEnabled: true
           crowdsecAppsecFailureBlock: true
           crowdsecAppsecHost: 127.0.0.1:7422
-          crowdsecLapiKey: {{ crowdsec.apikey }}
+          crowdsecLapiKeyFile: /run/secrets/crowdsec_lapi_key
           crowdsecLapiHost: 127.0.0.1:18080
           crowdsecLapiScheme: http
           crowdsecLapiTLSInsecureVerify: false
-          crowdsecCapiMachineId: ${CROWDSEC_CAPI_MACHINE_ID}
-          crowdsecCapiPassword: ${CROWDSEC_CAPI_PASSWORD}
+          crowdsecCapiMachineIdFile: /run/secrets/crowdsec_capi_machine_id
+          crowdsecCapiPasswordFile: /run/secrets/crowdsec_capi_password
           crowdsecCapiScenarios:
             - crowdsecurity/http-admin-interface-probing
             - crowdsecurity/http-backdoors-attempts

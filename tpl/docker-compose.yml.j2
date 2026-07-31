@@ -48,6 +48,12 @@ services:
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ../data/acme:/etc/acme
       - ../logs:/var/log/traefik
+{%- if itsup.crowdsec.enabled %}
+    secrets:
+      - crowdsec_lapi_key
+      - crowdsec_capi_machine_id
+      - crowdsec_capi_password
+{%- endif %}
     depends_on:
       docker:
         condition: service_started
@@ -57,9 +63,6 @@ services:
 {%- endif %}
     environment:
       - DOCKER_HOST=tcp://127.0.0.1:2375
-      - CROWDSEC_APIKEY=${CROWDSEC_APIKEY:?}
-      - CROWDSEC_CAPI_MACHINE_ID=${CROWDSEC_CAPI_MACHINE_ID:?}
-      - CROWDSEC_CAPI_PASSWORD=${CROWDSEC_CAPI_PASSWORD:?}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:?}
     healthcheck:
       test: ["CMD-SHELL", "test ! -f /tmp/drain && wget -q -O /dev/null -T 5 http://127.0.0.1:8082/ping"]
@@ -98,4 +101,14 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+{%- endif %}
+{%- if itsup.crowdsec.enabled %}
+
+secrets:
+  crowdsec_lapi_key:
+    environment: CROWDSEC_APIKEY
+  crowdsec_capi_machine_id:
+    environment: CROWDSEC_CAPI_MACHINE_ID
+  crowdsec_capi_password:
+    environment: CROWDSEC_CAPI_PASSWORD
 {%- endif %}
