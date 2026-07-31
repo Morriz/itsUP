@@ -66,12 +66,40 @@ Validate gate → for each target in dependency order, `deploy_*` →
 
 ### `itsup run` — orchestrated boot
 
+<!-- planned-change:dns-fallback-off-proxynet -->
 `check_schema_version` → regenerate proxy artifacts → DNS `up -d` (creates
 `proxynet`) → proxy `up -d` → start the API daemon unit → start the monitor
 daemon unit in report-only mode, both through the host supervisor
 (`commands/run.py`). **Divergence:** `run` uses plain `docker compose up -d`,
 bypassing `smart_deploy`/rollout — boot is not zero-downtime (it is the
 cold-start path).
+<!-- change:dns-fallback-off-proxynet -->
+`check_schema_version` → regenerate proxy artifacts → **assert the DNS listener
+guard** → DNS `up -d` (creates `proxynet`) → proxy `up -d` → start the API daemon
+unit → start the monitor daemon unit in report-only mode, both through the host
+supervisor (`commands/run.py`). **Divergence:** `run` uses plain `docker compose
+up -d`, bypassing `smart_deploy`/rollout — boot is not zero-downtime (it is the
+cold-start path).
+
+The guard assertion is **fail-closed and shared**. The DNS stack publishes a
+resolver on the proxynet gateway address, so both publish entry points — `run`'s
+direct `docker compose up -d` and `deploy_dns_stack`'s `smart_deploy` — call one
+`require_dns_guard()` helper before any compose invocation, and abort the DNS
+step non-zero when it cannot confirm the guard's iptables rules are present at
+that moment. Asserting the rules is not the same as inspecting unit history: a
+`RemainAfterExit` unit stays `active` across an `iptables -F`, a Docker chain
+rebuild, or a monitor cleanup, so the helper re-asserts state rather than
+reading a status.
+
+**Linux-only, and refusing rather than skipping.** The guard is iptables-based
+and therefore Linux-only, like the container security monitor. Unlike the
+monitor — which `run` skips with a notice on macOS — the DNS step **refuses** on
+a non-Linux host, naming the missing containment. Skipping would publish an
+unguarded recursive resolver, discarding the invariant
+`project/adr/0003-host-published-dns-resolver` makes mandatory; a macOS
+container host is therefore unsupported for DNS runtime mutation until pf-based
+containment exists.
+<!-- /planned-change:dns-fallback-off-proxynet -->
 
 ### `itsup down` — orchestrated shutdown
 
