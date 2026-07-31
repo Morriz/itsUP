@@ -22,7 +22,7 @@ USAGE_LABEL = "Usage:"
 BYPASS_HINTS = ("bypass", "override")
 DIAGNOSTIC_COMMAND = "run"
 INSTALL_RUNTIME_LABEL = "make install-runtime"
-EXPECTED_HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor"})
+EXPECTED_HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor", "logs"})
 EXPECTED_ANYWHERE = frozenset(
     {
         "pull",

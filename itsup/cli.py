@@ -19,6 +19,7 @@ from commands.down import down
 from commands.edit_secret import edit_secret
 from commands.encrypt import encrypt
 from commands.init import init
+from commands.logs import logs
 from commands.migrate import migrate_cmd
 from commands.monitor import monitor
 from commands.projects import projects
@@ -31,7 +32,7 @@ from commands.svc import svc
 from commands.validate import validate
 from lib.host_gate import require_host
 
-HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor"})
+HOST_ONLY = frozenset({"run", "apply", "down", "dns", "proxy", "svc", "monitor", "logs"})
 
 
 @click.group(context_settings={"allow_interspersed_args": False, "help_option_names": ["-h", "--help"]})
@@ -99,6 +100,7 @@ cli.add_command(diff_secrets)
 cli.add_command(edit_secret)
 cli.add_command(sops_key)
 cli.add_command(projects)
+cli.add_command(logs)
 
 
 def main() -> None:

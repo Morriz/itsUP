@@ -63,6 +63,16 @@ def projects_dir() -> Path:
     return root() / "projects"
 
 
+def logs_dir() -> Path:
+    """Resolve the runtime logs tree."""
+    return root() / "logs"
+
+
+def access_log_file() -> Path:
+    """Resolve Traefik's JSON access-log file."""
+    return logs_dir() / "access.log"
+
+
 def project_dir(name: str) -> Path:
     """Resolve one project's config directory."""
     return projects_dir() / name

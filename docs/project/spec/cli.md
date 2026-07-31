@@ -113,7 +113,6 @@ in `project/spec/secrets-management`.
   failed individual rollout is logged and does not fail the deployment.
   (`lib/deploy.py:62`, `lib/deploy.py:257`)
 
-<!-- planned:itsup-logs-router -->
 
 ### `logs` — the routing front door over fragmented log backends
 
@@ -191,7 +190,6 @@ usable only when its `LoadState` is `loaded`, and any other value is reported
 rather than interpreted — because a journal query against an absent unit succeeds
 with empty output.
 
-<!-- /planned:itsup-logs-router -->
 
 ### Host-identity gate (runtime-mutating commands are host-only)
 
@@ -205,15 +203,9 @@ keyed on `ctx.invoked_subcommand` against a single host-only set — so it prece
 per-command argument parsing, and off-host even `itsup <host-only-cmd> --help` is
 refused.
 
-<!-- planned-change:itsup-logs-router -->
-- **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
-  `proxy`, `svc`, `monitor`. `make install-runtime` refuses off-host
-  before it touches systemd/launchd (`bin/install-bringup.sh`).
-<!-- change:itsup-logs-router -->
 - **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
   `proxy`, `svc`, `monitor`, `logs`. `make install-runtime` refuses off-host
   before it touches systemd/launchd (`bin/install-bringup.sh`).
-<!-- /planned-change:itsup-logs-router -->
 
 - **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
   `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
@@ -282,18 +274,11 @@ The CLI emits only these — there is no 2/3/130 contract.
 - Change detection compares the live `docker compose config` hash against the
   running container's `com.docker.compose.config-hash` label (container-label
   based), not a hash stored on disk.
-<!-- planned-change:itsup-logs-router -->
-- Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
-  `monitor`) are **host-only** and refuse fail-closed off-host (detected
-  LAN IP ≠ `SSH_HOST`); see the host-identity gate above. (`itsup logs` is
-  removed; diagnostic logs are viewed with `instrukt-ai-logs itsup`.)
-<!-- change:itsup-logs-router -->
 - Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
   `monitor`) and the read-only `logs` router are **host-only** and refuse
   fail-closed off-host (detected LAN IP ≠ `SSH_HOST`); see the host-identity
   gate above. `logs` is gated not because it mutates but because every backend
   it reads exists only on the container host.
-<!-- /planned-change:itsup-logs-router -->
 
 
 ## See Also
