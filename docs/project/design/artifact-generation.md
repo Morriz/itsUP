@@ -67,10 +67,21 @@ overrides. This snippet is the contract for that translation. Network assignment
 5. **Override merge.** `deep_merge` (`:301`) merges `projects/traefik.yml` /
    `projects/middlewares.yml` **on top of** the generated base, comment-preserving
    (ruamel). Missing override file ⇒ warning, base only.
+<!-- planned-change:dns-fallback-off-proxynet -->
 6. **DNS injection.** Every upstream service gets
    `dns: [172.20.0.253, 127.0.0.11]` (honeypot + Docker DNS) unless its ingress
    row sets explicit `dns`, which is written verbatim (`:213-221`). The honeypot
    logs queries for security monitoring (see `docs/networking.md`).
+<!-- change:dns-fallback-off-proxynet -->
+6. **DNS injection.** Every upstream service gets `dns: [172.20.0.1]` — the
+   honeypot reached at the proxynet gateway address, which the host owns and
+   every container network can reach — unless its ingress row sets explicit
+   `dns`, which is written verbatim (`:213-221`). The list carries exactly one
+   entry: Docker's embedded resolver already answers sibling names from the
+   service's own network namespace and must never appear as its own upstream,
+   and a second public entry would let external lookups bypass the honeypot.
+   The honeypot logs queries for security monitoring (see `docs/networking.md`).
+<!-- /planned-change:dns-fallback-off-proxynet -->
 7. **Static IP pinning.** An ingress `ipv4_address` rewrites that service's
    `networks:` to mapping form pinning the IP on proxynet; the service must be on
    proxynet or it is skipped with a warning (`:244-265`).

@@ -113,9 +113,18 @@ flowchart TD
     F --> H
 ```
 
+<!-- planned-change:dns-fallback-off-proxynet -->
 1. **Phase 1 — ingress + DNS.** Services with Traefik labels join `proxynet`.
    Every service gets the DNS honeypot (`172.20.0.253`) plus Docker DNS
    (`127.0.0.11`) injected unless an ingress row pins explicit `dns`.
+<!-- change:dns-fallback-off-proxynet -->
+1. **Phase 1 — ingress + DNS.** Services with Traefik labels join `proxynet`.
+   Every service gets the honeypot's gateway address (`172.20.0.1`) injected as
+   its single resolver unless an ingress row pins explicit `dns`. The gateway
+   address is reachable from every container network because the host owns it,
+   so DNS reachability no longer depends on proxynet membership — which Phase 1
+   deliberately withholds from services that carry no ingress row.
+<!-- /planned-change:dns-fallback-off-proxynet -->
 2. **Phase 2 — consumer-side egress.** For each `Q:svc` egress string, the
    consumer declares the edge network `{consumer}--Q--svc` as `external: true` and
    joins all of its own services to it. No `{Q}_default` join occurs.

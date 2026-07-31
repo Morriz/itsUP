@@ -25,8 +25,19 @@ Six layers compose, each closing a gap the others leave open:
 3. **Container-security monitor** — a correlation engine that turns OpenSnitch
    blocks into auto-blacklisted IPs and flags the connecting container
    (`docs/project/design/container-security-monitor.md`).
+<!-- planned-change:dns-fallback-off-proxynet -->
 4. **DNS honeypot** — a logging dnsmasq instance that records every forward DNS
    query, providing the "did anyone resolve this IP?" oracle the monitor needs.
+<!-- change:dns-fallback-off-proxynet -->
+4. **DNS honeypot** — a logging dnsmasq instance that records every forward DNS
+   query, providing the "did anyone resolve this IP?" oracle the monitor needs.
+   Oracle coverage depends on the honeypot being *reachable* as every service's
+   resolver, never on the service sharing a network with it: it is published on
+   the proxynet gateway address, which the host owns and every container network
+   can reach. A service given any other reachable resolver still resolves names,
+   but its lookups leave no forward-DNS history, so its legitimate outbound
+   connections read to the monitor as hardcoded-IP C2.
+<!-- /planned-change:dns-fallback-off-proxynet -->
 5. **Secrets at rest** — SOPS/age encryption with per-context, non-merged
    loading, so a compromised project never sees infra or sibling secrets
    (`docs/project/spec/secrets-management.md`).

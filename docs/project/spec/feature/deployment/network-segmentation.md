@@ -57,6 +57,7 @@ Then the service's networks do not include proxynet
 And the service's networks include no per-edge egress network
 ```
 
+<!-- planned-change:dns-fallback-off-proxynet -->
 #### UC-DNS1: Every service receives the DNS honeypot and Docker DNS
 
 ```gherkin
@@ -64,6 +65,17 @@ Given a project whose compose declares services with no explicit dns
 When the upstream compose is generated
 Then every service's dns list is the honeypot address followed by the Docker DNS address
 ```
+<!-- change:dns-fallback-off-proxynet -->
+#### UC-DNS1: Every service receives one reachable honeypot resolver
+
+```gherkin
+Given a project whose compose declares services with no explicit dns
+And some of those services carry no ingress row, so they never join proxynet
+When the upstream compose is generated
+Then every service's dns list is exactly the honeypot's gateway address
+And no service's dns list contains the Docker embedded resolver address as an upstream
+```
+<!-- /planned-change:dns-fallback-off-proxynet -->
 
 #### UC-DNS2: An explicit dns list on an ingress row replaces the honeypot injection
 
