@@ -74,8 +74,7 @@ repository knows or names a transport.
 | Key | Type | Required | Meaning |
 |-----|------|----------|---------|
 | `alert` | map | no | Ops failure-alerting settings. |
-| `alert.command` | str | no (default: unset) | Command template run for each composed alert. Unset — key, map, or file absent — falls back to `ITSUP_ALERT_COMMAND` from the itsUP infrastructure secrets. If both are unset, no command runs, the suppressed alert is recorded in the journal, and the composer exits successfully. |
-| `ITSUP_ALERT_COMMAND` | secret str | no (default: unset) | Host-local alert command template used when `projects/itsup.yml` does not declare `alert.command`. This keeps host notification transport out of GitOps config while preserving the same command-template rules. |
+| `alert.command` | str | no (default: unset) | Command template run for each composed alert. Unset — key, map, or file absent — is a valid configuration: no command runs, the suppressed alert is recorded in the journal, and the composer exits successfully. |
 
 Contract of the template:
 
@@ -89,11 +88,6 @@ Contract of the template:
   `project/spec/secrets-management`). A token-bearing transport therefore holds
   its credential in the secrets file and only its placeholder in
   `projects/itsup.yml`.
-- **Host-local transport uses `ITSUP_ALERT_COMMAND`.** When `alert.command` is
-  absent from `projects/itsup.yml`, the composer reads `ITSUP_ALERT_COMMAND`
-  from the infrastructure secrets and treats its value as the command template.
-  Placeholders inside that secret-provided template resolve from the same
-  secrets map before execution.
 - **A malformed or unresolvable command fails at the boundary, before any child
   process starts.** `alert.command` is valid only when it is a non-empty string
   that splits to a non-empty argument vector and every `${VAR}` it names resolves
