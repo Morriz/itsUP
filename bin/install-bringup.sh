@@ -65,64 +65,73 @@ SYSTEMD_UNITS=(
   "itsup-alert@.service"
 )
 
-# Renders each systemd unit template and compares it to the installed file at
-# SERVICE_DIR. Read-only: no write, no daemon-reload, no host mutation of any
-# kind. Templates are sourced solely from REPO_ROOT/samples/systemd (never the
-# platform-selected TEMPLATE_DIR, which has no env override) so a webhook-
-# controlled environment cannot redirect the trusted comparison inputs.
-# stdout carries only the identities of drifted units, one per line, and only
-# when the comparison completed cleanly (exit 0). A non-zero exit means the
-# checker itself failed (unreadable template, or an installed path that
-# exists but is not a regular file) — distinct from drift and never printed
-# to stdout, so callers must not treat a non-zero exit as "no drift".
+# Compares a rendered template with its installed file. Returns 0 when they
+# match, 1 for drift (including an absent file), and 2 for a checker error.
+check_drift_target() {
+  local template_file="$1" dest_path="$2"
+
+  if [ -e "${dest_path}" ] && [ ! -f "${dest_path}" ]; then
+    echo "ERROR: ${dest_path} exists but is not a regular file" >&2
+    return 2
+  fi
+
+  if [ ! -r "${template_file}" ]; then
+    echo "ERROR: template not readable: ${template_file}" >&2
+    return 2
+  fi
+
+  if [ ! -e "${dest_path}" ]; then
+    return 1
+  fi
+
+  # Captured, not folded into a bare `if ! ... | cmp ...`: pipefail's
+  # rightmost-nonzero rule would otherwise mask a render failure behind cmp.
+  if render_template "${template_file}" | cmp -s - "${dest_path}"; then
+    return 0
+  fi
+
+  local -a pipe_rc=("${PIPESTATUS[@]}")
+  local render_rc="${pipe_rc[0]}" cmp_rc="${pipe_rc[1]}"
+  if [ "${render_rc}" -ne 0 ]; then
+    echo "ERROR: failed to render ${template_file}" >&2
+    return 2
+  fi
+  if [ "${cmp_rc}" -eq 1 ]; then
+    return 1
+  fi
+
+  echo "ERROR: failed to compare rendered ${template_file} against ${dest_path} (cmp exit ${cmp_rc})" >&2
+  return 2
+}
+
+# Renders each managed Linux template and compares it to the installed file.
+# The check is read-only: it never writes, reloads services, or mutates host
+# state. stdout contains drift identities only when the check completed cleanly.
 check_drift() {
   local drift_template_dir="${REPO_ROOT}/samples/systemd"
-  local unit template_file dest_path
+  local unit check_rc
   local had_error=false
   local -a drifted=()
 
   for unit in "${SYSTEMD_UNITS[@]}"; do
-    template_file="${drift_template_dir}/${unit}"
-    dest_path="${SERVICE_DIR}/${unit}"
-
-    if [ -e "${dest_path}" ] && [ ! -f "${dest_path}" ]; then
-      echo "ERROR: ${dest_path} exists but is not a regular file" >&2
-      had_error=true
-      continue
-    fi
-
-    if [ ! -r "${template_file}" ]; then
-      echo "ERROR: template not readable: ${template_file}" >&2
-      had_error=true
-      continue
-    fi
-
-    if [ ! -e "${dest_path}" ]; then
-      drifted+=("${unit}")
-      continue
-    fi
-
-    # Captured, not folded into a bare `if ! ... | cmp ...`: pipefail's
-    # rightmost-nonzero rule would otherwise mask a render failure behind
-    # cmp's own exit, and any cmp exit above 1 (its own operational error —
-    # e.g. dest_path unreadable) would be misreported as drift instead of a
-    # checker error.
-    if render_template "${template_file}" | cmp -s - "${dest_path}"; then
-      : # identical — clean
-    else
-      local -a pipe_rc=("${PIPESTATUS[@]}")
-      local render_rc="${pipe_rc[0]}" cmp_rc="${pipe_rc[1]}"
-      if [ "${render_rc}" -ne 0 ]; then
-        echo "ERROR: failed to render ${template_file}" >&2
-        had_error=true
-      elif [ "${cmp_rc}" -eq 1 ]; then
-        drifted+=("${unit}")
-      else
-        echo "ERROR: failed to compare rendered ${unit} against ${dest_path} (cmp exit ${cmp_rc})" >&2
-        had_error=true
-      fi
-    fi
+    check_rc=0
+    check_drift_target "${drift_template_dir}/${unit}" "${SERVICE_DIR}/${unit}" || check_rc=$?
+    case "${check_rc}" in
+      0) ;;
+      1) drifted+=("${unit}") ;;
+      *) had_error=true ;;
+    esac
   done
+
+  if [ "${PLATFORM}" = "linux" ]; then
+    check_rc=0
+    check_drift_target "${REPO_ROOT}/samples/logrotate/itsup" "/etc/logrotate.d/itsup" || check_rc=$?
+    case "${check_rc}" in
+      0) ;;
+      1) drifted+=("logrotate/itsup") ;;
+      *) had_error=true ;;
+    esac
+  fi
 
   if [ "${had_error}" = "true" ]; then
     exit 1
@@ -538,6 +547,15 @@ install_systemd_units() {
   echo "✓ pi-healthcheck.timer enabled (every 5 minutes)"
 }
 
+install_logrotate() {
+  local write_rc=0
+  write_if_changed "${REPO_ROOT}/samples/logrotate/itsup" "/etc/logrotate.d/itsup" true || write_rc=$?
+  if [ "${write_rc}" -eq 2 ]; then
+    echo "ERROR: aborting install — failed to write /etc/logrotate.d/itsup" >&2
+    exit 1
+  fi
+}
+
 # ── launchd (macOS) ────────────────────────────────────────────────────────
 
 install_launchd_agents() {
@@ -642,6 +660,9 @@ sweep_legacy_daemons
 ensure_mutating_host_prereqs
 
 case "${PLATFORM}" in
-  linux) install_systemd_units;;
+  linux)
+    install_systemd_units
+    install_logrotate
+    ;;
   macos) install_launchd_agents;;
 esac
