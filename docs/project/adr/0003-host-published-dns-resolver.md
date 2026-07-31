@@ -45,9 +45,10 @@ in `lib/data.py:PROXYNET_RESERVED_IPS`, and is not routable from the LAN. Firewa
 containment restricting the listener to Docker bridge sources is part of the
 decision, not an optional hardening step.
 
-`SSH_HOST` (`192.168.1.30`) was the first candidate and is unavailable: AdGuard
-already binds it on port 53 for both protocols. The gateway address avoids that
-collision and, being non-LAN-routable, exposes strictly less.
+The host's LAN address (resolved from `SSH_HOST`) was the first candidate and is
+unavailable: the AdGuard project already binds `<host-lan-address>:53` for both
+protocols. The gateway address avoids that collision and, being non-LAN-routable,
+exposes strictly less.
 
 ## Alternatives considered
 
