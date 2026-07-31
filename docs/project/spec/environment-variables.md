@@ -70,7 +70,9 @@ Names verified against `samples/secrets/itsup.txt` and their code/template consu
 |------|--------------------|--------------------|
 | `API_KEY` | required for the API | `lib/auth.py:22,32` — apikey guarding the management API; 503 if unset. |
 | `LETSENCRYPT_EMAIL` | required by the proxy template | `tpl/traefik.yml.j2:20`; `tpl/docker-compose.yml.j2:59` (`${...:?}` — fails if empty) — ACME account email. |
-| `CROWDSEC_APIKEY` | required by the proxy template | `tpl/docker-compose.yml.j2:56,84` (`${...:?}`) — CrowdSec bouncer key for Traefik. |
+| `CROWDSEC_APIKEY` | required when CrowdSec is enabled | `tpl/docker-compose.yml.j2:91,108-109` — sets CrowdSec's Traefik bouncer key and is mounted into Traefik as the `crowdsec_lapi_key` Compose secret. |
+| `CROWDSEC_CAPI_MACHINE_ID` | optional; used by CrowdSec `alone` mode | `tpl/docker-compose.yml.j2:110-111` — mounted into Traefik as the `crowdsec_capi_machine_id` Compose secret. The generated bouncer defaults to `live` mode and does not consume it. |
+| `CROWDSEC_CAPI_PASSWORD` | optional; used by CrowdSec `alone` mode | `tpl/docker-compose.yml.j2:112-113` — mounted into Traefik as the `crowdsec_capi_password` Compose secret. The generated bouncer defaults to `live` mode and does not consume it. |
 | `AWS_ACCESS_KEY_ID` | required for backup | `bin/backup.py:74,87` — S3 credentials for `bin/backup.py`. |
 | `AWS_SECRET_ACCESS_KEY` | required for backup | `bin/backup.py:75,88`. |
 | `AWS_S3_HOST` | required for backup | `bin/backup.py:76,89` — S3 endpoint host (https:// prefixed if scheme-less, `:96-99`). |
@@ -79,8 +81,7 @@ Names verified against `samples/secrets/itsup.txt` and their code/template consu
 
 `bin/backup.py:73-85` hard-checks all five `AWS_*` secrets and exits non-zero if
 any are missing. Additional infra secret names appear in `samples/secrets/itsup.txt`
-(`TRAEFIK_ADMIN`, `CROWDSEC_API_KEY`, `CROWDSEC_CAPI_MACHINE_ID`,
-`CROWDSEC_CAPI_PASSWORD`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`,
+(`TRAEFIK_ADMIN`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`,
 `OPENAI_API_KEY`) for consumption as `${VAR}` in `projects/*.yml` overrides
 (e.g. `samples/projects/middlewares.yml`); they have no Python read site.
 

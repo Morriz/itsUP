@@ -45,8 +45,9 @@ options below are stable across that range.
 
 ## LAPI wiring
 
-- `crowdsecLapiKey` (default empty) — bouncer API key, generated via
-  `cscli bouncers add` (itsUP injects `${CROWDSEC_APIKEY}`).
+- `crowdsecLapiKey` / `crowdsecLapiKeyFile` (default empty) — bouncer API key,
+  generated via `cscli bouncers add`. itsUP mounts `CROWDSEC_APIKEY` as a
+  Compose secret and configures `crowdsecLapiKeyFile` to read it.
 - `crowdsecLapiHost` (default `crowdsec:8080`) — LAPI address (itsUP:
   `127.0.0.1:18080`, host-networked crowdsec container).
 

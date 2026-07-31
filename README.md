@@ -751,7 +751,12 @@ Now we can execute the command to get the key:
 itsup svc traefik exec crowdsec cscli bouncers add crowdsecBouncer
 ```
 
-Put the resulting api key in `secrets/itsup.txt` as `CROWDSEC_API_KEY=<your-key>`, then reference it in `projects/traefik.yml` configuration and apply with `itsup apply`.
+Put the resulting API key in `secrets/itsup.txt` as
+`CROWDSEC_APIKEY=<your-key>`, then apply with `itsup apply`. itsUP mounts this
+value into Traefik as a Compose secret; it does not belong in
+`projects/itsup.yml` or `projects/traefik.yml`. The optional
+`CROWDSEC_CAPI_MACHINE_ID` and `CROWDSEC_CAPI_PASSWORD` secrets are only needed
+when configuring the bouncer's `alone` mode.
 Crowdsec is now running and wired up, but does not use any blocklists yet. Those can be managed manually, but preferable is to become part of the community by creating an account with CrowdSec to get access and contribute to the community blocklists, as well as view results in your account's dashboards.
 
 **Step 2: connect your instance with the CrowdSec console**

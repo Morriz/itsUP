@@ -19,7 +19,6 @@ routerIP: # Auto-detected on first run
 
 crowdsec:
   enabled: true
-  apikey: '${CROWDSEC_APIKEY}'
   collections:
     - crowdsecurity/linux
     - crowdsecurity/traefik

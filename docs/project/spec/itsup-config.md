@@ -44,18 +44,25 @@ sample is `samples/projects/itsup.yml`):
 |-----|------|----------|-------------|---------|
 | `traefikDomain` | str | **yes** | `bin/write_artifacts.py:492-499` | Traefik dashboard host; becomes the dashboard router rule `Host(\`...\`)` (`write_artifacts.py:592`). Missing/empty raises a `ValueError` during artifact generation. |
 | `routerIP` | str | no (auto-detected) | `lib/data.py:401` | Router/gateway IP. Used to build Traefik's trusted-IPs list as `{routerIP}/32` (`get_trusted_ips`, `lib/data.py:447-450`). If absent, itsUP auto-detects via `netifaces` and writes the value back into the file (`get_router_ip`/`update_itsup_yml_router_ip`, `lib/data.py:393-444`). |
-| `versions` | map | no | `tpl/docker-compose.yml.j2:37,70` | Image tag pins for the proxy stack. |
-| `versions.traefik` | str | no | `tpl/docker-compose.yml.j2:37` | Traefik image tag (e.g. `v3.6.17`); rendered as `image: traefik:{{ itsup.versions.traefik }}`. |
-| `versions.crowdsec` | str | no | `tpl/docker-compose.yml.j2:70` | CrowdSec image tag; rendered as `image: crowdsecurity/crowdsec:{{ itsup.versions.crowdsec }}`. |
-| `crowdsec` | map | no | `bin/write_artifacts.py:430` | CrowdSec bouncer settings. |
-| `crowdsec.enabled` | bool | no (default `False`) | `write_artifacts.py:454`; `tpl/docker-compose.yml.j2:50,66` | Gates the CrowdSec service + bouncer middleware. When false, no `crowdsec` container is generated and the bouncer block is omitted. |
-| `crowdsec.apikey` | str | no (default `""`) | `write_artifacts.py:455`; `tpl/middlewares.yml.j2:43` | LAPI key injected into the bouncer middleware (`crowdsecLapiKey`). Typically `${CROWDSEC_APIKEY}`. |
-| `crowdsec.collections` | str[] | no | `tpl/docker-compose.yml.j2:82` | CrowdSec collections; space-joined into the container's `COLLECTIONS` env. |
+| `versions` | map | no | `tpl/docker-compose.yml.j2:41,77` | Image tag pins for the proxy stack. |
+| `versions.traefik` | str | no | `tpl/docker-compose.yml.j2:41` | Traefik image tag (e.g. `v3.6.17`); rendered as `image: traefik:{{ itsup.versions.traefik }}`. |
+| `versions.crowdsec` | str | no | `tpl/docker-compose.yml.j2:77` | CrowdSec image tag; rendered as `image: crowdsecurity/crowdsec:{{ itsup.versions.crowdsec }}`. |
+| `crowdsec` | map | no | `bin/write_artifacts.py:469` | CrowdSec bouncer settings. |
+| `crowdsec.enabled` | bool | no (default `False`) | `write_artifacts.py:493`; `tpl/docker-compose.yml.j2:51,73` | Gates the CrowdSec service + bouncer middleware. When false, no `crowdsec` container is generated and the bouncer block is omitted. |
+| `crowdsec.collections` | str[] | no | `tpl/docker-compose.yml.j2:89` | CrowdSec collections; space-joined into the container's `COLLECTIONS` env. |
 | `backup` | map | no | `samples/projects/itsup.yml` | Documentary holder for the S3 endpoint settings below; the live S3 credentials are read from `secrets/itsup.{enc.txt\|txt}`, not from this map. Live-tar exclusions are not configured here — each project declares its own `projects/<name>/backup.yml` (adapter + exclude paths; see `project/design/backup-restore`). |
 | `backup.s3.host` | str | no | `samples/projects/itsup.yml` | S3 endpoint host (typically `${AWS_S3_HOST}`). |
 | `backup.s3.region` | str | no | `samples/projects/itsup.yml` | S3 region (typically `${AWS_S3_REGION}`). |
 | `backup.s3.bucket` | str | no | `samples/projects/itsup.yml` | Target bucket (typically `${AWS_S3_BUCKET}`). |
 | `schemaVersion` | str | no | `lib/migrations.py:24,38` | Config schema version, owned by the migration machinery — see `project/spec/schema-migration`. |
+
+CrowdSec credentials are infrastructure secrets, not `projects/itsup.yml`
+fields. `CROWDSEC_APIKEY` comes from `secrets/itsup.{enc.txt|txt}` and is mounted
+into Traefik as a Compose secret. The optional `CROWDSEC_CAPI_MACHINE_ID` and
+`CROWDSEC_CAPI_PASSWORD` secrets are only consumed in the bouncer's `alone`
+mode; the generated middleware uses `live` mode. The middleware reads these
+values from `/run/secrets/*` files (`tpl/docker-compose.yml.j2:51-55,107-113`;
+`tpl/middlewares.yml.j2:46,50,54-55`).
 
 
 ### Alert command
