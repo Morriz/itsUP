@@ -1,6 +1,6 @@
 """Failure-alert composition and dispatch, plus the apply deadman assertion.
 
-itsUP composes the alert; the configured alert command template owns the
+itsUP composes the alert; the operator's `alert.command` template owns the
 transport (see `project/spec/itsup-config#alert-command`). This module never
 names a transport and never writes a resolved secret to any diagnostic.
 """
@@ -35,8 +35,6 @@ DRIFT_UNITS_CSV_SEPARATOR = ","
 
 DRIFT_ALERT_SUPPRESSED_DETAIL = "alert.command not configured; suppressing drift alert for {units}"
 DRIFT_UNIT_LIST_DISPLAY_SEPARATOR = ", "
-HOST_LOCAL_ALERT_COMMAND_SECRET = "ITSUP_ALERT_COMMAND"
-HOST_LOCAL_ALERT_COMMAND_EMPTY_ERROR = "ITSUP_ALERT_COMMAND is empty"
 
 DRIFT_BODY_TEMPLATE = (
     "itsUP alert: {count} systemd unit(s) drifted from delivered templates\n{units}\n\nRemedy: make install-runtime"
@@ -79,14 +77,14 @@ class AlertOutcome:
 def send_alert(unit: str) -> AlertOutcome:
     """Compose and dispatch an alert for a unit that just entered `failed`."""
     config = load_itsup_config()
-    secrets = load_secrets(None)
-    argv_template = _resolve_command_template(config, secrets)
+    argv_template = _resolve_command_template(config)
     if argv_template is None:
         return AlertOutcome(
             status=AlertStatus.SUPPRESSED,
             detail=f"alert.command not configured; suppressing alert for {unit}",
         )
 
+    secrets = load_secrets(None)
     body = _compose_unit_body(unit)
     return _dispatch(argv_template, secrets, unit_identity=unit, body=body)
 
@@ -123,14 +121,14 @@ def check_deadman() -> AlertOutcome:
     detail_suffix = f"(age={_format_duration(age)}, window={_format_duration(DEADMAN_WINDOW_SECONDS)})"
 
     config = load_itsup_config()
-    secrets = load_secrets(None)
-    argv_template = _resolve_command_template(config, secrets)
+    argv_template = _resolve_command_template(config)
     if argv_template is None:
         return AlertOutcome(
             status=AlertStatus.SUPPRESSED,
             detail=f"alert.command not configured; suppressing deadman alert {detail_suffix}",
         )
 
+    secrets = load_secrets(None)
     body = _compose_deadman_body(age)
     return _dispatch(argv_template, secrets, unit_identity=DEADMAN_UNIT_IDENTITY, body=body)
 
@@ -138,19 +136,19 @@ def check_deadman() -> AlertOutcome:
 def send_drift_alert(units: list[str]) -> AlertOutcome:
     """Compose and dispatch an alert for units drifted from their delivered templates."""
     config = load_itsup_config()
-    secrets = load_secrets(None)
-    argv_template = _resolve_command_template(config, secrets)
+    argv_template = _resolve_command_template(config)
     if argv_template is None:
         return AlertOutcome(
             status=AlertStatus.SUPPRESSED,
             detail=DRIFT_ALERT_SUPPRESSED_DETAIL.format(units=DRIFT_UNIT_LIST_DISPLAY_SEPARATOR.join(units)),
         )
 
+    secrets = load_secrets(None)
     body = _compose_drift_body(units)
     return _dispatch(argv_template, secrets, unit_identity=DRIFT_UNIT_IDENTITY, body=body)
 
 
-def _resolve_command_template(config: dict[str, Any], secrets: dict[str, str]) -> list[str] | None:
+def _resolve_command_template(config: dict[str, Any]) -> list[str] | None:
     """Extract and boundary-validate `alert.command`, pre-placeholder-resolution.
 
     Returns None only when the `alert` key or `alert.command` value is
@@ -161,14 +159,11 @@ def _resolve_command_template(config: dict[str, Any], secrets: dict[str, str]) -
     """
     alert_config = config.get("alert")
     if alert_config is None:
-        template = _host_local_command_template(secrets)
-    else:
-        if not isinstance(alert_config, dict):
-            raise AlertConfigError(f"alert must be a mapping, got {type(alert_config).__name__}")
-        template = alert_config.get("command")
-        if template is None:
-            template = _host_local_command_template(secrets)
+        return None
+    if not isinstance(alert_config, dict):
+        raise AlertConfigError(f"alert must be a mapping, got {type(alert_config).__name__}")
 
+    template = alert_config.get("command")
     if template is None:
         return None
 
@@ -184,16 +179,6 @@ def _resolve_command_template(config: dict[str, Any], secrets: dict[str, str]) -
         raise AlertConfigError("alert.command splits to an empty argument vector")
 
     return argv_template
-
-
-def _host_local_command_template(secrets: dict[str, str]) -> str | None:
-    """Return the host-local alert command template from secrets, if configured."""
-    if HOST_LOCAL_ALERT_COMMAND_SECRET not in secrets:
-        return None
-    template = secrets[HOST_LOCAL_ALERT_COMMAND_SECRET]
-    if not template:
-        raise AlertConfigError(HOST_LOCAL_ALERT_COMMAND_EMPTY_ERROR)
-    return template
 
 
 def _resolve_token(token: str, secrets: dict[str, str]) -> str:
