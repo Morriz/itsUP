@@ -68,7 +68,6 @@ And retention evicts an unvalidated object before any validated generation
 And bin/restore.py offers only validated generations by default
 ```
 
-<!-- planned:fix-backup-staged-upload-size-mismatch-for-s -->
 #### UC-BUI2: A complete upload passes verification against a strict S3-compatible provider
 
 The completeness check compares the staged object's stored length to the local
@@ -84,7 +83,6 @@ When bin/backup.py issues the staging upload
 Then the upload request sends the archive as an unframed body of the archive's exact byte length
 And the staged object's stored length equals the local archive's, so the completeness check passes and the generation is published and validated
 ```
-<!-- /planned:fix-backup-staged-upload-size-mismatch-for-s -->
 
 ## Canonical fields
 

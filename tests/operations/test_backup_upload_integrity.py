@@ -1,13 +1,17 @@
 from collections.abc import Iterable
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
+from urllib.parse import urlsplit
 
+import boto3
 import pytest
+from botocore.awsrequest import AWSPreparedRequest, AWSResponse
 
 from bin import backup, restore
 
 SPEC_ID = "project/spec/feature/operations/backup-upload-integrity"
 BUCKET = "backups"
+COPY_SOURCE_HEADER = "x-amz-copy-source"
 
 
 class FakeS3:
@@ -52,6 +56,28 @@ def _validated_generations(client: FakeS3) -> set[str]:
         for key in client.objects
         if key.startswith(f"{backup.DB_FILE}.") and f"{backup.VALIDATED_PREFIX}{key}" in client.objects
     }
+
+
+class _FakeRawStream:
+    """Minimal stand-in for the urllib3 raw stream botocore reads responses from."""
+
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def stream(self, amt: int | None = None, decode_content: bool | None = None) -> Iterable[bytes]:
+        yield self._body
+
+
+def _fake_s3_response(status_code: int, headers: dict[str, str], body: bytes = b"") -> AWSResponse:
+    return AWSResponse("https://s3.example.test/", status_code, headers, _FakeRawStream(body))
+
+
+def _key_from_url(url: str, bucket: str) -> str:
+    """Extract the object key from a path-style S3 request URL."""
+    prefix = f"/{bucket}/"
+    path = urlsplit(url).path
+    assert path.startswith(prefix)
+    return path[len(prefix) :]
 
 
 def _seed_validated_generations(client: FakeS3, timestamps: Iterable[str]) -> set[str]:
@@ -117,3 +143,96 @@ def test_incomplete_upload_never_publishes_or_displaces_validated_backups(
     restore.main(["all", "--list"])
 
     assert capsys.readouterr().out.splitlines() == sorted(validated_after_retention, reverse=True)
+
+
+@pytest.mark.functional
+@pytest.mark.spec(SPEC_ID, "UC-BUI2")
+def test_complete_upload_passes_verification_against_strict_s3_compatible_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """UC-BUI2: the staging upload request is unframed and the run publishes.
+
+    Drives the real `backup.main` -> `upload_to_s3` -> `build_s3_client` chain
+    against the real botocore client; only the HTTP transport is faked (a
+    `before-send` handler on the client's event system), so the staging
+    `PutObject` request this test inspects is the exact one botocore emits.
+    """
+    root = tmp_path / "root"
+    (root / "upstream").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ITSUP_ROOT", str(root))
+
+    def fake_load_secrets() -> dict[str, str]:
+        return {
+            "AWS_ACCESS_KEY_ID": "test-key",
+            "AWS_SECRET_ACCESS_KEY": "test-secret",
+            "AWS_S3_HOST": "s3.example.test",
+            "AWS_S3_REGION": "us-east-1",
+            "AWS_S3_BUCKET": BUCKET,
+        }
+
+    monkeypatch.setattr(backup, "load_secrets", fake_load_secrets)
+
+    staging_requests: list[AWSPreparedRequest] = []
+    marker_requests: list[AWSPreparedRequest] = []
+    copy_requests: list[AWSPreparedRequest] = []
+    delete_requests: list[AWSPreparedRequest] = []
+    list_requests: list[AWSPreparedRequest] = []
+
+    def before_send(request: AWSPreparedRequest, **kwargs: Any) -> AWSResponse:
+        headers = request.headers
+        if request.method == "PUT" and COPY_SOURCE_HEADER in headers:
+            copy_requests.append(request)
+            body = (
+                b'<CopyObjectResult><ETag>"etag"</ETag>'
+                b"<LastModified>2024-01-01T00:00:00.000Z</LastModified></CopyObjectResult>"
+            )
+            return _fake_s3_response(200, {}, body)
+        if request.method == "PUT":
+            key = _key_from_url(request.url, BUCKET)
+            if key.startswith(backup.VALIDATED_PREFIX):
+                marker_requests.append(request)
+            else:
+                staging_requests.append(request)
+            return _fake_s3_response(200, {"ETag": '"etag"'})
+        if request.method == "HEAD":
+            content_length = staging_requests[0].headers.get("Content-Length")
+            return _fake_s3_response(200, {"Content-Length": content_length})
+        if request.method == "DELETE":
+            delete_requests.append(request)
+            return _fake_s3_response(204, {})
+        if request.method == "GET":
+            list_requests.append(request)
+            body = (
+                b'<?xml version="1.0" encoding="UTF-8"?>'
+                b'<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+                b"<Name>backups</Name><KeyCount>0</KeyCount></ListBucketResult>"
+            )
+            return _fake_s3_response(200, {}, body)
+        raise AssertionError(f"unexpected S3 request: {request.method} {request.url}")
+
+    real_boto3_client = boto3.client
+
+    def instrumented_client(service_name: str, *args: Any, **kwargs: Any) -> Any:
+        client = real_boto3_client(service_name, *args, **kwargs)
+        if service_name == "s3":
+            client.meta.events.register("before-send.s3.*", before_send)
+        return client
+
+    monkeypatch.setattr(boto3, "client", instrumented_client)
+
+    backup.main([])
+
+    assert staging_requests, "the staging PutObject was never captured"
+    staging_request = staging_requests[0]
+    assert "aws-chunked" not in staging_request.headers.get("Content-Encoding", "")
+    assert "X-Amz-Trailer" not in staging_request.headers
+    content_length = staging_request.headers.get("Content-Length")
+    assert content_length is not None
+    assert content_length == str(len(staging_request.body))
+
+    assert len(copy_requests) == 1
+    assert len(marker_requests) == 1
+    assert len(delete_requests) == 1
+    assert len(list_requests) == 1

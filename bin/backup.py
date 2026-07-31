@@ -200,7 +200,7 @@ def build_s3_client() -> tuple[Any, str]:
         aws_access_key_id=secrets["AWS_ACCESS_KEY_ID"],
         aws_secret_access_key=secrets["AWS_SECRET_ACCESS_KEY"],
         region_name=secrets["AWS_S3_REGION"],
-        config=Config(signature_version="s3v4"),
+        config=Config(signature_version="s3v4", request_checksum_calculation="when_required"),
     )
     return s3_client, secrets["AWS_S3_BUCKET"]
 
