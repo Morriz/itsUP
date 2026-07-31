@@ -97,8 +97,9 @@ monitor — which `run` skips with a notice on macOS — the DNS step **refuses*
 a non-Linux host, naming the missing containment. Skipping would publish an
 unguarded recursive resolver, discarding the invariant
 `project/adr/0003-host-published-dns-resolver` makes mandatory; a macOS
-container host is therefore unsupported for DNS runtime mutation until pf-based
-containment exists.
+container host therefore cannot perform DNS runtime mutation yet, and the refusal
+names `macos-container-host-dns-support` — the sequenced follow-up that adds it —
+rather than reporting the platform as unsupported.
 <!-- /planned-change:dns-fallback-off-proxynet -->
 
 ### `itsup down` — orchestrated shutdown
