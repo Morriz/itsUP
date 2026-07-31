@@ -1,6 +1,6 @@
 ---
 delivered_by: [gated-file-endpoint]
-description: Acceptance scenarios for the route-scoped source-IP allowlist — an ingress row carrying allow_source_ips generates a per-route Traefik ipAllowList middleware attached only to that router, and external-host routers are disambiguated by path so multiple routes can share one host:port.
+description: Acceptance scenarios for the route-scoped source-IP allowlist — an ingress row carrying allow_source_ips generates a per-route Traefik ipAllowList middleware attached only to that router, and external-host routers are disambiguated by a per-route ingress-loop index suffix so multiple routes can share one host:port.
 ---
 
 # Route-Scoped Source-IP Allowlist — Spec
@@ -14,10 +14,12 @@ list, and attach it to that route's dynamic-file HTTP router alone — leaving
 every other router, and the shared `web-secure` entrypoint chain, untouched. A
 route without the field emits no per-route middleware.
 
-Because the external-host dynamic-router identity now includes the route's
-`path_prefix`, two ingress rows sharing one external `host:port` (for example an
-unauthenticated `/redirect` and an origin-gated `/file` on the same API host)
-generate two distinct routers instead of colliding on one router key.
+Because each external-host route now gets a per-route-unique router identity —
+`{project}-{host}-{port}` plus the route's ingress-loop index — two ingress rows
+sharing one external `host:port` (for example an unauthenticated `/redirect` and
+an origin-gated `/file` on the same API host) generate two distinct routers
+instead of colliding on one router key. The identity is unique by construction
+(not derived from the path), so it cannot collide.
 
 The business value is that a single route can be restricted to a fixed origin
 without a bespoke firewall and without affecting neighbouring routes: the gate
@@ -31,8 +33,8 @@ trusted PROXY protocol from `routerIP` is the conveyed client IP.
 The scenarios below are bound by functional tests in
 `tests/deployment/test_route_scoped_ip_allowlist.py`, which invoke the real
 `write_dynamic_routers` generation surface against a temporary external-host
-project tree and assert the generated `routers-http.yml` structure, plus one
-model-validation test.
+project tree and assert the generated `routers-http.yml` structure, plus two
+model-validation tests.
 
 #### UC-RSIP1: Two routes on one external host:port render as distinct routers
 
@@ -52,12 +54,12 @@ Then that route's router lists a per-route ipAllowList middleware in its middlew
 And the generated ipAllowList middleware's sourceRange equals the declared allow_source_ips
 ```
 
-#### UC-RSIP3: A malformed or empty allow_source_ips value is rejected by validation
+#### UC-RSIP3: A malformed allow_source_ips entry is rejected, naming the entry
 
 ```gherkin
-Given an ingress row whose allow_source_ips is an empty list or contains a value that is not a valid IP or CIDR
+Given an ingress row whose allow_source_ips contains a value that is not a valid IP or CIDR
 When the project configuration is loaded and validated
-Then validation fails naming the offending value
+Then validation fails naming the malformed entry
 ```
 
 #### UC-RSIP4: A route without allow_source_ips carries no per-route ipAllowList
@@ -66,6 +68,14 @@ Then validation fails naming the offending value
 Given an ingress row that does not declare allow_source_ips
 When the dynamic Traefik routers are generated
 Then that route's router carries no ipAllowList middleware
+```
+
+#### UC-RSIP5: A present-but-empty allow_source_ips is rejected as an empty allowlist
+
+```gherkin
+Given an ingress row whose allow_source_ips is present but an empty list
+When the project configuration is loaded and validated
+Then validation fails with an empty-allowlist error
 ```
 
 ## Canonical fields
