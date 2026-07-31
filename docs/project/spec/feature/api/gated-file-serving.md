@@ -62,8 +62,11 @@ Then the response is refused with a client-error status
   extended by editing the set). Because it is positive, config/secret formats
   (`.json/.yml/.yaml/.env/.pem/.key/.conf`) are refused by construction.
 - Content type: mapped per allowed extension (`.lsrules` is JSON).
-- Refusals: missing `path`, non-allowlisted extension, and paths that are not an
-  existing regular file each return a client-error status via `HTTPException`.
+- Refusals: a non-allowlisted extension and a path that is not an existing
+  regular file each return a client-error status via `HTTPException`. These are
+  the endpoint's only refusals. `path` is a required query parameter; omitting
+  it is rejected by FastAPI's own request validation at the framework boundary,
+  not by endpoint-specific handling.
 - Origin gating: enforced at the proxy (route-scoped source-IP allowlist), not by
   the endpoint. The public `/redirect` bouncer is a separate, unauthenticated,
   ungated route and is unaffected.

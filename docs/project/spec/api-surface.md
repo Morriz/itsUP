@@ -63,11 +63,13 @@ path, over the internet, to an origin-gated caller. It carries no app-side
 authentication: the origin gate is a route-scoped source-IP allowlist at the
 proxy (`project/spec/feature/deployment/route-scoped-ip-allowlist`), and the
 app-side security boundary is a positive file-extension allowlist (initially
-`.lsrules`) that refuses config/secret formats by construction. A missing
-`path`, a non-allowlisted extension, or a path that is not an existing regular
-file is refused with a client-error status; an allowlisted-extension file is
-returned with its bytes and the content type mapped for that extension. Behaviour
-contract: `project/spec/feature/api/gated-file-serving`.
+`.lsrules`) that refuses config/secret formats by construction. A
+non-allowlisted extension, or a path that is not an existing regular file, is
+refused with a client-error status; an allowlisted-extension file is returned
+with its bytes and the content type mapped for that extension. `path` is a
+required query parameter, so omitting it is rejected by FastAPI's own request
+validation rather than by the endpoint. Behaviour contract:
+`project/spec/feature/api/gated-file-serving`.
 <!-- /planned:gated-file-endpoint -->
 
 The GitOps chain reaches the apikey-guarded endpoints over loopback: the shared
