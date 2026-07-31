@@ -131,12 +131,11 @@ class Ingress(BaseModel):
 
     @model_validator(mode="after")
     def check_allow_source_ips(self) -> Self:
-        allow_source_ips = self.allow_source_ips
-        if allow_source_ips is None:
+        if self.allow_source_ips is None:
             return self
-        if not allow_source_ips:
+        if not self.allow_source_ips:
             raise ValueError(EMPTY_ALLOW_SOURCE_IPS_MESSAGE)
-        for entry in allow_source_ips:
+        for entry in self.allow_source_ips or []:
             try:
                 ipaddress.ip_network(entry, strict=False)
             except ValueError as error:
