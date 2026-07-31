@@ -30,12 +30,31 @@ network topology is caught before it ships.
 
 ### Use cases
 
+<!-- planned-change:dns-fallback-off-proxynet -->
 The scenarios below capture the three network states (project-local isolation,
 ingress-gated proxynet membership, per-edge egress) plus DNS injection and
 static-IP pinning. Each is bound by exactly one functional test in
 `tests/deployment/test_network_segmentation.py`; the test mocks only the
 `load_project` filesystem line, invokes `write_upstream`, and asserts the
 generated compose structure via the imported `edge_network_name` helper.
+<!-- change:dns-fallback-off-proxynet -->
+The scenarios below capture the three network states (project-local isolation,
+ingress-gated proxynet membership, per-edge egress) plus static-IP pinning. Each
+is bound by exactly one functional test in
+`tests/deployment/test_network_segmentation.py`; the test mocks only the
+`load_project` filesystem line, invokes `write_upstream`, and asserts the
+generated compose structure via the imported `edge_network_name` helper.
+
+Resolver injection carries no generation-time scenario. The contract that
+mattered — that a service can actually resolve names — is not observable in the
+generated compose at all: a list naming an unreachable address and a
+self-referential one renders identically to a working one. A scenario binding
+that shape stays green against a resolver that cannot resolve, which is how the
+off-proxynet resolver defect survived its own acceptance test. Resolver
+behavior is therefore verified live against a running service, and the
+generation-time contract lives in
+`project/design/artifact-generation` invariant 6.
+<!-- /planned-change:dns-fallback-off-proxynet -->
 
 #### UC-PROX1: A service with an ingress row joins proxynet; one without does not
 
@@ -66,15 +85,6 @@ When the upstream compose is generated
 Then every service's dns list is the honeypot address followed by the Docker DNS address
 ```
 <!-- change:dns-fallback-off-proxynet -->
-#### UC-DNS1: Every service receives one reachable honeypot resolver
-
-```gherkin
-Given a project whose compose declares services with no explicit dns
-And some of those services carry no ingress row, so they never join proxynet
-When the upstream compose is generated
-Then every service's dns list is exactly the honeypot's gateway address
-And no service's dns list contains the Docker embedded resolver address as an upstream
-```
 <!-- /planned-change:dns-fallback-off-proxynet -->
 
 #### UC-DNS2: An explicit dns list on an ingress row replaces the honeypot injection
