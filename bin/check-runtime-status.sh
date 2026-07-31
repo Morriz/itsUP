@@ -113,9 +113,9 @@ check_alert_command() {
   local result
   if ! result="$(PYTHONPATH="${ITSUP_ROOT}" "${PYTHON}" - <<'PY'
 from lib.alerting import _resolve_command_template
-from lib.data import load_itsup_config
+from lib.data import load_itsup_config, load_secrets
 
-template = _resolve_command_template(load_itsup_config())
+template = _resolve_command_template(load_itsup_config(), load_secrets(None))
 if template is None:
     print("missing")
 else:
