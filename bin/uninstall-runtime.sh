@@ -303,6 +303,10 @@ remove_systemd_units() {
       removed=1
     fi
   done
+  if [ -f "/etc/logrotate.d/itsup" ]; then
+    echo "Removing /etc/logrotate.d/itsup..."
+    sudo rm -f "/etc/logrotate.d/itsup"
+  fi
   if [ "${removed}" = "1" ]; then
     echo "Reloading systemd..."
     sudo systemctl daemon-reload
