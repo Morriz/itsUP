@@ -1,0 +1,156 @@
+# serializer version: 1
+# name: test_clean_generation_preserves_compose_placeholders[compose_traefik_environment]
+  list([
+    'DOCKER_HOST=tcp://127.0.0.1:2375',
+    'LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:?}',
+  ])
+# ---
+# name: test_clean_generation_preserves_compose_placeholders[middlewares_yml]
+  '''
+  # yaml-language-server: $schema=https://www.schemastore.org/traefik-v3.json
+  http:
+    middlewares:
+      default-headers:
+        headers:
+          browserXssFilter: true
+          contentTypeNosniff: true
+          forceSTSHeader: true
+          frameDeny: true
+          stsIncludeSubdomains: true
+          stsPreload: true
+          stsSeconds: 31536000
+          #frameDeny: true
+          # HSTS - uncomment for HSTS
+          #forceSTSHeader: true
+          #stsIncludeSubdomains: true
+          #stsPreload: true
+      removeServiceSelector:
+        stripPrefix:
+          forceSlash: false
+      redirect:
+        redirectScheme:
+          scheme: https
+      traefik-auth:
+        basicauth:
+          users: admin:$apr1$xyz
+      rate-limit:
+        rateLimit:
+          period: 1s
+          average: 100
+          burst: 200
+  
+      crowdsec:
+        plugin:
+          bouncer:
+            version: v1.6.0
+            enabled: false
+            forwardedHeadersTrustedIPs: ['192.168.1.1/32']
+            clientTrustedIPs:
+            - 192.168.1.1/32
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            crowdsecMode: live
+            crowdsecAppsecEnabled: true
+            crowdsecAppsecFailureBlock: true
+            crowdsecAppsecHost: 127.0.0.1:7422
+            crowdsecLapiKeyFile: /run/secrets/crowdsec_lapi_key
+            crowdsecLapiHost: 127.0.0.1:18080
+            crowdsecLapiScheme: http
+            crowdsecLapiTLSInsecureVerify: false
+            crowdsecCapiMachineIdFile: /run/secrets/crowdsec_capi_machine_id
+            crowdsecCapiPasswordFile: /run/secrets/crowdsec_capi_password
+            crowdsecCapiScenarios:
+            - crowdsecurity/http-admin-interface-probing
+            - crowdsecurity/http-backdoors-attempts
+            - crowdsecurity/http-bad-user-agent
+            - crowdsecurity/http-crawl-non_statics
+            - crowdsecurity/http-generic-bf
+            - crowdsecurity/http-open-proxy
+            - crowdsecurity/http-path-traversal-probing
+            - crowdsecurity/http-probing
+            - crowdsecurity/http-sensitive-files
+            - crowdsecurity/http-sqli-probing
+            - crowdsecurity/http-xss-probing
+            - ltsich/http-w00tw00t
+  
+  '''
+# ---
+# name: test_clean_generation_preserves_compose_placeholders[traefik_yml]
+  '''
+  # yaml-language-server: $schema=https://www.schemastore.org/traefik-v3.json
+  global:
+    checkNewVersion: false
+    sendAnonymousUsage: false
+  
+  api:
+    dashboard: true
+    insecure: false
+  
+  accessLog:
+    filePath: /var/log/traefik/access.log
+    format: json
+  
+  log:
+    level: INFO
+  
+  certificatesResolvers:
+    letsencrypt:
+      acme:
+        email: admin@example.com
+        storage: /etc/acme/acme.json
+        httpChallenge:
+          entryPoint: web
+  
+  experimental:
+    plugins:
+      bouncer:
+        moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+        version: v1.6.0
+  
+  ping:
+    entryPoint: ping
+  
+  
+  providers:
+    docker:
+      exposedByDefault: false
+      endpoint: tcp://127.0.0.1:2375
+      network: proxynet
+    file:
+      directory: /etc/traefik/dynamic
+      watch: true
+  
+  entryPoints:
+    ping:
+      address: '127.0.0.1:8082'
+  
+    web:
+      address: ':8080'
+      reusePort: true
+      forwardedHeaders:
+        trustedIPs: ['192.168.1.1/32']
+      proxyProtocol:
+        trustedIPs: ['192.168.1.1/32']
+  
+    web-secure:
+      address: ':8443'
+      reusePort: true
+      forwardedHeaders:
+        trustedIPs: ['192.168.1.1/32']
+      proxyProtocol:
+        trustedIPs: ['192.168.1.1/32']
+      http:
+        middlewares:
+        - default-headers@file
+        - rate-limit@file
+  
+  '''
+# ---
+# name: test_unresolved_placeholder_is_rejected
+  '''
+  Unresolved placeholder(s) in <ROOT>/proxy/traefik/dynamic/middlewares.yml:
+    - http.middlewares.custom.basicAuth.users[0]: ${SOME_UNSET_VAR}
+  Traefik does not resolve ${VAR} syntax in this artifact; render the value at generation time instead.
+  '''
+# ---

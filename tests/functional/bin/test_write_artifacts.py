@@ -32,11 +32,6 @@ RULE_MARKER = ".rule="
 TEST_DOMAIN = "test.example.com"
 NETWORKS_KEY = "networks"
 PROXYNET = "proxynet"
-ENTRYPOINTS_KEY = "entryPoints"
-PROVIDERS_KEY = "providers"
-LOG_KEY = "log"
-LOG_LEVEL_DEBUG = "DEBUG"
-API_KEY = "api"
 
 
 # External-host HTTP route (the itsUP management API shape) asserted against output.
@@ -306,80 +301,6 @@ ingress: []
             DNS_HONEYPOT,
             docker_embedded_dns,
         }, f"Only the honeypot and Docker DNS are permitted resolvers, found: {dns}"
-
-
-def test_generated_traefik_config_is_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Generated Traefik config must be valid YAML.
-
-    Note: We can't use 'traefik --dry-run' without installing traefik binary,
-    so we validate YAML structure instead.
-
-    FUNCTIONAL TEST - validates YAML structure.
-    """
-    # Setup minimal project structure
-    projects_dir = tmp_path / "projects"
-    projects_dir.mkdir()
-
-    # Create minimal itsup.yml
-    itsup_config = projects_dir / "itsup.yml"
-    itsup_config.write_text("""
-routerIP: 192.168.1.1
-versions:
-  traefik: v3.2
-traefik:
-  domain: traefik.example.com
-backup:
-  enabled: false
-""")
-
-    # Create traefik.yml with some overrides
-    traefik_config = projects_dir / "traefik.yml"
-    traefik_config.write_text("""
-log:
-  level: DEBUG
-api:
-  dashboard: true
-  insecure: false
-""")
-
-    # Setup directories
-    secrets_dir = tmp_path / "secrets"
-    secrets_dir.mkdir()
-    (secrets_dir / "itsup.txt").write_text("TRAEFIK_ADMIN=admin:$apr1$xyz")
-
-    # Copy template files to test directory
-    copy_templates(tmp_path)
-
-    # Change to tmp directory
-    monkeypatch.chdir(tmp_path)
-
-    # Import and run traefik config generation
-    from bin.write_artifacts import write_traefik_config
-
-    write_traefik_config()
-
-    # Verify file exists
-    traefik_yml = tmp_path / "proxy" / "traefik" / "traefik.yml"
-    assert traefik_yml.exists(), "Generated traefik.yml should exist"
-
-    # Parse as YAML (must not fail)
-    with open(traefik_yml) as f:
-        config_data = yaml.safe_load(f)
-
-    assert config_data is not None, "Traefik config should be valid YAML"
-
-    # Verify core structure
-    assert ENTRYPOINTS_KEY in config_data, "Should have entryPoints"
-    assert PROVIDERS_KEY in config_data, "Should have providers"
-
-    # Verify user overrides were merged
-    assert LOG_KEY in config_data, "Should have log config"
-    assert config_data["log"]["level"] == LOG_LEVEL_DEBUG, "Should merge user log level"
-
-    # Verify API config from overrides
-    assert API_KEY in config_data, "Should have API config"
-    assert config_data["api"]["dashboard"] is True, "Should merge API dashboard setting"
-    assert config_data["api"]["insecure"] is False, "Should merge API insecure setting"
 
 
 def test_external_host_http_ingress_generates_router(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
