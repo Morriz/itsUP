@@ -130,19 +130,41 @@ bootout_launchd_agents() {
 # Returns non-zero if the stack could not be fully torn down — the caller must
 # then leave host integration in place rather than claim a clean decommission.
 teardown_stack() {
-  if ! host_identity_matches; then
-    teardown_local_runtime
-    return
-  fi
+  local identity_status
+  set +e
+  host_identity_matches
+  identity_status=$?
+  set -e
+  case "${identity_status}" in
+    0) ;;
+    1)
+      teardown_local_runtime
+      return
+      ;;
+    *)
+      echo "✗ Cannot verify whether this machine is the configured container host." >&2
+      return 1
+      ;;
+  esac
+
   if [ ! -x "${ITSUP}" ]; then
     echo "⚠ ${ITSUP} not found — cannot run the CLI stack teardown."
     # No CLI, but if itsUP processes are somehow up they cannot be torn down
     # cleanly here — fail closed so the operator notices. With nothing running,
     # there is nothing to tear down, so proceed.
-    if remnant_processes; then
-      echo "✗ itsUP processes are running but ${ITSUP} is absent — install deps and re-run." >&2
-      return 1
-    fi
+    local process_status
+    set +e
+    remnant_processes
+    process_status=$?
+    set -e
+    case "${process_status}" in
+      0)
+        echo "✗ itsUP processes are running but ${ITSUP} is absent — install deps and re-run." >&2
+        return 1
+        ;;
+      1) return 0 ;;
+      *) return 1 ;;
+    esac
     return 0
   fi
   echo "Stopping the full itsUP stack (itsup down --clean)..."
@@ -159,50 +181,127 @@ teardown_stack() {
   fi
   # `itsup down` is documented to keep going past individual container/process stop
   # failures, so a zero exit is not proof. Verify the actual end state.
-  if remnant_processes; then
-    echo "✗ itsUP host process(es) survived 'itsup down --clean'." >&2
-    return 1
-  fi
-  if remnant_containers; then
-    echo "✗ itsUP container(s) survived 'itsup down --clean'." >&2
-    return 1
-  fi
+  assert_no_remnant_processes "survived 'itsup down --clean'" || return 1
+  assert_no_remnant_containers "survived 'itsup down --clean'" || return 1
 }
 
 host_identity_matches() {
-  [ -x "${PYTHON}" ] || return 1
-  PYTHONPATH="${REPO_ROOT}" "${PYTHON}" -c 'from lib.host_gate import is_host; raise SystemExit(0 if is_host() else 1)' \
-    >/dev/null 2>&1
+  if [ ! -x "${PYTHON}" ]; then
+    echo "✗ ${PYTHON} not found — cannot verify host identity." >&2
+    return 2
+  fi
+
+  local output status
+  set +e
+  output="$(PYTHONPATH="${REPO_ROOT}" "${PYTHON}" - <<'PY' 2>&1
+from lib.host_gate import configured_host, detect_lan_ip
+
+try:
+    configured = configured_host()
+    detected = detect_lan_ip()
+except Exception as exc:  # pylint: disable=broad-exception-caught
+    print(f"host identity lookup failed: {exc}")
+    raise SystemExit(2)
+
+if configured is None:
+    print("configured SSH_HOST is unset")
+    raise SystemExit(2)
+if detected is None:
+    print("detected LAN IP is unavailable")
+    raise SystemExit(2)
+
+raise SystemExit(0 if configured == detected else 1)
+PY
+)"
+  status=$?
+  set -e
+
+  if [ "${status}" -gt 1 ] && [ -n "${output}" ]; then
+    echo "✗ ${output}" >&2
+  fi
+  return "${status}"
 }
 
 teardown_local_runtime() {
   echo "This machine is not the configured container host; skipping host-only 'itsup down --clean'."
   echo "Tearing down local itsUP remnants directly..."
-  if remnant_processes; then
-    terminate_remnant_processes || return 1
-  fi
-  if remnant_containers; then
-    teardown_local_compose || return 1
-  fi
-  if remnant_processes; then
-    echo "✗ itsUP host process(es) survived local teardown." >&2
-    return 1
-  fi
-  if remnant_containers; then
-    echo "✗ itsUP container(s) survived local teardown." >&2
-    return 1
-  fi
+  local process_status container_status
+  set +e
+  remnant_processes
+  process_status=$?
+  set -e
+  case "${process_status}" in
+    0) terminate_remnant_processes || return 1 ;;
+    1) ;;
+    *) return 1 ;;
+  esac
+
+  set +e
+  remnant_containers
+  container_status=$?
+  set -e
+  case "${container_status}" in
+    0) teardown_local_compose || return 1 ;;
+    1) ;;
+    *) return 1 ;;
+  esac
+
+  assert_no_remnant_processes "survived local teardown" || return 1
+  assert_no_remnant_containers "survived local teardown" || return 1
+}
+
+assert_no_remnant_processes() {
+  local description="$1"
+  local process_status
+  set +e
+  remnant_processes
+  process_status=$?
+  set -e
+  case "${process_status}" in
+    0)
+      echo "✗ itsUP host process(es) ${description}." >&2
+      return 1
+      ;;
+    1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+assert_no_remnant_containers() {
+  local description="$1"
+  local container_status
+  set +e
+  remnant_containers
+  container_status=$?
+  set -e
+  case "${container_status}" in
+    0)
+      echo "✗ itsUP container(s) ${description}." >&2
+      return 1
+      ;;
+    1) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # True when an itsUP-managed host process (the monitor or the API server, both
 # started by `itsup run`) is still alive.
 remnant_processes() {
-  local pattern match_pattern
+  local pattern match_pattern status
   for pattern in "${ITSUP_ROOT}/bin/monitor.py" "${ITSUP_ROOT}/api/main.py"; do
     match_pattern="$(escape_pgrep_pattern "${pattern}")"
-    if pgrep -f "${match_pattern}" >/dev/null 2>&1; then
-      return 0
-    fi
+    set +e
+    pgrep -f "${match_pattern}" >/dev/null
+    status=$?
+    set -e
+    case "${status}" in
+      0) return 0 ;;
+      1) ;;
+      *)
+        echo "✗ Failed to inspect local itsUP processes for ${pattern}." >&2
+        return 2
+        ;;
+    esac
   done
   return 1
 }
@@ -212,9 +311,21 @@ escape_pgrep_pattern() {
 }
 
 terminate_remnant_processes() {
-  local pattern match_pattern pid
+  local pattern match_pattern pid pids status
   for pattern in "${ITSUP_ROOT}/bin/monitor.py" "${ITSUP_ROOT}/api/main.py"; do
     match_pattern="$(escape_pgrep_pattern "${pattern}")"
+    set +e
+    pids="$(pgrep -f "${match_pattern}")"
+    status=$?
+    set -e
+    case "${status}" in
+      0) ;;
+      1) continue ;;
+      *)
+        echo "✗ Failed to inspect local itsUP processes for ${pattern}." >&2
+        return 1
+        ;;
+    esac
     while IFS= read -r pid; do
       [ -n "${pid}" ] || continue
       echo "Stopping local itsUP process PID ${pid}..."
@@ -223,7 +334,7 @@ terminate_remnant_processes() {
         echo "Force-stopping local itsUP process PID ${pid}..."
         kill -KILL "${pid}" 2>/dev/null || sudo kill -KILL "${pid}" || return 1
       }
-    done < <(pgrep -f "${match_pattern}" || true)
+    done <<< "${pids}"
   done
 }
 
@@ -268,11 +379,22 @@ teardown_local_compose() {
 # running. Uses Docker's exact config_files label so a same-named compose project
 # from another checkout is not treated as an itsUP remnant.
 remnant_containers() {
-  command -v docker >/dev/null 2>&1 || return 1
-  local f
+  command -v docker >/dev/null 2>&1 || {
+    echo "✗ Docker is unavailable; cannot verify local itsUP containers." >&2
+    return 2
+  }
+  local f ids status
   while IFS= read -r f; do
     [ -f "${f}" ] || continue
-    if [ -n "$(compose_file_running_container_ids "${f}")" ]; then
+    set +e
+    ids="$(compose_file_running_container_ids "${f}" 2>&1)"
+    status=$?
+    set -e
+    if [ "${status}" -ne 0 ]; then
+      echo "✗ Failed to inspect Docker containers for ${f}: ${ids}" >&2
+      return 2
+    fi
+    if [ -n "${ids}" ]; then
       return 0
     fi
   done < <(compose_files)
@@ -280,7 +402,7 @@ remnant_containers() {
 }
 
 compose_file_running_container_ids() {
-  docker ps -q --filter "label=com.docker.compose.project.config_files=$1" 2>/dev/null
+  docker ps -q --filter "label=com.docker.compose.project.config_files=$1"
 }
 
 # ── Step 3: remove the unit / agent files ──────────────────────────────────
