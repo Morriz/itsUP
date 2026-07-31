@@ -195,7 +195,6 @@ caveats).
   containers whose Docker Compose `config_files` label points at this checkout's
   generated compose files. This makes stale development-machine installs
   recoverable without weakening the fail-closed gate on `itsup down`.
-<!-- planned:traefik-access-log-dead-after-rotation -->
 - **itsUP owns the host logrotate config for its `logs/` files.**
   `make install-runtime` renders `samples/logrotate/itsup` to
   `/etc/logrotate.d/itsup` (Linux only; macOS has no logrotate), and
@@ -209,7 +208,6 @@ caveats).
   against the failure it replaces (a rename+`USR1` reopen that silently failed
   and left the feed dead for days). The `api.log`/`monitor.log` blocks are
   unchanged (already `copytruncate`).
-<!-- /planned:traefik-access-log-dead-after-rotation -->
 
 ## See Also
 
