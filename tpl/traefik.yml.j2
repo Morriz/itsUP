@@ -17,7 +17,7 @@ log:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: ${LETSENCRYPT_EMAIL}
+      email: {{ letsencrypt_email }}
       storage: /etc/acme/acme.json
       httpChallenge:
         entryPoint: web

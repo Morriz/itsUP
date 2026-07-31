@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import sys
 from io import StringIO
@@ -26,7 +27,7 @@ from lib.data import (
     validate_all,
 )
 from lib.models import ACME_CHALLENGE_PATH_PREFIX, ProxyProtocol, TraefikConfig
-from lib.paths import root
+from lib.paths import display_path, root
 
 load_dotenv()
 
@@ -66,6 +67,58 @@ def write_file_if_changed(file_path: Path, content: str, description: str = None
 
     logger.info(f"Generated {desc}")
     return True
+
+
+YamlValue = dict[str, "YamlValue"] | list["YamlValue"] | str | int | float | bool | None
+
+_UNRESOLVED_PLACEHOLDER = re.compile(r"\$\{[^}]*\}")
+_DICT_CHILD_KEY_PATH = "{parent}.{key}"
+_LIST_CHILD_KEY_PATH = "{parent}[{index}]"
+_PLACEHOLDER_FINDING = "{key_path}: {placeholder}"
+_PLACEHOLDER_LIST_ITEM = "  - {item}"
+_LINE_SEPARATOR = "\n"
+_UNRESOLVED_PLACEHOLDER_HEADER = "Unresolved placeholder(s) in {path}:"
+_UNRESOLVED_PLACEHOLDER_GUIDANCE = (
+    "Traefik does not resolve ${VAR} syntax in this artifact; render the value at generation time instead."
+)
+
+
+def _reject_unresolved_placeholders(file_path: Path, content: str) -> None:
+    """Raise when a parsed value in ``content`` still carries a ``${VAR}`` literal.
+
+    Traefik expands no ``${VAR}`` syntax in a file-provided static or dynamic
+    configuration, so a literal that reaches one of these generated artifacts is
+    passed to Traefik as-is rather than resolved at runtime. Matching is done on
+    parsed YAML values, not raw text, so template headers and commented-out
+    override examples that legitimately carry the syntax are not rejected.
+    """
+    parsed: YamlValue = yaml.safe_load(content)
+    found: list[str] = []
+
+    def _walk(node: YamlValue, key_path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                child_path = _DICT_CHILD_KEY_PATH.format(parent=key_path, key=key) if key_path else str(key)
+                _walk(value, child_path)
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                _walk(value, _LIST_CHILD_KEY_PATH.format(parent=key_path, index=index))
+        elif isinstance(node, str):
+            for match in _UNRESOLVED_PLACEHOLDER.finditer(node):
+                found.append(_PLACEHOLDER_FINDING.format(key_path=key_path, placeholder=match.group(0)))
+
+    _walk(parsed, "")
+
+    if found:
+        placeholder_lines = _LINE_SEPARATOR.join(_PLACEHOLDER_LIST_ITEM.format(item=item) for item in found)
+        message = _LINE_SEPARATOR.join(
+            [
+                _UNRESOLVED_PLACEHOLDER_HEADER.format(path=display_path(file_path)),
+                placeholder_lines,
+                _UNRESOLVED_PLACEHOLDER_GUIDANCE,
+            ]
+        )
+        raise ValueError(message)
 
 
 def sync_project_files(project_name: str) -> None:
@@ -381,6 +434,12 @@ def deep_merge(
     return result
 
 
+_LETSENCRYPT_EMAIL_SECRET_KEY = "LETSENCRYPT_EMAIL"
+_MISSING_LETSENCRYPT_EMAIL_ERROR = (
+    "Missing required secret: LETSENCRYPT_EMAIL\nAdd to secrets/itsup.txt or secrets/itsup.enc.txt"
+)
+
+
 def write_traefik_config() -> bool:
     """Generate proxy/traefik/traefik.yml from minimal template + user overrides"""
     logger.info("Generating proxy/traefik/traefik.yml")
@@ -388,6 +447,13 @@ def write_traefik_config() -> bool:
     # Get trusted IPs for template
     trusted_ips_cidrs = get_trusted_ips()
     crowdsec_enabled = load_itsup_config().get("crowdsec", {}).get("enabled", False)
+
+    # Load secrets for template variables
+    secrets = load_secrets()  # itsUP infrastructure secrets
+
+    # Validate required secrets
+    if _LETSENCRYPT_EMAIL_SECRET_KEY not in secrets:
+        raise ValueError(_MISSING_LETSENCRYPT_EMAIL_ERROR)
 
     # Load all projects to collect TCP/UDP entrypoints
     projects_data = []
@@ -428,6 +494,7 @@ def write_traefik_config() -> bool:
         trusted_ips_cidrs=trusted_ips_cidrs,
         projects=projects_data,
         crowdsec_enabled=crowdsec_enabled,
+        letsencrypt_email=secrets[_LETSENCRYPT_EMAIL_SECRET_KEY],
     )
 
     # Parse generated base config using ruamel.yaml to preserve comments
@@ -449,14 +516,12 @@ def write_traefik_config() -> bool:
         logger.warning("No projects/traefik.yml found - using minimal config only")
         final_config = base_config
 
-    # Traefik expands {{ env "VAR" }} at runtime from environment
-    # Variables are left as-is for Traefik to process
-
     # Write final config (only if changed) using ruamel.yaml to preserve comments
     traefik_config_file = root() / "proxy" / "traefik" / "traefik.yml"
     output = StringIO()
     ryaml.dump(final_config, output)
     content = output.getvalue()
+    _reject_unresolved_placeholders(traefik_config_file, content)
     return write_file_if_changed(traefik_config_file, content, "proxy/traefik/traefik.yml")
 
 
@@ -518,6 +583,7 @@ def write_middleware_config() -> None:
     output = StringIO()
     ryaml.dump(final_config, output)
     content = output.getvalue()
+    _reject_unresolved_placeholders(middleware_config_file, content)
     write_file_if_changed(middleware_config_file, content, "middlewares.yml")
 
 
@@ -661,6 +727,10 @@ def write_dynamic_routers() -> None:
     http_file = root() / "proxy" / "traefik" / "dynamic" / "routers-http.yml"
     tcp_file = root() / "proxy" / "traefik" / "dynamic" / "routers-tcp.yml"
     udp_file = root() / "proxy" / "traefik" / "dynamic" / "routers-udp.yml"
+
+    _reject_unresolved_placeholders(http_file, routers_http)
+    _reject_unresolved_placeholders(tcp_file, routers_tcp)
+    _reject_unresolved_placeholders(udp_file, routers_udp)
 
     http_changed = write_file_if_changed(http_file, routers_http, "routers-http.yml")
     tcp_changed = write_file_if_changed(tcp_file, routers_tcp, "routers-tcp.yml")

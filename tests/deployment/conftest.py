@@ -53,7 +53,7 @@ backup:
 
     secrets_dir = itsup_root / "secrets"
     secrets_dir.mkdir(parents=True, exist_ok=True)
-    (secrets_dir / "itsup.txt").write_text("TRAEFIK_ADMIN=admin:$apr1$xyz")
+    (secrets_dir / "itsup.txt").write_text("TRAEFIK_ADMIN=admin:$apr1$xyz\nLETSENCRYPT_EMAIL=admin@example.com")
 
     src_tpl = REPO_ROOT / "tpl"
     dst_tpl = itsup_root / "tpl"
