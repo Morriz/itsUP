@@ -27,6 +27,10 @@ skip() {
   printf 'SKIP %s\n' "$*"
 }
 
+warn() {
+  printf 'WARN %s\n' "$*" >&2
+}
+
 have() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -97,6 +101,37 @@ check_config() {
     ok "project configuration validates"
   else
     fail "project configuration validation failed"
+  fi
+}
+
+check_alert_command() {
+  if [ ! -x "${PYTHON}" ]; then
+    fail "missing Python venv: ${PYTHON}"
+    return
+  fi
+
+  local result
+  if ! result="$(PYTHONPATH="${ITSUP_ROOT}" "${PYTHON}" - <<'PY'
+from lib.alerting import _resolve_command_template
+from lib.data import load_itsup_config
+
+template = _resolve_command_template(load_itsup_config())
+if template is None:
+    print("missing")
+else:
+    print(f"configured:{template[0]}")
+PY
+  )"; then
+    fail "alert.command configuration check failed: ${result//$'\n'/, }"
+    return
+  fi
+
+  if [ "${result}" = "missing" ]; then
+    warn "alert.command is not configured; failure alerts will be suppressed"
+  elif [[ "${result}" == configured:* ]]; then
+    ok "alert.command is configured (${result#configured:})"
+  else
+    fail "alert.command configuration check returned unexpected result: ${result//$'\n'/, }"
   fi
 }
 
@@ -171,6 +206,14 @@ check_systemd() {
       fail "${unit} is not active"
     fi
   done
+
+  for unit in itsup-bringup.service itsup-apply.timer itsup-backup.timer pi-healthcheck.timer; do
+    if systemctl is-enabled --quiet "${unit}"; then
+      ok "${unit} is enabled"
+    else
+      fail "${unit} is not enabled"
+    fi
+  done
 }
 
 check_launchd() {
@@ -233,7 +276,7 @@ check_nonlocal_bind() {
     return
   fi
 
-  local sysctl_bin value
+  local sysctl_bin value sysctl_file sysctl_template
   if ! sysctl_bin="$(find_cmd sysctl /sbin/sysctl /usr/sbin/sysctl)"; then
     fail "missing command: sysctl"
     return
@@ -244,6 +287,16 @@ check_nonlocal_bind() {
     ok "net.ipv4.ip_nonlocal_bind is active"
   else
     fail "net.ipv4.ip_nonlocal_bind is ${value:-unreadable}"
+  fi
+
+  sysctl_file="/etc/sysctl.d/99-itsup-nonlocal-bind.conf"
+  sysctl_template="${REPO_ROOT}/samples/sysctl/99-itsup-nonlocal-bind.conf"
+  if [ ! -r "${sysctl_file}" ]; then
+    fail "persistent ip_nonlocal_bind sysctl file is missing: ${sysctl_file}"
+  elif cmp -s "${sysctl_template}" "${sysctl_file}"; then
+    ok "persistent ip_nonlocal_bind sysctl file matches template"
+  else
+    fail "persistent ip_nonlocal_bind sysctl file drifted: ${sysctl_file}"
   fi
 }
 
@@ -329,10 +382,63 @@ check_traefik() {
   fi
 }
 
+check_openvpn() {
+  require_cmd docker || return
+
+  if [ ! -f "${ITSUP_ROOT}/projects/vpn/docker-compose.yml" ]; then
+    skip "OpenVPN project is not configured"
+    return
+  fi
+
+  local address openvpn ports health
+  if ! address="$(host_ip)"; then
+    fail "SSH_HOST lookup failed"
+    return
+  fi
+  if [ -z "${address}" ]; then
+    fail "SSH_HOST is not configured"
+    return
+  fi
+
+  if ! openvpn="$(find_container '^vpn-.*openvpn.*')"; then
+    fail "OpenVPN container query failed"
+    return
+  fi
+  if [ -z "${openvpn}" ]; then
+    fail "OpenVPN container is not running"
+    return
+  fi
+  ok "OpenVPN container is running (${openvpn})"
+
+  if ! health="$(docker inspect "${openvpn}" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')"; then
+    fail "OpenVPN health query failed"
+    return
+  fi
+  if [ "${health}" = "healthy" ]; then
+    ok "OpenVPN container health is healthy"
+  elif [ "${health}" = "none" ]; then
+    skip "OpenVPN container has no healthcheck"
+  else
+    fail "OpenVPN container health is ${health}"
+  fi
+
+  if ! ports="$(docker inspect "${openvpn}" --format '{{range $port, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println $port .HostIp .HostPort}}{{end}}{{end}}')"; then
+    fail "OpenVPN published-port query failed"
+    return
+  fi
+  if grep -qx "1194/udp ${address} 1194" <<<"${ports}"; then
+    ok "OpenVPN UDP is bound directly to ${address}:1194"
+  else
+    fail "OpenVPN UDP is not bound directly to ${address}:1194"
+    printf '%s\n' "${ports}" >&2
+  fi
+}
+
 cd "${REPO_ROOT}"
 
 check_host_gate
 check_config
+check_alert_command
 check_unit_drift
 check_systemd
 check_launchd
@@ -340,6 +446,7 @@ check_docker
 check_nonlocal_bind
 check_adguard_dns
 check_traefik
+check_openvpn
 
 if [ "${failures}" -gt 0 ]; then
   printf 'Runtime status failed: %d issue(s)\n' "${failures}" >&2

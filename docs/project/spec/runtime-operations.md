@@ -13,7 +13,19 @@ timers (apply, backup), a 5-minute health watchdog, and two long-running daemons
 `bin/install-bringup.sh` — run via `make install-runtime`, separately from the
 dependency-only `make install` — as a systemd unit/timer (Linux) or launchd job
 (macOS). The monitor is Linux-only. `make status` is the read-only host runtime
-health check for the same installed surface.
+health check for the same installed surface: host identity, configuration,
+alert-command configuration, supervisor drift, systemd/launchd state, Docker
+health, boot entrypoint enablement, DNS bind/resolution, runtime and persistent
+DNS-bind sysctl state, Traefik health, and the OpenVPN direct UDP bind when the
+VPN project is configured. A missing `alert.command` is reported as a warning
+because failure alerts are suppressed; a malformed configured value is a status
+failure.
+`bin/wait-for-runtime-status.sh` is the non-mutating post-reboot verifier: it
+waits for the configured host to answer SSH, then runs the installed `make
+status` there. It never initiates a reboot.
+`make restart` reloads the supervised API and monitor daemons without stopping
+containers; use it after code-only runtime updates that need the daemon process
+to re-read installed Python code.
 
 This spec is the single place an operator goes when one of those operations
 fails: for each operation it records what fires it, how often, what it actually
@@ -62,6 +74,16 @@ caveats).
 
 ## Known caveats
 
+
+- **itsUP self-update cannot depend exclusively on host GitHub SSH auth.**
+  `/update-upstream/itsUP` updates the install root by fetching `origin/main`
+  and resetting the checkout before reinstalling dependencies and restarting
+  the API. The primary fetch uses the configured `origin` remote with terminal
+  prompting disabled and a bounded timeout. If that path fails or times out,
+  the updater fetches the public itsUP repository over HTTPS into
+  `refs/remotes/origin/main` and then performs the same hard reset. This keeps a
+  missing or deauthorized host SSH key from making the GitHub workflow report
+  success while the background self-update is stuck behind it.
 
 - **The supervision cutover record is host state, and its absence is not a
   licence to restart the stack.** `.itsup-supervision-state` at the install root
