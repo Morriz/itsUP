@@ -9,13 +9,6 @@ description: 'How itsUP stores, loads, and injects secrets — SOPS/age encrypte
 Secrets are `KEY=value` env files under `secrets/`, stored **encrypted** with
 SOPS (age) for git, decrypted **to memory only** at load time (never written as
 plaintext by the load path), and injected into Docker Compose as process env.
-<!-- planned-change:reject-unresolved-traefik-placeholders -->
-
-Values referenced in compose files stay as `${VAR}` placeholders all the way
-through generation; **Docker Compose expands them at deploy** using the injected
-env. itsUP never bakes secret values into generated artifacts.
-
-<!-- change:reject-unresolved-traefik-placeholders -->
 
 Values referenced in compose files stay as `${VAR}` placeholders all the way
 through generation; **Docker Compose expands them at deploy** using the injected
@@ -24,7 +17,6 @@ env. Generated Traefik configuration is the exception: Traefik resolves no
 those artifacts needs is rendered into it at generation time, and generation
 fails closed on any placeholder left behind.
 
-<!-- /planned-change:reject-unresolved-traefik-placeholders -->
 
 ## Canonical fields
 
@@ -65,13 +57,6 @@ fails closed on any placeholder left behind.
 
 ### `${VAR}` passthrough
 
-<!-- planned-change:reject-unresolved-traefik-placeholders -->
-
-Generated files keep `${VAR}` literally (`lib/data.py:157,201`); Docker Compose
-substitutes them at `up`/`rollout` time from the injected env. Missing variables
-surface as Compose-time errors, not itsUP errors.
-
-<!-- change:reject-unresolved-traefik-placeholders -->
 
 Generated **Compose** files keep `${VAR}` literally (`lib/data.py:157,201`);
 Docker Compose substitutes them at `up`/`rollout` time from the injected env.
@@ -86,7 +71,6 @@ artifacts need are rendered at generation time from the loaded secrets (e.g.
 `TRAEFIK_ADMIN`, the ACME contact address), and generation refuses to produce an
 artifact still holding a `${VAR}`, naming the artifact and the placeholder.
 
-<!-- /planned-change:reject-unresolved-traefik-placeholders -->
 
 ### Non-interactive round-trip (decrypt → edit → encrypt → commit)
 

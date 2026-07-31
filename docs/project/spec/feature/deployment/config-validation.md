@@ -33,7 +33,6 @@ Then the command exits nonzero
 And the reported errors surface the Compose schema violation
 ```
 
-<!-- planned:reject-unresolved-traefik-placeholders -->
 #### UC-CV2: An unresolved placeholder in generated Traefik configuration is rejected
 
 ```gherkin
@@ -43,7 +42,6 @@ Then validation exits nonzero before deployment
 And the reported error identifies the generated artifact and unresolved placeholder
 And generated Docker Compose files remain subject to Compose's own environment-resolution contract
 ```
-<!-- /planned:reject-unresolved-traefik-placeholders -->
 
 ## Canonical fields
 
