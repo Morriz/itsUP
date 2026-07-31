@@ -509,7 +509,13 @@ On Linux hosts, `make install-runtime` (via `bin/install-bringup.sh`) configures
 
 ##### Runtime logs
 
-Application logs (API server, monitor, CLI) are queried with the InstruktAI logs CLI:
+`itsup logs` is the front door for API, monitor, and supervised runtime logs:
+
+```bash
+itsup logs api -f
+```
+
+Application logs can also be queried with the InstruktAI logs CLI:
 
 ```bash
 instrukt-ai-logs -f itsup
@@ -520,11 +526,8 @@ Systemd-managed units (bringup, healthcheck, backup) log to stdout/stderr, captu
 #### 6. Monitor
 
 ```bash
-# Tail all logs
-bin/tail-logs.sh
-
-# Or use make
-make logs
+# Follow raw Traefik access records
+itsup logs access -f
 ```
 
 ### Configure services
