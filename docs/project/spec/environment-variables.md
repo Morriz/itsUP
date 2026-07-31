@@ -94,11 +94,30 @@ deploy time (e.g. `samples/projects/example-project/docker-compose.yml:6`
 
 ## Known caveats
 
+<!-- planned-change:reject-unresolved-traefik-placeholders -->
+
 - **`${VAR}` is expanded by Docker Compose, not by itsUP.** Generated artifacts
   and loaded config keep placeholders literal; the value only materializes when
   `get_env_with_secrets` feeds the env into `docker compose up`. A literal
   `${VAR}` in a running container means the secret was absent from the loaded
   context, not that expansion "failed."
+
+<!-- change:reject-unresolved-traefik-placeholders -->
+
+- **`${VAR}` is expanded by Docker Compose, not by itsUP.** Generated Compose
+  files and loaded config keep placeholders literal; the value only materializes
+  when `get_env_with_secrets` feeds the env into `docker compose up`. A literal
+  `${VAR}` in a running container means the secret was absent from the loaded
+  context, not that expansion "failed."
+- **Generated Traefik configuration carries no placeholders.** Traefik expands
+  `${VAR}` in neither its static config file nor its file-provider dynamic
+  files, so values those artifacts need are rendered at generation time and
+  generation fails closed on any placeholder left in them (see
+  `project/spec/secrets-management`). A placeholder that reached a running
+  Traefik would be consumed as literal text — the failure mode Compose's
+  interpolation makes impossible for compose files.
+
+<!-- /planned-change:reject-unresolved-traefik-placeholders -->
 - **Always start compose via `get_env_with_secrets`, never bare `docker compose`.**
   Bare invocation runs with only `os.environ`, so no secret from `secrets/*` is
   present and every `${VAR}` resolves empty.
