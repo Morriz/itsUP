@@ -44,10 +44,15 @@ JSON. Top-level keys:
 | `denied-remote-notes` | no | Shared note for the shortcut rules; supports the `%REMOTE%` placeholder |
 
 The `rules` array and the `denied-remote-*` shortcuts may be mixed in one file.
-A rule object carries `process` (a path or `"any"`) with an optional `via`, one
-remote selector (`remote-addresses` / `remote-hosts` / `remote-domains` /
-`remote`), and optional `direction`, `action`, `priority`, `disabled`, `ports`,
-`protocol`, `notes`.
+A rule object carries `process` with an optional `via`, one remote selector
+(`remote-addresses` / `remote-hosts` / `remote-domains` / `remote`), and optional
+`direction`, `action`, `priority`, `disabled`, `ports`, `protocol`, `notes`.
+
+`process` accepts three forms: `"any"`, an absolute executable path
+(*"path based rules"*), or a **code ID** given as
+`identifier.DEV_TEAM_ID/IDENTIFIER` — the vendor's own example being
+`identifier.MLZF7K7B5R/at.obdev.littlesnitch`. The code-ID form binds a rule to a
+signed application's identity rather than its location on disk.
 
 ## Subscribing and refreshing
 
