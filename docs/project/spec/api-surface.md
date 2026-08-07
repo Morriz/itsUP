@@ -89,6 +89,11 @@ The row carries no `allow_source_ips`. An origin allowlist here would refuse the
 off-network producer the route exists for, and the API key — not the origin — is
 the write boundary.
 
+Publishing it also makes the route count above wrong: the internet-facing routes
+become three rather than two, and the API-key endpoints no longer all lack a
+public route. Whoever publishes the row updates those statements in the same
+change.
+
 Publishing that row makes an API-key-guarded **write** endpoint reachable from
 the internet, so the key alone stands between the internet and a file written to
 the host that holds the SOPS age key. That is a wider exposure than the routed
