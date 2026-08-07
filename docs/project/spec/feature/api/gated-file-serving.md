@@ -23,10 +23,30 @@ The business value is provisioning files to HTTPS-only, header-less consumers
 references and cannot carry a URL secret — they receive a stable HTTPS URL whose
 bytes and content type they can consume directly.
 
+<!-- planned:lsrules-upload-endpoint -->
+
+The capability has two halves. The read half selects a file already on the host;
+the write half puts one there. Files the consumer needs are generated on a
+producer machine rather than on the host, so without the write half the read
+half can only serve what happens to be present locally — which for a
+dynamically generated rule group is nothing. `PUT /upload/{name}` closes that
+gap: an authenticated producer stores the bytes under a name the host owns, and
+the existing read path serves them at a URL that stays stable across
+regenerations.
+
+<!-- /planned:lsrules-upload-endpoint -->
+
+The vendor contract the read half answers to is recorded in
+`third-party/little-snitch/rule-group-subscriptions`: publication over HTTPS is
+mandatory, the subscriber owns the refresh interval, and no content-type,
+disposition, or caching contract is specified. The validators the response does
+carry come from the serving framework and are described in
+`third-party/starlette/fileresponse-caching-headers`.
+
 ### Use cases
 
 The scenarios below are bound by functional tests in
-`tests/functional/api/test_gated_file_endpoint.py`, which drive the FastAPI app
+`tests/api/test_gated_file_endpoint.py`, which drive the FastAPI app
 through its ASGI boundary with a `TestClient` against real files on disk.
 
 #### UC-GFS1: An allowlisted-extension file is served with its bytes and content type
@@ -56,6 +76,64 @@ When GET /file is requested with that path
 Then the response is refused with a client-error status
 ```
 
+<!-- planned:lsrules-upload-endpoint -->
+
+#### UC-GFS4: An authenticated upload of an allowlisted file is stored and then served
+
+```gherkin
+Given a producer holding the API key
+When it uploads a file whose extension is in the allowlist, naming it within the upload directory
+Then the response reports the stored file's location
+And a subsequent GET /file for that location returns the uploaded bytes
+```
+
+#### UC-GFS5: An unauthenticated upload is refused
+
+```gherkin
+Given a producer presenting no API key or a wrong one
+When it uploads a file whose extension is in the allowlist
+Then the response is refused as unauthorized
+And no file is created
+```
+
+#### UC-GFS6: An upload whose extension is not allowlisted is refused
+
+```gherkin
+Given a producer holding the API key
+When it uploads a file whose extension is not in the allowlist
+Then the response is refused with a client-error status
+And no file is created
+```
+
+#### UC-GFS7: Re-uploading a name replaces the served bytes at an unchanged URL
+
+```gherkin
+Given an allowlisted file previously uploaded under a name
+When a producer holding the API key uploads different bytes under that same name
+Then a GET /file for the unchanged location returns the new bytes
+And the cache validator of that response differs from the one served before the upload
+```
+
+#### UC-GFS8: An upload name that escapes the owned directory is refused
+
+```gherkin
+Given a producer holding the API key
+When it uploads a file under a name that is not a single path segment within the upload directory
+Then the response is refused with a client-error status
+And no file is created outside the upload directory
+```
+
+#### UC-GFS9: An upload larger than the accepted size is refused before it is stored
+
+```gherkin
+Given a producer holding the API key
+When it uploads a body larger than the accepted maximum
+Then the response is refused with a client-error status
+And no file is created
+```
+
+<!-- /planned:lsrules-upload-endpoint -->
+
 ## Canonical fields
 
 - Endpoint: `GET /file?path=<host-path>` on the API app (`api/main.py`),
@@ -72,6 +150,44 @@ Then the response is refused with a client-error status
 - Origin gating: enforced at the proxy (route-scoped source-IP allowlist), not by
   the endpoint. The public `/redirect` bouncer is a separate, unauthenticated,
   ungated route and is unaffected.
+
+<!-- planned:lsrules-upload-endpoint -->
+
+### Upload endpoint
+
+- Endpoint: `PUT /upload/{name}` on the same API app, guarded by the API key
+  (`verify_apikey`) exactly as the other mutating endpoints are. The request body
+  is the file's raw bytes.
+- Gating is asymmetric by design. The read side is origin-gated at the proxy and
+  unauthenticated at the app because its consumer is a header-less subscription
+  fetcher that cannot carry a secret. The write side is authenticated at the app
+  because its caller is a script or agent that can. The origin allowlist does not
+  cover writes: an origin is not a credential.
+- The host owns the destination; the request supplies only a name within it.
+  `name` must be a single path segment — a value carrying a directory separator,
+  a parent reference, or an absolute path is refused, and the resolved
+  destination is confirmed to lie inside the upload directory before anything is
+  written. A caller-supplied destination would be a remote arbitrary-write
+  primitive on the host that holds the SOPS age key.
+- The upload directory is resolved through the install root, so its location
+  follows `ITSUP_ROOT` like every other itsUP-owned tree. Its contents are
+  regenerable host state and are not tracked in the repository.
+- The extension allowlist is the same set the read side enforces, so the write
+  boundary can never be looser than the read boundary it feeds.
+- The accepted body size is bounded, and the bound is enforced as the body is
+  read rather than after it is buffered, so an oversized request is refused
+  without being held in memory or reaching disk.
+- Writing a name that already exists replaces its contents, leaving the served
+  URL for that name unchanged. Because the served response's cache validator is
+  derived from the file's modification time and size, a replacement changes the
+  validator and a conditional client re-fetches.
+- The response reports the stored file's location, so a producer can construct
+  the `GET /file?path=…` URL without knowing the install root.
+- Reaching the endpoint over the internet requires a proxy route for its path
+  prefix. Without one it is reachable only over loopback, LAN, or VPN — the same
+  posture as the other API-key endpoints. See `project/spec/api-surface`.
+
+<!-- /planned:lsrules-upload-endpoint -->
 
 ## See Also
 

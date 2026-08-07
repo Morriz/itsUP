@@ -45,6 +45,9 @@ immediately.
 | `POST /reconcile` | apikey | host loopback, LAN/VPN | Background full-stack reconcile: pulls the `projects`/`secrets` config repos then runs `itsup apply`; single-flight with trailing-run coalescing (`lib/reconcile.py`). |
 | `GET /projects` | apikey | host loopback, LAN/VPN | Returns `list_projects()` (`@cache`d, `:96-100`). |
 | `GET /redirect?url=` | none | internet | 307-redirects, but **only** `message://` / `imessage://` schemes; rejects other schemes or whitespace (`:103-116`). Consumer: OtoMo (`lib/deep_links.py`) wraps iMessage deep links in this endpoint so Telegram renders them as clickable https links. |
+<!-- planned:lsrules-upload-endpoint -->
+| `PUT /upload/{name}` | apikey | host loopback, LAN/VPN | Stores the request body as `{name}` in the itsUP-owned upload directory, replacing any existing file, and reports the stored location. `{name}` must be a single path segment with an allowlisted extension; the body size is bounded. Feeds `GET /file`. Contract: `project/spec/feature/api/gated-file-serving`. |
+<!-- /planned:lsrules-upload-endpoint -->
 
 ### Gated file endpoint (`GET /file`)
 
@@ -65,6 +68,36 @@ The GitOps chain reaches the apikey-guarded endpoints over loopback: the shared
 reconcile workflow's `curl` runs on the container host itself, inside the SSH
 step that follows its VPN connection. Ad-hoc triggering from outside the network
 is not available; an operator reaches these endpoints over LAN or VPN.
+
+<!-- planned:lsrules-upload-endpoint -->
+
+### Publishing the upload route (operator decision)
+
+`PUT /upload/{name}` follows the posture above: with no router for its path
+prefix it is reachable only over loopback, LAN, or VPN. A producer that must
+upload from outside the network needs a route, which is added in the separate
+`itsUP-projects` repository:
+
+```yaml
+  - domain: itsup.srv.instrukt.ai
+    path_prefix: /upload
+    port: 8888
+    router: http
+```
+
+The row carries no `allow_source_ips`. An origin allowlist here would refuse the
+off-network producer the route exists for, and the API key — not the origin — is
+the write boundary.
+
+Publishing that row makes an API-key-guarded **write** endpoint reachable from
+the internet, so the key alone stands between the internet and a file written to
+the host that holds the SOPS age key. That is a wider exposure than the routed
+read endpoints, whose worst case is disclosure of an allowlisted file. The
+trade is the operator's to accept: leaving the row unpublished keeps the
+endpoint on the network-boundary posture and restricts producers to LAN or VPN.
+
+<!-- /planned:lsrules-upload-endpoint -->
+
 
 ### Self-update (`project == "itsUP"`)
 
