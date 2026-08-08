@@ -78,6 +78,10 @@ Then the response is refused with a client-error status
 
 <!-- planned:lsrules-upload-endpoint -->
 
+The upload scenarios below carry no bound test. itsUP authors none
+(`project/adr/0004-remove-the-test-corpus`); they are the behavioral contract,
+and the endpoint is verified by driving the running API.
+
 #### UC-GFS4: An authenticated upload of an allowlisted file is stored and then served
 
 ```gherkin
