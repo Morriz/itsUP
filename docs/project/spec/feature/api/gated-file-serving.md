@@ -158,11 +158,13 @@ And no file is created
 - Endpoint: `PUT /upload/{name}` on the same API app, guarded by the API key
   (`verify_apikey`) exactly as the other mutating endpoints are. The request body
   is the file's raw bytes.
-- Gating is asymmetric by design. The read side is origin-gated at the proxy and
-  unauthenticated at the app because its consumer is a header-less subscription
-  fetcher that cannot carry a secret. The write side is authenticated at the app
-  because its caller is a script or agent that can. The origin allowlist does not
-  cover writes: an origin is not a credential.
+- Gating is asymmetric by design. Both sides sit behind the same LAN-origin
+  allowlist at the proxy, so neither is reachable from the internet. They differ
+  at the app: the read side is unauthenticated because its consumer is a
+  header-less subscription fetcher that cannot carry a secret, while the write
+  side is authenticated because its caller is a script or agent that can. The
+  allowlist is never the write's authorisation — it scopes the network, and an
+  origin is not a credential.
 - The host owns the destination; the request supplies only a name within it.
   `name` must be a single path segment — a value carrying a directory separator,
   a parent reference, or an absolute path is refused, and the resolved
