@@ -38,17 +38,20 @@ anyway: the mechanism only holds when the scenario's author and the test's
 binder are genuinely distinct, and that separation is not evidenced across this
 corpus.
 
-A concrete cost is already visible. `resolve-pylint-findings-in-api-and-lib`
-cannot proceed: 18 of its 33 findings sit in these test files, and editing an
-unbound test trips the binding predicate. The lint work stalls on a corpus that
-is being removed.
+A concrete cost is already visible. Of the 33 open pylint findings across `api`
+and `lib`, 18 sit inside these test files and cannot be resolved where they are:
+editing an unbound test trips the scenario-binding predicate. Routine
+maintenance is already stalled on a corpus whose value is the question at issue.
 
 ## Decision
 
-itsUP authors no tests. The existing corpus is removed rather than frozen:
-`tests/` in full, the seven `lib/*_test.py` modules, and `api/main_test.py`.
+itsUP will author no tests, and will not retain the corpus it holds. The choice
+is removal rather than freezing, covering `tests/` in full, the seven
+`lib/*_test.py` modules, and `api/main_test.py`, together with the runner,
+pytest and coverage configuration, and test-only dependencies that exist to
+serve them.
 
-The `test` action is unbound from itsUP's `code` scope in its own
+The `test` action will be unbound from itsUP's `code` scope in its own
 `teleclaude.yml`, so a source change no longer owes a test run. `log-check`
 stays bound and is unaffected.
 
@@ -92,11 +95,11 @@ silent, irreversible failure, and that is not what this corpus covers.
   live verification are what surface it. This is the accepted cost of the
   decision, not an oversight.
 - 18 of the 33 open pylint findings disappear with the files rather than being
-  fixed in place, and the binding predicate no longer blocks
-  `resolve-pylint-findings-in-api-and-lib`, which narrows to the 15 findings in
+  fixed in place, and the scenario-binding predicate stops obstructing routine
+  maintenance of them. The outstanding lint work narrows to the 15 findings in
   production code.
-- `bin/test.sh`, the pytest configuration in `pyproject.toml`, and the test
-  dependencies become dead surface and are removed with the corpus.
+- `bin/test.sh`, the pytest and coverage configuration in `pyproject.toml`, and
+  the test-only dependencies become dead surface and go with the corpus.
 - The `code` scope in `teleclaude.yml` currently excludes `tests/**` and
   `**/*_test.py`; those exclusions become vestigial once the paths are gone.
 - Reviewers apply no test-coverage or test-quality lane to itsUP. A review
