@@ -81,25 +81,24 @@ supervisor (`commands/run.py`). **Divergence:** `run` uses plain `docker compose
 up -d`, bypassing `smart_deploy`/rollout — boot is not zero-downtime (it is the
 cold-start path).
 
-The guard assertion is **fail-closed and shared**. The DNS stack publishes a
+The guard assertion is **shared and non-blocking**. The DNS stack publishes a
 resolver on the proxynet gateway address, so both publish entry points — `run`'s
 direct `docker compose up -d` and `deploy_dns_stack`'s `smart_deploy` — call one
-`require_dns_guard()` helper before any compose invocation, and abort the DNS
-step non-zero when it cannot confirm the guard's iptables rules are present at
-that moment. Asserting the rules is not the same as inspecting unit history: a
-`RemainAfterExit` unit stays `active` across an `iptables -F`, a Docker chain
-rebuild, or a monitor cleanup, so the helper re-asserts state rather than
-reading a status.
+`ensure_dns_guard()` helper before any compose invocation. The helper re-asserts
+the guard's `DOCKER-USER` rules, repairing any that are missing, and **warns
+without aborting** when containment cannot be established at all. Asserting the
+rules is not the same as inspecting unit history: a `RemainAfterExit` unit stays
+`active` across an `iptables -F`, a Docker chain rebuild, or a monitor cleanup,
+so the helper re-asserts state rather than reading a status.
 
-**Linux-only, and refusing rather than skipping.** The guard is iptables-based
-and therefore Linux-only, like the container security monitor. Unlike the
-monitor — which `run` skips with a notice on macOS — the DNS step **refuses** on
-a non-Linux host, naming the missing containment. Skipping would publish an
-unguarded recursive resolver, discarding the invariant
-`project/adr/0003-host-published-dns-resolver` makes mandatory; a macOS
-container host therefore cannot perform DNS runtime mutation yet, and the refusal
-names `macos-container-host-dns-support` — the sequenced follow-up that adds it —
-rather than reporting the platform as unsupported.
+**Containment is defence-in-depth, so it never gates resolution.** The guard is
+iptables-based and therefore Linux-only, like the container security monitor. A
+non-Linux host publishes the resolver and logs the warning, the same posture
+`run` takes for the monitor. The guarded address is host-owned and not routable
+from the LAN, and every container is meant to reach it, so the residue the rules
+exclude — host-local processes and clients routed in over a VPN interface — does
+not justify denying DNS to every container on the host. An unestablished guard is
+reported, never enforced.
 <!-- /planned-change:dns-fallback-off-proxynet -->
 
 ### `itsup down` — orchestrated shutdown
