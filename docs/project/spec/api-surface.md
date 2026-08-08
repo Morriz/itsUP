@@ -46,7 +46,7 @@ immediately.
 | `GET /projects` | apikey | host loopback, LAN/VPN | Returns `list_projects()` (`@cache`d, `:96-100`). |
 | `GET /redirect?url=` | none | internet | 307-redirects, but **only** `message://` / `imessage://` schemes; rejects other schemes or whitespace (`:103-116`). Consumer: OtoMo (`lib/deep_links.py`) wraps iMessage deep links in this endpoint so Telegram renders them as clickable https links. |
 <!-- planned:lsrules-upload-endpoint -->
-| `PUT /upload/{name}` | apikey | host loopback, LAN/VPN | Stores the request body as `{name}` in the itsUP-owned upload directory, replacing any existing file, and reports the stored location. `{name}` must be a single path segment with an allowlisted extension; the body size is bounded. Feeds `GET /file`. Contract: `project/spec/feature/api/gated-file-serving`. |
+| `PUT /upload/{name}` | apikey **and** LAN origin | LAN (over HTTPS) | Stores the request body as `{name}` in the itsUP-owned upload directory, replacing any existing file, and reports the stored location. `{name}` must be a single path segment with an allowlisted extension; the body is capped at 1 MB, enforced during the read. Feeds `GET /file`. Contract: `project/spec/feature/api/gated-file-serving`. |
 <!-- /planned:lsrules-upload-endpoint -->
 
 ### Gated file endpoint (`GET /file`)
@@ -71,27 +71,37 @@ is not available; an operator reaches these endpoints over LAN or VPN.
 
 <!-- planned:lsrules-upload-endpoint -->
 
-### Publishing the upload route (operator decision)
+### Publishing the upload route
 
-`PUT /upload/{name}` follows the posture above: with no router for its path
-prefix it is reachable only over loopback, LAN, or VPN. A producer that must
-upload from outside the network needs a route, which is added in the separate
-`itsUP-projects` repository:
+`PUT /upload/{name}` is reached over HTTPS on the same hostname as `/file`, which
+requires a router for its path prefix. That row lives in the separate
+`itsUP-projects` repository and is published there, not by the change that adds
+the endpoint:
 
 ```yaml
   - domain: itsup.srv.instrukt.ai
     path_prefix: /upload
     port: 8888
     router: http
+    allow_source_ips:
+      - 192.168.1.1/32
 ```
 
-The row carries no `allow_source_ips`. An origin allowlist here would refuse the
-off-network producer the route exists for, and the API key — not the origin — is
-the write boundary.
+The allowlist is the same one `/file` carries, and for the same reason: Traefik
+attributes LAN-hairpin traffic to the gateway, so the address admits the LAN and
+denies the internet. The endpoint therefore gains TLS from the existing
+certificate without becoming internet-reachable.
 
-Publishing it also makes the route count above wrong: the internet-facing routes
-become three rather than two, and the API-key endpoints no longer all lack a
-public route. Whoever publishes the row updates those statements in the same
+The origin gate is not the write boundary. Because every hairpinned LAN client
+presents as the gateway address, the gate cannot distinguish one LAN device from
+another — it authorises the network, not the caller. The API key is what
+authorises the caller, which is why the upload route carries both while the read
+route carries only the origin gate: its consumer is a header-less fetcher that
+can carry no credential at all.
+
+Publishing the row makes this section's opening description stale — the routers
+on the hostname become three rather than two, and the third is both origin-gated
+and API-key-guarded. Whoever publishes it updates those statements in the same
 change.
 
 Publishing that row makes an API-key-guarded **write** endpoint reachable from

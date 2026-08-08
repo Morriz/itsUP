@@ -174,18 +174,31 @@ And no file is created
   regenerable host state and are not tracked in the repository.
 - The extension allowlist is the same set the read side enforces, so the write
   boundary can never be looser than the read boundary it feeds.
-- The accepted body size is bounded, and the bound is enforced as the body is
-  read rather than after it is buffered, so an oversized request is refused
-  without being held in memory or reaching disk.
-- Writing a name that already exists replaces its contents, leaving the served
-  URL for that name unchanged. Because the served response's cache validator is
-  derived from the file's modification time and size, a replacement changes the
-  validator and a conditional client re-fetches.
+- The accepted body size is bounded at 1 MB, and the bound is enforced as the
+  body is read rather than after it is buffered, so an oversized request is
+  refused without being held in memory or reaching disk. The bound exists to
+  keep an authenticated write from exhausting host memory or disk, not to
+  police content size — it sits well above any rule group while still being a
+  hard ceiling.
+- The caller names the file, and that name is what pins its served URL. Writing
+  a name that already exists replaces its contents, leaving the URL unchanged —
+  which is what keeps a subscription working across regenerations. Because the
+  served response's cache validator derives from the file's modification time
+  and size, a replacement changes the validator, so a client holding a cached
+  copy sees a changed resource.
+- Replacement is the contract, so the endpoint cannot distinguish a re-upload of
+  one logical file from a different file that chose the same name. Keeping
+  distinct rule groups apart is the caller's naming discipline; a single path
+  segment still admits any distinguishing prefix. What the endpoint does
+  guarantee is that no name reaches a location outside the upload directory.
 - The response reports the stored file's location, so a producer can construct
   the `GET /file?path=…` URL without knowing the install root.
-- Reaching the endpoint over the internet requires a proxy route for its path
-  prefix. Without one it is reachable only over loopback, LAN, or VPN — the same
-  posture as the other API-key endpoints. See `project/spec/api-surface`.
+- The route is published on the same hostname as the read endpoint and carries
+  the same LAN-origin allowlist, so an upload travels over HTTPS and only from
+  the local network. The API key is a second, independent boundary: the origin
+  gate attributes every hairpinned LAN client to the gateway address and so
+  cannot tell one LAN device from another, and a write earns a credential that
+  an origin cannot supply. See `project/spec/api-surface`.
 
 <!-- /planned:lsrules-upload-endpoint -->
 
