@@ -78,9 +78,8 @@ Then the response is refused with a client-error status
 
 <!-- planned:lsrules-upload-endpoint -->
 
-The upload scenarios below carry no bound test. itsUP authors none
-(`project/adr/0004-remove-the-test-corpus`); they are the behavioral contract,
-and the endpoint is verified by driving the running API.
+The upload scenarios below carry no bound test. They are the behavioral
+contract, and the endpoint is verified by driving the running API.
 
 #### UC-GFS4: An authenticated upload of an allowlisted file is stored and then served
 
@@ -212,3 +211,6 @@ And no file is created
 
 - docs/project/spec/api-surface.md
 - docs/project/spec/feature/deployment/route-scoped-ip-allowlist.md
+- docs/project/adr/0004-remove-the-test-corpus.md
+- docs/third-party/little-snitch/rule-group-subscriptions.md
+- docs/third-party/starlette/fileresponse-caching-headers.md
