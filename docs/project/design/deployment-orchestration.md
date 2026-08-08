@@ -92,13 +92,23 @@ rules is not the same as inspecting unit history: a `RemainAfterExit` unit stays
 so the helper re-asserts state rather than reading a status.
 
 **Containment is defence-in-depth, so it never gates resolution.** The guard is
-iptables-based and therefore Linux-only, like the container security monitor. A
-non-Linux host publishes the resolver and logs the warning, the same posture
-`run` takes for the monitor. The guarded address is host-owned and not routable
-from the LAN, and every container is meant to reach it, so the residue the rules
+iptables-based and therefore Linux-only, like the container security monitor.
+Where the guard cannot be established, the resolver publishes anyway and the run
+logs the warning. The guarded address is host-owned and not routable from the
+LAN, and every container is meant to reach it, so the residue the rules
 exclude — host-local processes and clients routed in over a VPN interface — does
 not justify denying DNS to every container on the host. An unestablished guard is
 reported, never enforced.
+
+**The publish itself is Linux-only, for a separate and harder reason.** Binding a
+published port to the bridge gateway address requires the host to own that
+address. A Linux host does. Under a VM-backed Docker runtime the bridges exist
+only inside the virtual machine, so the host has no `172.20.0.0/16` address and
+no bridge interface at all; the daemon rejects the port binding and the DNS stack
+does not start. This is a platform capability limit, not a containment decision —
+the defence-in-depth posture above governs the guard, never whether the listener
+can exist. Publishing this resolver on a non-Linux container host is therefore
+not yet supported.
 <!-- /planned-change:dns-fallback-off-proxynet -->
 
 ### `itsup down` — orchestrated shutdown
