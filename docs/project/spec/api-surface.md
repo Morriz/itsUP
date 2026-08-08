@@ -104,12 +104,10 @@ on the hostname become three rather than two, and the third is both origin-gated
 and API-key-guarded. Whoever publishes it updates those statements in the same
 change.
 
-Publishing that row makes an API-key-guarded **write** endpoint reachable from
-the internet, so the key alone stands between the internet and a file written to
-the host that holds the SOPS age key. That is a wider exposure than the routed
-read endpoints, whose worst case is disclosure of an allowlisted file. The
-trade is the operator's to accept: leaving the row unpublished keeps the
-endpoint on the network-boundary posture and restricts producers to LAN or VPN.
+The row is published after the endpoint exists, not before: a router for a path
+the app does not yet serve answers 404. Until it is published the endpoint is
+reachable over plain HTTP on `:8888` from inside the boundary, like the other
+API-key endpoints.
 
 <!-- /planned:lsrules-upload-endpoint -->
 
