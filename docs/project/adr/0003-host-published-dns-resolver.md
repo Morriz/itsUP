@@ -6,6 +6,10 @@ number: 3
 
 # Publish the DNS Honeypot on the Proxynet Gateway — ADR
 
+## Status
+
+Superseded in part by ADR-0005.
+
 ## Context
 
 itsUP injected `dns: [172.20.0.253, 127.0.0.11]` into every generated upstream
