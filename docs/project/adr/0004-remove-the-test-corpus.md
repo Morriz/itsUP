@@ -71,9 +71,9 @@ contract, not a gap to fill.
 brownfield middle path the global default explicitly permits, and it preserves
 whatever regression signal the suite carries. Rejected: it keeps a corpus whose
 green result is uninformative for the reason above, while continuing to pay its
-maintenance and its drag on unrelated work — the lint todo is already blocked by
-exactly that. Freezing defers the decision at ongoing cost rather than making
-it.
+maintenance and its drag on unrelated work — the 18 unfixable lint findings
+above are already exactly that. Freezing defers the decision at ongoing cost
+rather than making it.
 
 **Remove only the colocated modules, keep `tests/`.** The colocated modules are
 indefensible under any doctrine, and the spec-bound suite is the part built to
