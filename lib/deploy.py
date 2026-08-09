@@ -36,28 +36,30 @@ def service_is_running(compose_dir: str, service: str) -> bool:
         True if service has running containers, False otherwise
 
     Raises:
-        OSError: the probe could not run at all. Not reported as "not running" —
-            the caller skips a zero-downtime rollout on a False, so a probe that
-            failed must not be indistinguishable from a service that is absent.
+        OSError: the probe could not be run at all.
+        subprocess.CalledProcessError: the probe ran and failed — an unreachable
+            daemon, not an absent service. `docker ps` exits zero with empty
+            output when nothing matches, so a non-zero exit never carries the
+            meaning "not running".
+
+        Neither is reported as False. The caller skips a zero-downtime rollout on
+        a False, so a probe that failed must not be indistinguishable from a
+        service that is genuinely absent.
     """
-    try:
-        # Get project name from compose_dir (for container naming)
-        project_name = Path(compose_dir).name if compose_dir != "proxy" and compose_dir != "dns" else compose_dir
+    # Get project name from compose_dir (for container naming)
+    project_name = Path(compose_dir).name if compose_dir != "proxy" and compose_dir != "dns" else compose_dir
 
-        # Find running containers for this service
-        container_filter = f"name={project_name}-{service}"
-        result = subprocess.run(
-            ["docker", "ps", "--filter", container_filter, "--format", "{{.Names}}"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+    # Find running containers for this service
+    container_filter = f"name={project_name}-{service}"
+    result = subprocess.run(
+        ["docker", "ps", "--filter", container_filter, "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-        containers = [c for c in result.stdout.strip().split("\n") if c]
-        return len(containers) > 0
-
-    except subprocess.CalledProcessError:
-        return False
+    containers = [c for c in result.stdout.strip().split("\n") if c]
+    return len(containers) > 0
 
 
 def service_needs_update(compose_dir: str, service: str, env: Optional[Dict[str, str]] = None) -> bool:
