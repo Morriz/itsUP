@@ -34,6 +34,11 @@ def service_is_running(compose_dir: str, service: str) -> bool:
 
     Returns:
         True if service has running containers, False otherwise
+
+    Raises:
+        OSError: the probe could not run at all. Not reported as "not running" —
+            the caller skips a zero-downtime rollout on a False, so a probe that
+            failed must not be indistinguishable from a service that is absent.
     """
     try:
         # Get project name from compose_dir (for container naming)
@@ -52,8 +57,6 @@ def service_is_running(compose_dir: str, service: str) -> bool:
         return len(containers) > 0
 
     except subprocess.CalledProcessError:
-        return False
-    except Exception:
         return False
 
 
