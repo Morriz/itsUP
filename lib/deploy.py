@@ -24,6 +24,16 @@ from lib.paths import root
 
 logger = get_logger(f"itsup.{__name__}")
 
+# Compose directories whose own name is the compose project name, rather than the
+# basename of a path under upstream/.
+INFRA_COMPOSE_DIRS = ("proxy", "dns")
+
+# The container-name probe: `docker ps` filtered to one project's service, printing
+# bare names. Split around the filter value so the argv stays a named owner.
+DOCKER_PS_ARGV_HEAD = ("docker", "ps", "--filter")
+DOCKER_PS_ARGV_TAIL = ("--format", "{{.Names}}")
+CONTAINER_NAME_FILTER = "name=%s-%s"
+
 
 def service_is_running(compose_dir: str, service: str) -> bool:
     """Check if a service has running containers
@@ -47,18 +57,20 @@ def service_is_running(compose_dir: str, service: str) -> bool:
         service that is genuinely absent.
     """
     # Get project name from compose_dir (for container naming)
-    project_name = Path(compose_dir).name if compose_dir != "proxy" and compose_dir != "dns" else compose_dir
+    project_name = compose_dir if compose_dir in INFRA_COMPOSE_DIRS else Path(compose_dir).name
 
-    # Find running containers for this service
-    container_filter = f"name={project_name}-{service}"
+    # Find running containers for this service. Docker exposes no Python API this
+    # project depends on — there is no docker SDK in its dependencies — so the CLI
+    # is the only available interface to daemon state.
+    container_filter = CONTAINER_NAME_FILTER % (project_name, service)
     result = subprocess.run(
-        ["docker", "ps", "--filter", container_filter, "--format", "{{.Names}}"],
+        [*DOCKER_PS_ARGV_HEAD, container_filter, *DOCKER_PS_ARGV_TAIL],
         capture_output=True,
         text=True,
         check=True,
     )
 
-    containers = [c for c in result.stdout.strip().split("\n") if c]
+    containers = [c for c in result.stdout.splitlines() if c]
     return len(containers) > 0
 
 

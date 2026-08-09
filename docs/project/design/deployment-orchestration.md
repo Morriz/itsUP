@@ -127,10 +127,8 @@ stopped containers.
 - **Running-state probe failure** — fatal for that target. `service_is_running`
   reports only what it determined: `docker ps` exits zero with empty output when
   nothing matches, so any failure of the probe itself — an unreachable daemon, a
-  missing binary, a permission error — propagates instead of being reported as
-  "not running". A probe that failed must not be indistinguishable from an absent
-  service, because the rollout gate reads that answer and would skip a
-  zero-downtime rollout on it without a trace.
+  missing binary, a permission error — propagates rather than being reported as
+  "not running".
 - **Rollout failure** — logged, non-fatal; the `up -d` containers still run.
 - **Any project validation error** — `validate_all` blocks the entire `apply`.
 - **Egress dependency cycle** — `list_projects_topo` falls back to alphabetical
