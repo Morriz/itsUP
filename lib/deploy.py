@@ -24,10 +24,6 @@ from lib.paths import root
 
 logger = get_logger(f"itsup.{__name__}")
 
-# Compose directories whose own name is the compose project name, rather than the
-# basename of a path under upstream/.
-INFRA_COMPOSE_DIRS = ("proxy", "dns")
-
 # The container-name probe: `docker ps` filtered to one project's service, printing
 # bare names. Split around the filter value so the argv stays a named owner.
 DOCKER_PS_ARGV_HEAD = ("docker", "ps", "--filter")
@@ -57,7 +53,7 @@ def service_is_running(compose_dir: str, service: str) -> bool:
         service that is genuinely absent.
     """
     # Get project name from compose_dir (for container naming)
-    project_name = compose_dir if compose_dir in INFRA_COMPOSE_DIRS else Path(compose_dir).name
+    project_name = Path(compose_dir).name
 
     # Find running containers for this service. Docker exposes no Python API this
     # project depends on — there is no docker SDK in its dependencies — so the CLI
