@@ -82,5 +82,4 @@ session on infra diagnosis.
 
 ## See Also
 
-- ~/.teleclaude/docs/infra/procedure/itsup-gitops-workflow.md
 - ~/.teleclaude/docs/apps/procedure/erpnext/delete-site.md

@@ -55,5 +55,4 @@ desired-state cleanup that keeps the drop from silently reverting.
 
 ## See Also
 
-- ~/.teleclaude/docs/infra/procedure/itsup-gitops-workflow.md
 - ~/.teleclaude/docs/apps/procedure/erpnext/create-site.md
