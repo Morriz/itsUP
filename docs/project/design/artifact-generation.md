@@ -104,6 +104,14 @@ overrides. This snippet is the contract for that translation. Network assignment
     (`project/spec/feature/deployment/http-security-middlewares`). Contract:
     `project/spec/feature/deployment/route-scoped-ip-allowlist`.
 
+<!-- planned:cross-platform-project-network-rules -->
+11. **Host firewall rules are derived artifacts.** Project networking intent
+    produces platform-native rules for OpenSnitch on Linux and Little Snitch on
+    macOS; agents do not hand-author per-project rule files. Applying those
+    artifacts is optional and does nothing when the applicable filter is absent.
+    Rule generation remains independent from publication or upload transport.
+<!-- /planned:cross-platform-project-network-rules -->
+
 ## Primary flows
 
 ### Proxy artifacts (`write_proxy_artifacts`, `:617`)
