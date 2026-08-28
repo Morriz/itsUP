@@ -48,6 +48,7 @@ entryPoints:
   web:
     address: ':8080'
     reusePort: true
+    allowACMEByPass: true
     forwardedHeaders:
       trustedIPs: {{ trusted_ips_cidrs }}
     proxyProtocol:

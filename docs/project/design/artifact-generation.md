@@ -54,10 +54,12 @@ overrides. This snippet is the contract for that translation. Network assignment
    also emitted on the plain `web` entrypoint, same host rule, with
    `middlewares=redirect@file` sending it to HTTPS — skipped only for the
    `ACME_CHALLENGE_PATH_PREFIX` passthrough carve-out, which must reach its
-   backend unredirected. Traefik's ACME HTTP-01 handling on `web` intercepts
-   the challenge path ahead of router matching, so this redirect can't
-   interfere with certificate issuance/renewal.
-3. **Entrypoints.** Static `web:8080` / `web-secure:8443` always exist; dynamic
+   backend unredirected. The `web` entrypoint enables Traefik's ACME bypass so
+   a more-specific challenge router can forward that carve-out while Traefik's
+   internal router continues handling its other HTTP-01 challenges.
+3. **Entrypoints.** Static `web:8080` / `web-secure:8443` always exist; `web`
+   enables `allowACMEByPass` so an explicitly declared challenge route can
+   outrank Traefik's internal ACME router. Dynamic
    entrypoints `{router}-{hostport|port}` are generated per TCP/UDP/hostport
    ingress (`traefik.yml.j2`). Passthrough **without** hostport reuses
    `web-secure` (no new entrypoint, `:329-333`).
