@@ -1,5 +1,7 @@
 # infra — Platform Baseline
 
+id: infra/concept/itsup-operating-model
+
 # itsUP Operating Model — Concept
 
 ## What
@@ -46,6 +48,8 @@ a project from the current directory.
 - ~/.teleclaude/docs/infra/policy/itsup-host-boundary.md
 
 ---
+
+id: infra/concept/itsup-project-and-secrets
 
 # itsUP Projects and Secrets — Concept
 

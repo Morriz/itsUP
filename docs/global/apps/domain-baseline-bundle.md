@@ -1,5 +1,7 @@
 # apps — Platform Baseline
 
+id: apps/procedure/operate-a-deployed-app
+
 # Operate A Deployed App — Procedure
 
 ## Goal
