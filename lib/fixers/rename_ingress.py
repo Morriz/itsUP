@@ -68,7 +68,8 @@ def apply(projects_dir: Path, dry_run: bool = False) -> dict[str, list[str]]:
             renamed.append(project_dir.name)
             logger.debug("Renamed: %s/ingress.yml → itsup-project.yml", project_dir.name)
 
-        except Exception as e:  # pylint: disable=broad-exception-caught  # aggregate
+        # A bad project must not abort migration of the remaining projects.
+        except Exception as e:  # pylint: disable=broad-exception-caught
             errors.append(f"{project_dir.name}: {e}")
             logger.error("Failed to rename %s: %s", project_dir.name, e)
 
