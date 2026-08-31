@@ -70,7 +70,9 @@ def service_is_running(compose_dir: str, service: str) -> bool:
     return len(containers) > 0
 
 
-def service_needs_update(compose_dir: str, service: str, env: Optional[Dict[str, str]] = None) -> bool:
+def service_needs_update(  # pylint: disable=too-many-return-statements  # Each probe outcome has a distinct diagnostic.
+    compose_dir: str, service: str, env: Optional[Dict[str, str]] = None
+) -> bool:
     """Check if a service's image or config changed via hash comparison
 
     Args:
@@ -106,7 +108,7 @@ def service_needs_update(compose_dir: str, service: str, env: Optional[Dict[str,
         current_hash = parts[1]
 
         # Get project name from compose_dir (for container naming)
-        project_name = Path(compose_dir).name if compose_dir != "proxy" and compose_dir != "dns" else compose_dir
+        project_name = Path(compose_dir).name if compose_dir not in ("proxy", "dns") else compose_dir
 
         # Find running containers for this service
         container_filter = f"name={project_name}-{service}"
@@ -152,7 +154,7 @@ def service_needs_update(compose_dir: str, service: str, env: Optional[Dict[str,
     except subprocess.CalledProcessError as e:
         logger.warning(f"Error checking {service} update status: {e}")
         return True  # On error, assume update needed
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught  # Probe failures intentionally fail safe.
         logger.warning(f"Unexpected error checking {service}: {e}")
         return True
 
@@ -184,7 +186,7 @@ def rollout_service(compose_dir: str, service: str, env: Optional[Dict[str, str]
         raise
 
 
-def smart_deploy(
+def smart_deploy(  # pylint: disable=too-many-positional-arguments,too-many-branches  # Public deploy API mirrors compose inputs.
     compose_dir: str,
     compose_file: str = "docker-compose.yml",
     stateless_services: Optional[List[str]] = None,
@@ -230,7 +232,8 @@ def smart_deploy(
     if force_rollout is None:
         force_rollout = set()
 
-    logger.info(f"Deploying {compose_dir}..." + (f" (service: {service_filter})" if service_filter else ""))
+    service_suffix = f" (service: {service_filter})" if service_filter else ""
+    logger.info("Deploying %s...%s", compose_dir, service_suffix)
 
     # Pull images
     pull_cmd = ["docker", "compose", "-f", f"{compose_dir}/{compose_file}", "pull"]

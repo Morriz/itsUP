@@ -20,7 +20,7 @@ def get_schema_version() -> str:
     yaml.preserve_quotes = True
     yaml.default_flow_style = False
 
-    with open(itsup_file) as f:
+    with open(itsup_file, encoding="utf-8") as f:
         config = yaml.load(f) or {}
 
     return config.get("schemaVersion", "1.0.0")
@@ -34,12 +34,12 @@ def set_schema_version(version: str) -> None:
     yaml.preserve_quotes = True
     yaml.default_flow_style = False
 
-    with open(itsup_file) as f:
+    with open(itsup_file, encoding="utf-8") as f:
         config = yaml.load(f) or {}
 
     config["schemaVersion"] = version
 
-    with open(itsup_file, "w") as f:
+    with open(itsup_file, "w", encoding="utf-8") as f:
         yaml.dump(config, f)
 
 

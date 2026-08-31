@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from lib.deploy import deploy_upstream_project
 from lib.models import TraefikConfig
 
 
@@ -24,8 +25,6 @@ class TestDeployUpstreamProject(unittest.TestCase):
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:
         """Project with no egress declarations deploys without any docker-inspect calls."""
-        from lib.deploy import deploy_upstream_project
-
         traefik = TraefikConfig(enabled=True, ingress=[], egress=[])
         mock_load_project.return_value = (self._make_compose(), traefik)
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -42,8 +41,6 @@ class TestDeployUpstreamProject(unittest.TestCase):
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:
         """When the edge network exists, deploy proceeds without error."""
-        from lib.deploy import deploy_upstream_project
-
         traefik = TraefikConfig(enabled=True, ingress=[], egress=["db:redis"])
         mock_load_project.return_value = (self._make_compose(), traefik)
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -58,8 +55,6 @@ class TestDeployUpstreamProject(unittest.TestCase):
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:
         """Missing edge network raises RuntimeError with actionable guidance."""
-        from lib.deploy import deploy_upstream_project
-
         traefik = TraefikConfig(enabled=True, ingress=[], egress=["db:redis"])
         mock_load_project.return_value = (self._make_compose(), traefik)
 
@@ -82,8 +77,6 @@ class TestDeployUpstreamProject(unittest.TestCase):
         self, mock_load_project: Mock, mock_write_upstream: Mock, mock_run: Mock
     ) -> None:
         """All declared egress edge networks must exist; first missing one raises."""
-        from lib.deploy import deploy_upstream_project
-
         traefik = TraefikConfig(enabled=True, ingress=[], egress=["db:redis", "cache:memcached"])
         mock_load_project.return_value = (self._make_compose(), traefik)
 

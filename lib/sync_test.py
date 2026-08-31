@@ -1,6 +1,8 @@
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -14,8 +16,6 @@ class TestPullRepos(unittest.TestCase):
     """Tests for git pull logic."""
 
     def setUp(self) -> None:
-        import tempfile
-
         self._tmpdir = tempfile.mkdtemp()
         self.root = Path(self._tmpdir)
         # Create repo dirs with .git markers
@@ -25,8 +25,6 @@ class TestPullRepos(unittest.TestCase):
             (repo_dir / ".git").mkdir()
 
     def tearDown(self) -> None:
-        import shutil
-
         shutil.rmtree(self._tmpdir)
 
     @patch("lib.sync.subprocess.run")
@@ -63,16 +61,12 @@ class TestPullRepos(unittest.TestCase):
         self.assertEqual(result, {"projects": False, "secrets": False})
 
     def test_missing_repo_dir(self) -> None:
-        import shutil
-
         shutil.rmtree(self.root / "projects")
         result = pull_repos(self.root)
         self.assertFalse(result["projects"])
         self.assertTrue(result["secrets"] or not result["secrets"])  # secrets depends on mock
 
     def test_not_a_git_repo(self) -> None:
-        import shutil
-
         # Remove .git dir so it's not a repo
         shutil.rmtree(self.root / "projects" / ".git")
         with patch("lib.sync.subprocess.run") as mock_run:

@@ -1,7 +1,11 @@
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+
+import yaml
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -56,16 +60,12 @@ class TestCreateProject(unittest.TestCase):
     """Tests for project scaffolding."""
 
     def setUp(self) -> None:
-        import tempfile
-
         self._tmpdir = tempfile.mkdtemp()
         self.root = Path(self._tmpdir)
         (self.root / "projects").mkdir()
         (self.root / "secrets").mkdir()
 
     def tearDown(self) -> None:
-        import shutil
-
         shutil.rmtree(self._tmpdir)
 
     def test_creates_all_files(self) -> None:
@@ -76,8 +76,6 @@ class TestCreateProject(unittest.TestCase):
         self.assertTrue((self.root / "secrets" / "my-app.txt").exists())
 
     def test_itsup_project_yml_valid(self) -> None:
-        import yaml
-
         create_project("my-app", self.root)
         content = yaml.safe_load((self.root / "projects" / "my-app" / "itsup-project.yml").read_text())
         self.assertTrue(content["enabled"])
@@ -104,8 +102,6 @@ class TestCreateProject(unittest.TestCase):
         self.assertEqual(secret_file.read_text(), "EXISTING=secret\n")
 
     def test_creates_secrets_dir_if_missing(self) -> None:
-        import shutil
-
         shutil.rmtree(self.root / "secrets")
         create_project("my-app", self.root)
         self.assertTrue((self.root / "secrets" / "my-app.txt").exists())

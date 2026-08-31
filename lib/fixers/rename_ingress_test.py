@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -28,8 +29,6 @@ class TestRenameIngress(unittest.TestCase):
 
     def tearDown(self) -> None:
         """Clean up temporary directory"""
-        import shutil
-
         os.environ["PATH"] = self._original_path
         shutil.rmtree(self.temp_dir)
 

@@ -165,7 +165,7 @@ def load_project(project_name: str) -> tuple[dict[str, Any], TraefikConfig]:
     elif old_config_file.exists():
         config_file = old_config_file
         logger.warning(
-            "⚠️  %s/ingress.yml is deprecated. " "Rename to itsup-project.yml (support ends in v3.0)",
+            "⚠️  %s/ingress.yml is deprecated. Rename to itsup-project.yml (support ends in v3.0)",
             project_name,
         )
     else:
@@ -427,7 +427,7 @@ def validate_project(project_name: str) -> list[str]:
 
     try:
         compose, traefik = load_project(project_name)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught  # Validation aggregates malformed-project errors.
         errors.append(str(e))
         return errors
 

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import os
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,26 +10,16 @@ from lib.migrations import (
     migrate,
     set_schema_version,
 )
+from lib.test_support import TemporaryItsupRootTestCase
 
 
-class TestMigrations(unittest.TestCase):
+class TestMigrations(TemporaryItsupRootTestCase):
     """Tests for migration system"""
 
     def setUp(self) -> None:
-        """Point the install root at a real temp tree via ITSUP_ROOT."""
-        self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
+        super().setUp()
         (self.root / "pyproject.toml").write_text('[project]\nversion = "2.1.0"\n')
         (self.root / "projects").mkdir()
-        self._prev_root = os.environ.get("ITSUP_ROOT")
-        os.environ["ITSUP_ROOT"] = str(self.root)
-
-    def tearDown(self) -> None:
-        if self._prev_root is None:
-            os.environ.pop("ITSUP_ROOT", None)
-        else:
-            os.environ["ITSUP_ROOT"] = self._prev_root
-        self._tmp.cleanup()
 
     @property
     def _itsup_file(self) -> Path:

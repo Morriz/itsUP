@@ -38,7 +38,7 @@ def root() -> Path:
     # non-editable install location, where the data tree cannot be derived.
     if not (derived / "pyproject.toml").is_file():
         raise RuntimeError(
-            "Cannot derive the itsUP install root from the package location; " "set ITSUP_ROOT to the repository path"
+            "Cannot derive the itsUP install root from the package location; set ITSUP_ROOT to the repository path"
         )
     return derived
 

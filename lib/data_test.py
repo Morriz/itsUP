@@ -1,8 +1,6 @@
 import os
 import sys
-import tempfile
 import unittest
-from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock
 
@@ -20,26 +18,18 @@ from lib.data import (
     validate_project,
 )
 from lib.models import Ingress, TraefikConfig
+from lib.test_support import TemporaryItsupRootTestCase
 
 
-class TestDataV2(unittest.TestCase):
+class TestDataV2(
+    TemporaryItsupRootTestCase
+):  # pylint: disable=too-many-public-methods  # Each test binds a separate data contract.
     """Tests for V2 API functions"""
 
     def setUp(self) -> None:
-        """Point the install root at a real temp tree via ITSUP_ROOT."""
-        self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
+        super().setUp()
         # pyproject.toml marks the tree as a valid install root (paths.root fail-closed).
         (self.root / "pyproject.toml").write_text("[project]\n")
-        self._prev_root = os.environ.get("ITSUP_ROOT")
-        os.environ["ITSUP_ROOT"] = str(self.root)
-
-    def tearDown(self) -> None:
-        if self._prev_root is None:
-            os.environ.pop("ITSUP_ROOT", None)
-        else:
-            os.environ["ITSUP_ROOT"] = self._prev_root
-        self._tmp.cleanup()
 
     @mock.patch("lib.data.load_encrypted_env")
     def test_load_secrets_with_files(self, mock_load_env: Mock) -> None:
