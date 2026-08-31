@@ -57,9 +57,10 @@ overrides. This snippet is the contract for that translation. Network assignment
    backend unredirected. The `web` entrypoint enables Traefik's ACME bypass so
    a more-specific challenge router can forward that carve-out while Traefik's
    internal router continues handling its other HTTP-01 challenges.
-3. **Entrypoints.** Static `web:8080` / `web-secure:8443` always exist; `web`
-   enables `allowACMEByPass` so an explicitly declared challenge route can
-   outrank Traefik's internal ACME router. Dynamic
+3. **Entrypoints.** Static `ping:127.0.0.1:8082`, `web:8080`, and
+   `web-secure:8443` always exist and enable `reusePort` for zero-downtime
+   Traefik replacement. `web` enables `allowACMEByPass` so an explicitly
+   declared challenge route can outrank Traefik's internal ACME router. Dynamic
    entrypoints `{router}-{hostport|port}` are generated per TCP/UDP/hostport
    ingress (`traefik.yml.j2`). Passthrough **without** hostport reuses
    `web-secure` (no new entrypoint, `:329-333`).

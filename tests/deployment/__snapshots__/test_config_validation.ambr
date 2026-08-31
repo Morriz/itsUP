@@ -124,6 +124,7 @@
   entryPoints:
     ping:
       address: '127.0.0.1:8082'
+      reusePort: true
   
     web:
       address: ':8080'
