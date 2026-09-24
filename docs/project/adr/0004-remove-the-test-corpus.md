@@ -16,7 +16,7 @@ platform doctrine prescribed. Alongside them, seven `lib/*_test.py` modules and
 asserting against internals, bound to no scenario, dating in part to the initial
 commit.
 
-`software-development/policy/testing` now makes test authorship opt-in: no test
+`sdlc/policy/testing` now makes test authorship opt-in: no test
 is authored in a project that has not declared otherwise, and holding a corpus
 is explicitly not a declaration. itsUP therefore has to decide what happens to
 the corpus it holds rather than inherit it by inertia.

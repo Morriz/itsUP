@@ -1,7 +1,7 @@
 ---
 id: project/design/health-check-automation
 type: design
-domain: software-development
+domain: sdlc
 scope: project
 status: target
 delivered_by: [health-check-automation]
