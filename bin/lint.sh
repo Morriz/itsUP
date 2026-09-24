@@ -75,6 +75,13 @@ fi
 
 echo "Running pylint"
 uv run pylint --enable=C0415 --fail-on=C0415 "${files[@]}"
+pylint_status=$?
 
 echo "Running mypy"
 uv run mypy "${files[@]}"
+mypy_status=$?
+
+# Both legs run so every diagnostic is visible; the gate fails if either did.
+if [ "$pylint_status" -ne 0 ] || [ "$mypy_status" -ne 0 ]; then
+    exit 1
+fi
