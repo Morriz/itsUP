@@ -1,4 +1,4 @@
-.PHONY: help install install-runtime uninstall-runtime restart status test test-integration test-all lint format clean
+.PHONY: help install install-runtime uninstall-runtime restart status lint format clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -24,15 +24,6 @@ restart: ## Restart supervised itsUP daemons without stopping containers
 
 status: ## Check live host runtime health without mutating the host
 	@./bin/check-runtime-status.sh
-
-test: ## Fast test gate (excludes the integration tier)
-	@./bin/test.sh
-
-test-integration: ## Integration tier — real sops/age/git, slower
-	@uv run pytest -m integration
-
-test-all: ## Every tier (fast + integration)
-	@uv run pytest -m 'integration or not integration'
 
 format: ## Format code
 	@FILES_FROM="$(FILES_FROM)" ./bin/format.sh

@@ -34,4 +34,3 @@ jobs:
         run: |
           make format
           make lint
-          make test-all

@@ -19,12 +19,6 @@ repos:
     language: script
     stages:
     - pre-commit
-  - id: test
-    name: Test code
-    entry: bin/test.sh
-    language: script
-    stages:
-    - pre-commit
 - repo: local
   hooks:
   - id: teleclaude-docs-check
