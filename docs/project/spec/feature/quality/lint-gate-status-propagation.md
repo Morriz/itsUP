@@ -1,11 +1,8 @@
 ---
-description:
-  Acceptance scenario for the repository lint gate's status propagation — the
-  lint script reports failure to its caller when either linter it runs reports a
-  finding, so pylint findings can block a commit and a CI run rather than being
+description: Acceptance scenario for the repository lint gate's status propagation
+  — the lint script reports failure to its caller when either linter it runs reports
+  a finding, so pylint findings can block a commit and a CI run rather than being
   printed and passed over.
-delivered_by:
-  - fix-bin-lint-sh-silently-swallows-pylint-fai
 ---
 
 # Lint Gate Status Propagation — Spec
