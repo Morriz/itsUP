@@ -37,7 +37,7 @@ dependency/environment manager.
   up to date without writing (there is no `uv lock --locked`).
 - `uv add <pkg>` / `uv lock --upgrade` — add a dependency / refresh pins; the
   uv replacements for the old `pip install --upgrade` + `pip freeze` workflow.
-- `uv run <tool> ...` — run a project tool (pytest/mypy/pylint/black/isort)
+- `uv run <tool> ...` — run a project tool (mypy/pylint/black/isort)
   inside the project environment; no `source .venv/bin/activate` needed.
 
 ## GitHub Actions (setup-uv)
@@ -47,7 +47,7 @@ dependency/environment manager.
 - Enable dependency caching with `enable-cache: true`.
 - The action can set the Python version via `with: python-version: <ver>`.
 - Recommended CI shape: `uv sync --locked` (optionally `--all-extras --dev`)
-  then `uv run pytest`.
+  then `uv run mypy .`.
 
 ## Dependabot
 

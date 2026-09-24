@@ -11,7 +11,7 @@ visibility: 'internal'
 - **Operate from the repository root.** Never stay `cd`'d into a subdirectory. For directory-scoped work use `(cd <dir> && <command>)` with relative paths.
 - **Operate from the repository root.** Never stay `cd`'d into a subdirectory. For directory-scoped work use `(cd <dir> && <command>)` with relative paths.
 - **itsUP's own code is not containerized.** The Python CLI (`itsup`), API server, monitoring, DNS honeypot-management, and proxy-config code all run on the host. Only upstream project services are containerized. Never containerize itsUP code.
-- **Pre-commit order is fixed:** `bin/format.sh` → `bin/lint.sh` → `bin/test.sh`. Run `bin/format.sh` before committing to avoid format-then-fail loops in the hook.
+- **Pre-commit order is fixed:** `bin/format.sh` → `bin/lint.sh`. Run `bin/format.sh` before committing to avoid format-then-fail loops in the hook.
 
 ## Rationale
 

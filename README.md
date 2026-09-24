@@ -332,7 +332,6 @@ A minimal Makefile focused on development workflow. Run `make help` to see all a
 make install           # Install dependencies only (system tools, Python venv, git hooks)
 make install-runtime   # Make this host a live deployment: host integration + start the stack
 make uninstall-runtime # Decommission this host: stop the stack + remove host integration
-make test              # Run all tests
 make lint              # Run linter
 make format            # Format code
 make clean             # Remove generated artifacts
