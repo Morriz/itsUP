@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=.teleclaude/schemas/teleclaude-project.schema.json
-kind: project
 company: instrukt-ai
 business:
   publishes:
@@ -10,13 +9,7 @@ business:
     trigger: Operating an already-deployed app (Planka boards, ERPNext bench 
       sites) at the application level
 checkpoint:
-  maintenance:
-    deps:
-      command:
-      - uv
-      - sync
-      main_only: true
-      precedence: 10
+  maintenance: {}
   actions:
     validate:
       run: itsup validate
@@ -24,9 +17,6 @@ checkpoint:
       - itsup validate
       precedence: 50
   bindings:
-  # Source roots bind log-check only. A `code` block would also bind `test`,
-  # which project/adr/0004-remove-the-test-corpus rules out: itsUP authors no
-  # tests and holds no runner. Declaring the scope generically keeps log-check.
   - scope:
       include:
       - lib/**
@@ -47,7 +37,7 @@ checkpoint:
       - pyproject.toml
       - uv.lock
     actions:
-    - deps
+    - install
 agents:
   enabled: false
 project_slug: itsup
@@ -55,3 +45,4 @@ code:
   enabled: true
 docs:
   enabled: true
+kind: project
