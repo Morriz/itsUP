@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# teleclaude: execute deterministic post-commit maintenance.
-
-exec telec code post-commit

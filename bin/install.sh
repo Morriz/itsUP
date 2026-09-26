@@ -265,21 +265,9 @@ echo ""
 echo "  3. Edit secrets:"
 echo "     itsup edit-secret itsup"
 echo ""
-echo "  4. Enable git hooks (auto requirements install on pull):"
-echo "     git config core.hooksPath bin/hooks"
-echo ""
 echo "On the container host only — make it a live deployment:"
 echo ""
 echo "  make install-runtime       # install boot/nightly/healthcheck integration + start the stack"
 echo "  itsup apply                # deploy/redeploy the stack (host-only; never on a dev box)"
 echo "  make uninstall-runtime     # decommission: stop everything, remove integration"
-echo ""
-
-# Auto-enable git hooks (post-merge requirements install) if inside a git repo
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git config core.hooksPath bin/hooks
-    echo -e "${GREEN}✓${NC} Git hooks enabled (core.hooksPath=bin/hooks)"
-else
-    echo -e "${YELLOW}⚠${NC} Not a git repo; skipping hooks setup"
-fi
 echo ""

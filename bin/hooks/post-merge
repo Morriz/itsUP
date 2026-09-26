@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# teleclaude: execute deterministic post-merge automation.
-
-exec telec code post-merge
