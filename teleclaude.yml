@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=.teleclaude/schemas/teleclaude-project.schema.json
 kind: project
 company: instrukt-ai
 business:
@@ -9,6 +10,13 @@ business:
     trigger: Operating an already-deployed app (Planka boards, ERPNext bench 
       sites) at the application level
 checkpoint:
+  maintenance:
+    deps:
+      command:
+      - uv
+      - sync
+      main_only: true
+      precedence: 10
   actions:
     validate:
       run: itsup validate
@@ -39,5 +47,11 @@ checkpoint:
       - pyproject.toml
       - uv.lock
     actions:
-    - install
+    - deps
+agents:
+  enabled: false
 project_slug: itsup
+code:
+  enabled: true
+docs:
+  enabled: true

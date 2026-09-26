@@ -7,6 +7,9 @@ __pycache__
 .itsup-supervision-state
 .itsup-nonlocal-bind-state
 .itsup-nonlocal-bind-state.content
+
+# Per-file locks held by the atomic config writer; recreated on every write.
+*.yml.lock
 .history
 .*_cache
 .venv
@@ -68,3 +71,23 @@ dist/
 .mypy_cache/
 .ruff_cache/
 htmlcov/
+
+# TeleClaude blessed defaults
+.history/
+uv.*
+!uv.lock
+*.pid
+*.db
+*.db-journal
+.playwright-mcp/
+scratchpad/
+workspace/
+trees/
+teleclaude-mcp.local.jsonc
+.env.lock
+invitations.json.lock
+todos.db
+todos.db-wal
+todos.db-shm
+publications/inbox/*
+!publications/inbox/.gitkeep
