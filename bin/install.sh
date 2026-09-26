@@ -248,6 +248,16 @@ else
     fi
 fi
 
+# Migrate checkouts from the pre-TeleClaude convention (a tracked bin/hooks/
+# directory selected via core.hooksPath) back to git's native, untracked
+# .git/hooks/ — TeleClaude's plumbing convergence installs there directly.
+# Only clear the setting when it still points at the now-deleted directory;
+# never touch an operator's own unrelated hooksPath override.
+if [ "$(git config --get core.hooksPath 2>/dev/null || true)" = "bin/hooks" ]; then
+    git config --unset core.hooksPath
+    echo -e "${GREEN}✓${NC} Migrated off legacy core.hooksPath=bin/hooks (hooks now live in .git/hooks/)"
+fi
+
 echo ""
 echo -e "${GREEN}✅ Dependencies installed!${NC}"
 echo ""
