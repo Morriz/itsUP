@@ -10,7 +10,7 @@ Traefik v3's `ipAllowList` HTTP middleware accepts a request only when the
 evaluated client IP falls inside a configured allow list, and rejects it
 otherwise (HTTP 403). itsUP uses it to express a **per-route** origin gate: the
 middleware is defined and attached to a single dynamic-file router (see
-`project/spec/feature/deployment/route-scoped-ip-allowlist`), not at the shared
+`projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`), not at the shared
 entrypoint.
 
 ## Configuration (file provider, YAML)

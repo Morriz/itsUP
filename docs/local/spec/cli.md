@@ -1,0 +1,288 @@
+---
+description: 'Non-obvious itsup CLI semantics not visible in --help — the run/down orchestration order, apply''s fail-closed validate gate plus sequential topo-ordered deploy with label-based hash skip, and the only codified exit-code semantics (0/1 plus passed-through subprocess returncodes).'
+---
+
+# CLI — Spec
+
+## What it is
+
+`itsup` is the itsUP management CLI (`itsup.cli:main`, a Click group registering
+the commands in `commands/`). This spec records only the behaviors that
+`itsup --help` and the per-command `--help` do **not** reveal; distribution and
+invocation are in `projects/itsup/design/itsup-cli`, and per-context secret loading is
+in `projects/itsup/spec/secrets-management`.
+
+## Canonical fields
+
+### `run` / `down` orchestration order
+
+- `itsup run` starts the stack in dependency order: **DNS → proxy → API →
+  monitor**. The two container stacks come up through `docker compose`; the API
+  and the monitor are **daemon units the host supervisor owns**, so `run` starts
+  them through it rather than spawning processes of its own. The monitor starts
+  in **report-only mode** — `run` writes that mode into the supervisor-read flags
+  file before starting the unit — and full blocking protection requires a
+  separate `itsup monitor start`. Before starting anything, `run` regenerates
+  proxy artifacts (`write_proxy_artifacts()`) and aborts if that fails. At boot
+  it intentionally does **not** pull images (the host's own DNS may not be up
+  yet). On any stack failure `run` exits with that stack's subprocess
+  returncode. On a host with no monitor support (macOS — the monitor is
+  Linux-only) `run` skips the monitor step with a notice and continues.
+  (`commands/run.py`)
+- **Startup ownership.** **Neither daemon** is boot-activated: on Linux the
+  `itsup-api` and `itsup-monitor` units carry no `[Install]` section and are
+  never enabled; on macOS the API agent's plist is written but not bootstrapped
+  by the installer, since a `KeepAlive` job starts as soon as it is
+  bootstrapped. `itsup-bringup.service` is the exception and is unchanged by
+  this: it does carry `[Install]`, is enabled, and is restarted when its
+  definition changed or it was inactive — which is how boot brings the stack up
+  at all. The paths that start or restart a daemon are:
+  - **`itsup run`** — the ordered, whole-stack path: the only thing that
+    activates the daemons as a set, in the order above. Installation reaches it
+    transitively when it **restarts (systemd) or bootstraps (launchd) bringup**
+    — which it does when the bringup definition changed or bringup was inactive.
+    Writing a unit file and reloading systemd does not execute it.
+  - **`itsup monitor start` / `stop`** — the operator's explicit monitor
+    control, transitioning that one unit through the supervisor and touching
+    nothing else.
+  - **the API's supervisor-owned self-restart**, used by the self-update path to
+    replace a running API in place.
+  - **the supervisor's own crash respawn** — automatic recovery rather than an
+    operator control surface.
+
+  **An install issues no per-daemon supervisor verb** — it never starts, stops,
+  restarts or reloads the API or the monitor individually. It writes their
+  definitions, and it reaches the ordered `itsup run` by a route that differs by
+  supervisor:
+  - **Linux** — transitively, by restarting bringup when that unit changed or
+    was inactive; or **directly**, while the host's supervision cutover is still
+    pending and bringup is unchanged and active, which is what makes
+    `make install-runtime` leave a first-cutover host live. systemd retries
+    nothing here: the next install does.
+  - **macOS** — never directly. While the cutover is pending the installer
+    reloads the bringup agent even when its plist is unchanged, so its guardian
+    performs the run, and then waits for the outcome; launchd relaunches a failed
+    guardian, so it owns the retry. Once that cutover has completed the installer performs no **direct** run
+  again. The transitive path is unchanged and unconditional: whenever the
+  bringup definition changed or bringup is inactive, every install restarts it
+  (`bin/install-bringup.sh:192`) and its `ExecStart=itsup run` starts the stack —
+  so a daemon the operator stopped survives an install only when bringup is
+  unchanged **and** active.  A written definition is therefore inert until the daemon is next
+  brought up in a way that re-reads it, which is what both supervisors do
+  natively: writing a unit file and reloading systemd never restarts a running
+  service, and writing a plist does not reload a loaded job. The paths that
+  apply it differ by supervisor and, within `run`, by daemon:
+  - **Linux API** — `sudo systemctl restart itsup-api`, or the API's
+    self-restart. A bare `itsup run` does **not** apply it: `run`'s API step is
+    a start verb, which no-ops on an active unit.
+  - **Linux monitor** — `itsup monitor start`, `sudo systemctl restart
+    itsup-monitor`, or any `itsup run`, whose monitor step rewrites
+    `MONITOR_FLAGS` and restarts the unit (and therefore also resets the mode to
+    report-only).
+  - **macOS API** — `itsup down` then `itsup run`, the only sequence that
+    unloads and re-registers the job.
+
+  A crash respawn follows the same split: under systemd the auto-restart uses
+  the manager's reloaded unit, so it applies a changed definition; under launchd
+  it relaunches the still-registered job, so it does not. Where no bringup action occurs, a daemon
+  the operator deliberately stopped stays stopped across an install.
+- `itsup down` stops in the **reverse** order: **monitor → API → all upstream
+  projects → proxy → DNS**. Upstream projects are stopped **in parallel**
+  (`ThreadPoolExecutor`, max 10); the infra stacks are stopped sequentially. The
+  monitor and API are stopped through the supervisor, and a unit that is already
+  inactive is not an error; proxy/DNS `down` failures are logged but **not
+  fatal** — `down` completes regardless. `--clean` additionally `rm -f`s the
+  stopped itsUP containers (projects + proxy + dns) in parallel and never
+  touches non-itsUP containers. (`commands/down.py`)
+
+### `apply` — validate gate, sequential topo deploy, label-based hash skip
+
+- `apply` first runs a **global, fail-closed** `validate_all()` design-by-contract
+  gate: a single invalid project or cross-project collision blocks **every**
+  deploy (exit 1) — even `itsup apply <one-project>` is refused while any project
+  is invalid. (`commands/apply.py:45`)
+- `itsup apply` (no argument) deploys **sequentially in topological order**
+  (`list_projects_topo()`), prefixed by `dns` then `proxy` — it is **not**
+  parallel. It collects failures and exits 1 if any target failed, after
+  attempting all of them. (`commands/apply.py:90`)
+- Change detection compares the **live** `docker compose config --hash <service>`
+  against the running container's `com.docker.compose.config-hash` label — there
+  is **no stored hash file**. Per stateless service, rollout is skipped when the
+  hash matches, when the service was not running before (first-time deploy gets a
+  plain `up -d`, no rollout), or when it is not the `--service` filter target. A
+  failed individual rollout is logged and does not fail the deployment.
+  (`lib/deploy.py:62`, `lib/deploy.py:257`)
+
+
+### `logs` — the routing front door over fragmented log backends
+
+`itsup logs [TARGET]` is the single entry point to itsUP's host-side logs. Each
+target names a producer, and the command routes it to whichever backend actually
+holds that producer's records; the operator never needs to know which. It is
+host-only (see the gate below) and read-only.
+
+**Bare invocation is discovery**: `itsup logs` with no target prints every
+routable target with its description, one pair per line, and exits 0. An
+unrecognised target exits 1 and prints the routable set. Every rejection the
+router owns — unknown target, malformed option value, unavailable backend — exits
+1; the CLI declares no exit-2 contract, so parameter failures are translated
+rather than left to the parser's own usage exit.
+
+**Targets and their backends.** Six supervised-unit targets — `api`, `monitor`,
+`bringup`, `apply`, `backup`, `healthcheck` — plus the file-backed `access`
+(Traefik's JSON access log under `logs/`, emitted verbatim: the router is a raw
+passthrough reader of that file and formats nothing, because the record's single
+JSON format is what makes it CrowdSec's parseable feed).
+The unit targets resolve per platform, following the supervision contract in
+`projects/itsup/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
+launchd agent's `StandardOutPath`, read from the installed agent's own plist so
+the path comes from what launchd actually loaded. `monitor` and `healthcheck` are
+Linux-only daemons and have no macOS agent, so on macOS they are refused with
+that reason rather than routed to a file that will never exist.
+
+There is deliberately **no `<project>` target** — container logs stay docker-led
+through `itsup svc` / `proxy` / `dns` — and **no `cli` target**: interactive runs
+are observed live, and their diagnostic file is read with `instrukt-ai-logs
+itsup`.
+
+**One option surface, translated per backend.** `-f/--follow`, `--since`, and
+`--grep` mean the same thing on every target. They **select** which lines are
+emitted; none of them changes a line's content, on any backend. Every line the
+router prints is the line its backend produced.
+
+- `--since` takes the duration grammar `<n>{s,m,h,d}`. The journal's own
+  `--since` rejects a bare duration, so the router parses the duration and hands
+  the journal an absolute timestamp. The `access` backend has no such grammar to
+  delegate to, so the router applies the same cutoff itself, reading each JSON
+  record's own timestamp field (`time`, else `StartUTC`) to decide inclusion and
+  then emitting the record unchanged. A record whose timestamp field is absent or
+  unparseable is excluded: the router cannot prove it is inside the window, and
+  admitting it would silently widen the window that was asked for.
+- `--grep` is a case-sensitive Python regular expression, applied by the router
+  itself to each complete line just before it is printed — on every backend. For
+  `access` that line is the raw JSON record, so a pattern can match a field name
+  as readily as a value. The journal's own `-g` is not used: it matches only the
+  record's message field, while the line the operator sees also carries the
+  supervisor's timestamp and identity, and its smart-case default would make the
+  same pattern mean different things on different backends.
+- `--follow` is future-only everywhere: it streams what arrives after the
+  command starts and never replays history first. The journal is asked for
+  `-n 0` alongside `-f` so it does not emit its recent window, matching the
+  file backend, which follows from the end of the file. Following `access`
+  survives the host's `copytruncate` rotation of that file
+  (`projects/itsup/design/logging`).
+- An invalid duration or an invalid regex is rejected at the option boundary with
+  exit 1 before any backend is reached.
+
+**`--since` has one designed exception: macOS unit targets.** Filtering by time
+requires a per-line time, and the supervisor is what supplies it — journald does,
+launchd does not. A launchd agent's `StandardOutPath` captures the daemon's
+stream verbatim, and that stream deliberately carries no timestamp because the
+supervisor is expected to add one. So `--since` against a macOS unit target exits
+1 naming that reason, while `--follow` and `--grep` remain available there. The
+`access` target is unaffected on either platform: its record carries its own
+RFC3339 timestamp field, which is what the router reads.
+
+**Every unavailability path refuses, never degrades.** A unit target with no
+reader on this platform, and a unit target whose unit is not installed, each exit
+1 naming the reason. Unit existence is established before the query — a unit is
+usable only when its `LoadState` is `loaded`, and any other value is reported
+rather than interpreted — because a journal query against an absent unit succeeds
+with empty output.
+
+
+### Host-identity gate (runtime-mutating commands are host-only)
+
+The CLI group refuses runtime-mutating commands on any machine that is not the
+container host, before the command does any work. The host is the machine whose
+own LAN IP equals `SSH_HOST` in `.env` — read from the file via `load_env_file`,
+**not** from `os.environ` — and the LAN IP is detected with a UDP-socket probe.
+The gate is fail-closed: an unset, empty, or non-matching `SSH_HOST`, or a failed
+detection, denies. It runs once for the invoked subcommand in the group callback,
+keyed on `ctx.invoked_subcommand` against a single host-only set — so it precedes
+per-command argument parsing, and off-host even `itsup <host-only-cmd> --help` is
+refused.
+
+- **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
+  `proxy`, `svc`, `monitor`, `logs`. `make install-runtime` refuses off-host
+  before it touches systemd/launchd (`bin/install-bringup.sh`).
+
+- **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
+  `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
+  `diff-secrets`, `edit-secret`, `sops-key`, `projects`.
+
+
+The gate is not self-grantable: there is no bypass flag or override env var, and
+the refusal message advertises no escape hatch. The allow/deny split lives in one
+place. (`itsup/cli.py`, `lib/host_gate.py`)
+
+### Secret loading context
+
+- Each deploy/secret command loads secrets for **one context only** (project
+  secrets for a project deploy; `itsup` infra secrets otherwise) — they are never
+  merged — and prefers `*.enc.txt` over `*.txt`. Full contract:
+  `projects/itsup/spec/secrets-management`. (`lib/data.py:34`)
+
+### Discovery & authoring (agent GitOps)
+
+- `itsup projects` prints the configured project names, one per line, to
+  stdout — the discovery entry point before listing or editing a project's
+  files. `itsup projects <name>` prints the files that constitute the project:
+  every regular file recursively below `projects/<name>/`, deterministically
+  sorted, plus the project's `secrets/<name>.{enc.txt|txt}` when present, one
+  per line. An unknown name exits 1. Both forms are read-only and sit on the anywhere-allowed side of
+  the host gate.
+- Every file location the CLI reports is usable from the caller's cwd: printed
+  absolute when the process cwd is not the install root, and may stay relative
+  when it is. The guarantee is universal — every command, in success output,
+  error text, and next-step guidance alike — because a location is resolved and
+  rendered in exactly one place: `lib/paths.py` owns the install root, the data
+  trees under it (`secrets_dir`, `secret_file`, `sops_config_file`,
+  `projects_dir`, `project_dir`), and the rendering (`display_path`). A literal
+  data-tree path in output is a defect: it is correct only for a caller standing
+  in the install root, and the CLI is installed globally.
+- `commit` is non-interactive: plaintext `secrets/*.txt` files present at
+  commit time are encrypted in-process (plaintext deleted on success) before
+  committing; when SOPS is unavailable while plaintext exists, `commit` fails
+  with exit 1 instead of committing — a plaintext edit is never silently
+  dropped by the `secrets/` gitignore. `--force` only skips the rebase and
+  force-pushes; it never skips encryption.
+- `edit-secret` is interactive and human-only: without a TTY on stdin it
+  refuses (exit 1) and prints the non-interactive round-trip
+  (`decrypt` → edit → `encrypt --delete` → `commit`).
+- The intended agent workflow is discoverable from the CLI itself: the group
+  help names the GitOps flow (pull before editing; re-encrypt before commit).
+
+## Allowed values
+
+### Exit codes (codified contract)
+
+The CLI emits only these — there is no 2/3/130 contract.
+
+- **0** — success.
+- **1** — validation failure, target not found, or a handled command error
+  (`sys.exit(1)`).
+- **passed-through subprocess returncode** — `run`/`down`/`svc` and similar
+  surface the failing `docker`/script returncode directly (`sys.exit(e.returncode)`).
+- **`diff-secrets` is diff-style**: exits **1 when differences are found**, **0
+  when identical** (`commands/diff_secrets.py:144`).
+
+## Known caveats
+
+- `apply` deploys projects **sequentially in egress-topological order**
+  (`commands/apply.py`), not in parallel.
+- Change detection compares the live `docker compose config` hash against the
+  running container's `com.docker.compose.config-hash` label (container-label
+  based), not a hash stored on disk.
+- Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
+  `monitor`) and the read-only `logs` router are **host-only** and refuse
+  fail-closed off-host (detected LAN IP ≠ `SSH_HOST`); see the host-identity
+  gate above. `logs` is gated not because it mutates but because every backend
+  it reads exists only on the container host.
+
+
+## See Also
+
+- docs/local/design/itsup-cli.md
+- docs/local/spec/secrets-management.md
+- docs/local/design/deployment-orchestration.md
