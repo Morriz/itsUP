@@ -36,7 +36,7 @@ __pycache__
 **/index.yaml
 # Inflated per-domain baselines generated beside their source manifest and
 # exposed via the whole-tree docs symlink at ~/.teleclaude/docs/<domain>/.
-docs/global/*/domain-baseline-bundle.md
+docs/global/*/*bundle.md
 
 # Generated tool output (never tracked)
 graphify-out/
@@ -91,3 +91,17 @@ todos.db-wal
 todos.db-shm
 publications/inbox/*
 !publications/inbox/.gitkeep
+
+# TeleClaude blessed defaults
+_.swp
+_~
+_.bak_
+\*.log
+uv.\*
+_.pid
+_.db
+\*.db-journal
+\*.yml.lock
+\*_/index.yaml
+docs/global/_/domain-baseline-bundle.md
+publications/inbox/\*

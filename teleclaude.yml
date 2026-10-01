@@ -46,3 +46,6 @@ code:
 docs:
   enabled: true
 kind: project
+schema_version: 11
+project_name: itsUP
+description: Docker-based deployment platform
