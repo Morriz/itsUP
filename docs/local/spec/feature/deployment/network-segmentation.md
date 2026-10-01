@@ -19,7 +19,7 @@ explicitly declared. The contract is realized by
 `bin/write_artifacts.py:write_upstream()`, which writes the per-service
 `networks:` blocks and the top-level `networks:` map into
 `upstream/{project}/docker-compose.yml`; the design and its invariants live in
-`projects/itsup/design/network-segmentation`.
+`local/projects/itsup/design/network-segmentation`.
 
 The business value is a default-deny posture between projects: cross-project or
 external reachability is granted only where an `ingress` or `egress` declaration
@@ -53,7 +53,7 @@ that shape stays green against a resolver that cannot resolve, which is how the
 off-proxynet resolver defect survived its own acceptance test. Resolver
 behavior is therefore verified live against a running service, and the
 generation-time contract lives in
-`projects/itsup/design/artifact-generation` invariant 6.
+`local/projects/itsup/design/artifact-generation` invariant 6.
 <!-- /planned-change:dns-fallback-off-proxynet -->
 
 #### UC-PROX1: A service with an ingress row joins proxynet; one without does not

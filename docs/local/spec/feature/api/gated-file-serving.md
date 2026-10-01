@@ -16,7 +16,7 @@ arbitrary path: it serves an approved format (starting with `.lsrules`) and neve
 a config or secret format. The endpoint carries no authentication — the origin
 gate that restricts who may reach it over the internet lives at the proxy as a
 route-scoped source-IP allowlist
-(`projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`), not in the app.
+(`local/projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`), not in the app.
 
 The business value is provisioning files to HTTPS-only, header-less consumers
 (the driver is Little Snitch `.lsrules` subscriptions) that reject `file://`
@@ -203,7 +203,7 @@ And no file is created
   the local network. The API key is a second, independent boundary: the origin
   gate attributes every hairpinned LAN client to the gateway address and so
   cannot tell one LAN device from another, and a write earns a credential that
-  an origin cannot supply. See `projects/itsup/spec/api-surface`.
+  an origin cannot supply. See `local/projects/itsup/spec/api-surface`.
 
 <!-- /planned:lsrules-upload-endpoint -->
 

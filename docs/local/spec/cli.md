@@ -9,8 +9,8 @@ description: 'Non-obvious itsup CLI semantics not visible in --help — the run/
 `itsup` is the itsUP management CLI (`itsup.cli:main`, a Click group registering
 the commands in `commands/`). This spec records only the behaviors that
 `itsup --help` and the per-command `--help` do **not** reveal; distribution and
-invocation are in `projects/itsup/design/itsup-cli`, and per-context secret loading is
-in `projects/itsup/spec/secrets-management`.
+invocation are in `local/projects/itsup/design/itsup-cli`, and per-context secret loading is
+in `local/projects/itsup/spec/secrets-management`.
 
 ## Canonical fields
 
@@ -134,7 +134,7 @@ rather than left to the parser's own usage exit.
 passthrough reader of that file and formats nothing, because the record's single
 JSON format is what makes it CrowdSec's parseable feed).
 The unit targets resolve per platform, following the supervision contract in
-`projects/itsup/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
+`local/projects/itsup/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
 launchd agent's `StandardOutPath`, read from the installed agent's own plist so
 the path comes from what launchd actually loaded. `monitor` and `healthcheck` are
 Linux-only daemons and have no macOS agent, so on macOS they are refused with
@@ -170,7 +170,7 @@ router prints is the line its backend produced.
   `-n 0` alongside `-f` so it does not emit its recent window, matching the
   file backend, which follows from the end of the file. Following `access`
   survives the host's `copytruncate` rotation of that file
-  (`projects/itsup/design/logging`).
+  (`local/projects/itsup/design/logging`).
 - An invalid duration or an invalid regex is rejected at the option boundary with
   exit 1 before any backend is reached.
 
@@ -221,7 +221,7 @@ place. (`itsup/cli.py`, `lib/host_gate.py`)
 - Each deploy/secret command loads secrets for **one context only** (project
   secrets for a project deploy; `itsup` infra secrets otherwise) — they are never
   merged — and prefers `*.enc.txt` over `*.txt`. Full contract:
-  `projects/itsup/spec/secrets-management`. (`lib/data.py:34`)
+  `local/projects/itsup/spec/secrets-management`. (`lib/data.py:34`)
 
 ### Discovery & authoring (agent GitOps)
 

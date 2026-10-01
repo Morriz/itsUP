@@ -11,7 +11,7 @@ Curated from the installed package
 (`.venv/lib/python3.14/site-packages/instrukt_ai_logging/`) for the `itsup logs`
 router, which reuses the library's readers rather than re-deriving them. The
 write side (`configure_logging`, `get_logger`) is covered by
-`projects/itsup/design/logging`; only what the router consumes is recorded here.
+`local/projects/itsup/design/logging`; only what the router consumes is recorded here.
 
 ## Export surface
 

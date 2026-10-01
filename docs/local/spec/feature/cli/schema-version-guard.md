@@ -13,7 +13,7 @@ open with the blocking schema-version check: `guard_schema_version()`
 (`commands/common.py`) compares the config `schemaVersion` under the install
 root against the running app version and refuses to run outdated config. The
 version sources and blocking semantics are specified in
-`projects/itsup/spec/schema-migration`; this spec pins the guard's enforcement at the
+`local/projects/itsup/spec/schema-migration`; this spec pins the guard's enforcement at the
 `validate` boundary so a bypassed, broken, or misresolved guard is caught by
 the functional suite.
 
@@ -45,6 +45,6 @@ The scenario exercises the in-process command chain
 - **Inputs** — an `ITSUP_ROOT` install tree holding the version sources the
   guard reads: `pyproject.toml` (app version) and `projects/itsup.yml`
   `schemaVersion` (config schema version, defaulting per
-  `projects/itsup/spec/schema-migration` when absent), shaped so schema < app.
+  `local/projects/itsup/spec/schema-migration` when absent), shaped so schema < app.
 - **Output** — a nonzero exit code and non-empty error output; project
   validation does not run.

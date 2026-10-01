@@ -19,14 +19,14 @@ A project lives in `projects/{project}/` and is described by two files:
   enforce but the platform depends on:
   - **Persist with bind mounts, never named volumes.** The nightly backup tars
     only bind-mounted state under `upstream/`
-    (`projects/itsup/procedure/backup-and-restore`); a named volume lives outside that
+    (`local/projects/itsup/procedure/backup-and-restore`); a named volume lives outside that
     tree and is silently lost on restore.
   - **Give each service a healthcheck.** The zero-downtime rollout waits on it
     (`scale-up → health-check → kill-old`,
-    `projects/itsup/design/deployment-orchestration`) and `depends_on: service_healthy`
+    `local/projects/itsup/design/deployment-orchestration`) and `depends_on: service_healthy`
     gating relies on it.
 - **`itsup-project.yml`** (legacy name `ingress.yml`, deprecated — see
-  `projects/itsup/design/network-segmentation`) — the itsUP routing + segmentation
+  `local/projects/itsup/design/network-segmentation`) — the itsUP routing + segmentation
   contract, parsed into the `TraefikConfig` model (`lib/data.py:199`).
 
 A project is one of two **types**, decided by file presence
@@ -49,7 +49,7 @@ A project is one of two **types**, decided by file presence
 | `enabled` | bool | `true` | When `false`, deploy **stops** the project instead of running it (`lib/deploy.py:333`). |
 | `host` | str \| null | `null` | External host IP/hostname for container-less passthrough projects. |
 | `ingress` | `Ingress[]` | `[]` | Services exposed via Traefik. |
-| `egress` | `str[]` | `[]` | Cross-project access, each `"{project}:{service}"`. See `projects/itsup/design/network-segmentation`. |
+| `egress` | `str[]` | `[]` | Cross-project access, each `"{project}:{service}"`. See `local/projects/itsup/design/network-segmentation`. |
 
 ### `Ingress` row — `lib/models.py:72-108`
 
@@ -64,7 +64,7 @@ A project is one of two **types**, decided by file presence
 | `port` | int | `8080` | Backend service port. |
 | `protocol` | `Protocol` | `tcp` | `tcp` \| `udp`. |
 | `proxyprotocol` | `ProxyProtocol` \| null | `v2` | PROXY-protocol version; explicit `null` disables. |
-| `router` | `Router` | `http` | `http` \| `tcp` \| `udp`. Only `http` produces docker labels; `tcp`/`udp` produce dynamic-file routers (see `projects/itsup/design/artifact-generation`). |
+| `router` | `Router` | `http` | `http` \| `tcp` \| `udp`. Only `http` produces docker labels; `tcp`/`udp` produce dynamic-file routers (see `local/projects/itsup/design/artifact-generation`). |
 | `tls` | `TLS` \| null | `null` | `{main, sans[]}`; used instead of `domain`. |
 | `ipv4_address` | str \| null | `null` | Static IP pinned on proxynet; must lie in `172.20.0.0/16`. |
 | `dns` | str[] \| null | `null` | Explicit DNS servers; written verbatim, replacing the honeypot default. |
@@ -76,7 +76,7 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
-| `allow_source_ips` | str[] \| null | `null` | Source IPs/CIDRs permitted to reach this route's Traefik router — the proxy-side origin gate. When set, generation emits a per-route `ipAllowList` middleware (`sourceRange`) attached to this route only (`projects/itsup/design/artifact-generation`, `projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`). Must be non-empty when set; each entry must parse as an IP address or CIDR network. |
+| `allow_source_ips` | str[] \| null | `null` | Source IPs/CIDRs permitted to reach this route's Traefik router — the proxy-side origin gate. When set, generation emits a per-route `ipAllowList` middleware (`sourceRange`) attached to this route only (`local/projects/itsup/design/artifact-generation`, `local/projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`). Must be non-empty when set; each entry must parse as an IP address or CIDR network. |
 
 ### Validation rules
 
@@ -122,7 +122,7 @@ Enums: `Protocol` = `tcp|udp`; `ProxyProtocol` = `v1|v2`; `Router` = `http|tcp|u
   them, but the V2 path reads `docker-compose.yml` as a raw dict and never
   instantiates them. `Service.stateless` is therefore dead — the deploy path
   infers statelessness from volume absence (see
-  `projects/itsup/design/deployment-orchestration`).
+  `local/projects/itsup/design/deployment-orchestration`).
 - **`ingress.yml` filename** is deprecated (grace to v3.0); both names load,
   `itsup-project.yml` wins.
 

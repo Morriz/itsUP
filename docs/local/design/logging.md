@@ -162,7 +162,7 @@ are not part of the `logs/` directory contract.
   with `copytruncate`: Traefik holds the file open with `O_APPEND` and takes no
   reopen signal, so an inode that survives rotation is what keeps the writer on
   the live file instead of appending to an unlinked one. The rotation config and
-  its install path belong to `projects/itsup/spec/runtime-operations`.
+  its install path belong to `local/projects/itsup/spec/runtime-operations`.
 - **`logs/monitor.log` is the monitor's restart watermark, not diagnostics.** The
   `[<ts>] Started` marker written by `bin/monitor.py` and read by
   `monitor/core.py:_get_last_processed_timestamp` is application state,

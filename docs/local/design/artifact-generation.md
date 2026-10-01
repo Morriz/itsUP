@@ -11,7 +11,7 @@ generates the concrete Docker Compose + Traefik files that actually run. Nobody
 hand-writes Traefik labels, routers, or entrypoints — they are derived from
 `itsup-project.yml` ingress rows plus Jinja2 templates merged with user
 overrides. This snippet is the contract for that translation. Network assignment
-(proxynet/egress) is covered separately in `projects/itsup/design/network-segmentation`.
+(proxynet/egress) is covered separately in `local/projects/itsup/design/network-segmentation`.
 
 ## Inputs/Outputs
 
@@ -91,7 +91,7 @@ overrides. This snippet is the contract for that translation. Network assignment
 8. **Change-detecting writes.** `write_file_if_changed` (`:38`) rewrites a file
    only when content differs. Unchanged artifacts keep their bytes, so deploys
    become no-ops via Docker's config-hash (see
-   `projects/itsup/design/deployment-orchestration`).
+   `local/projects/itsup/design/deployment-orchestration`).
 9. **External-host router identity is per-route unique.** An external-host
    dynamic router's name is `{project}-{host}-{port}` plus the route's index
    within that host's ingress list, so two ingress rows sharing one `host:port`
@@ -104,8 +104,8 @@ overrides. This snippet is the contract for that translation. Network assignment
     (`sourceRange` = the declared list) and attach it to that route's router
     alone; routes without the field emit no per-route middleware. This is the
     per-route counterpart to the global entrypoint chain
-    (`projects/itsup/spec/feature/deployment/http-security-middlewares`). Contract:
-    `projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`.
+    (`local/projects/itsup/spec/feature/deployment/http-security-middlewares`). Contract:
+    `local/projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`.
 
 <!-- planned:cross-platform-project-network-rules -->
 11. **Host firewall rules are derived artifacts.** Project networking intent

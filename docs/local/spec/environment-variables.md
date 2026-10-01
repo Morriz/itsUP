@@ -59,7 +59,7 @@ machine whose own LAN IP equals `SSH_HOST`. The CLI's host-identity gate reads i
 from `.env` via `load_env_file(root() / ".env")` — **not** from `os.environ`,
 which is why it is absent from the process-env table above — and compares it to
 the machine's detected LAN IP to decide whether runtime-mutating commands may run
-(full contract: `projects/itsup/spec/cli`). It is documented in `samples/env` and set
+(full contract: `local/projects/itsup/spec/cli`). It is documented in `samples/env` and set
 per host; unset or non-matching denies. (`lib/host_gate.py`)
 
 ### Infrastructure secrets (`secrets/itsup.{enc.txt|txt}`)
@@ -104,7 +104,7 @@ deploy time (e.g. `samples/projects/example-project/docker-compose.yml:6`
   `${VAR}` in neither its static config file nor its file-provider dynamic
   files, so values those artifacts need are rendered at generation time and
   generation fails closed on any placeholder left in them (see
-  `projects/itsup/spec/secrets-management`). A placeholder that reached a running
+  `local/projects/itsup/spec/secrets-management`). A placeholder that reached a running
   Traefik would be consumed as literal text — the failure mode Compose's
   interpolation makes impossible for compose files.
 

@@ -99,7 +99,7 @@ record the incident history that motivated it.
    `core.py:check_direct_connections`).
 8. **OpenSnitch access is read-only and confined to one rule.** Queries SELECT
    `rule = '0-deny-arpa-53'` rows; the DB is never written
-   (`monitor/opensnitch.py`). See `projects/itsup/policy/opensnitch-database`.
+   (`monitor/opensnitch.py`). See `local/projects/itsup/policy/opensnitch-database`.
 
 ## Primary flows
 

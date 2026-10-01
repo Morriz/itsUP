@@ -12,7 +12,7 @@ obligation is to make one `.lsrules` file reachable over HTTPS; everything about
 when and how often it is fetched is configured on the subscriber's machine.
 
 itsUP serves such a file from `GET /file?path=…`
-(`projects/itsup/spec/feature/api/gated-file-serving`), which is why this contract
+(`local/projects/itsup/spec/feature/api/gated-file-serving`), which is why this contract
 matters: it bounds what the server side can and cannot influence.
 
 ## Publishing requirements (the whole server-side contract)

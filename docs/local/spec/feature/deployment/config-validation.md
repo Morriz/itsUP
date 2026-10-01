@@ -11,7 +11,7 @@ description: Acceptance scenarios for itsUP's pre-deploy configuration validatio
 
 `itsup validate [project]` is the operator-facing configuration gate, and
 `validate_all()` is the same gate run fail-closed before any artifact write or
-deploy (`projects/itsup/spec/cli`, `projects/itsup/spec/project-config`). Its business value
+deploy (`local/projects/itsup/spec/cli`, `local/projects/itsup/spec/project-config`). Its business value
 is catching invalid desired state at authoring time — on any machine, without
 starting containers — instead of at deploy time on the host, where a rejected
 compose file aborts a rollout.
@@ -46,8 +46,8 @@ And generated Docker Compose files remain subject to Compose's own environment-r
 ## Canonical fields
 
 The gate's command surface, exit codes, and the itsUP-layer validation rules it
-composes with are specified in `projects/itsup/spec/cli` and
-`projects/itsup/spec/project-config`; this spec pins the acceptance scenarios only.
+composes with are specified in `local/projects/itsup/spec/cli` and
+`local/projects/itsup/spec/project-config`; this spec pins the acceptance scenarios only.
 
 ## See Also
 

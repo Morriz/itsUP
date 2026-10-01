@@ -15,7 +15,7 @@ the generated `proxy/traefik/traefik.yml` attaches the `crowdsec@file` bouncer
 middleware to the HTTP entrypoints (`web`, `web-secure`), so every HTTP router
 — docker-label and file-provider alike — inherits enforcement without
 per-router wiring. The middleware itself is defined in
-`proxy/traefik/dynamic/middlewares.yml` (see `projects/itsup/spec/itsup-config`);
+`proxy/traefik/dynamic/middlewares.yml` (see `local/projects/itsup/spec/itsup-config`);
 this contract covers its attachment.
 
 The business value is that a CrowdSec ban actually blocks traffic: a banned

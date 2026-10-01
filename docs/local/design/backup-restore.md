@@ -47,7 +47,7 @@ round trip. New stateful stores plug in by authoring an adapter pair plus a
   existing compose-exec pattern with `get_env_with_secrets(project)` from
   `lib.data`.
 - `upstream/<name>/` — the project's archive dir (where `./data` materializes;
-  see `projects/itsup/design/deployment-orchestration`), and the dump's destination.
+  see `local/projects/itsup/design/deployment-orchestration`), and the dump's destination.
 - `proxy/` — Traefik config + `acme.json` certificates, added to the monolithic
   archive.
 - S3 credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_HOST`,

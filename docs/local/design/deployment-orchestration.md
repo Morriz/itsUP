@@ -6,7 +6,7 @@ description: 'How itsUP deploys generated artifacts — zero-downtime rollout vi
 
 ## Purpose
 
-itsUP deploys the artifacts produced by `projects/itsup/design/artifact-generation`
+itsUP deploys the artifacts produced by `local/projects/itsup/design/artifact-generation`
 with two goals: **zero downtime** for replaceable services and **idempotence**
 (skip work when nothing changed). It also orchestrates the multi-stack lifecycle
 (DNS, proxy, API, monitor, upstream projects) in a dependency-correct order.
@@ -29,7 +29,7 @@ per-context secrets via `get_env_with_secrets` (`lib/data.py:88`).
    `deploy_upstream_project` treats a service as stateless iff it declares no
    `volumes` (or is named `traefik`) (`lib/deploy.py:360-364`). The
    `Service.stateless` model field (`lib/models.py:151`) is **never read** (dead;
-   see `projects/itsup/spec/project-config`). Infra stacks hardcode their lists: proxy
+   see `local/projects/itsup/spec/project-config`). Infra stacks hardcode their lists: proxy
    `["traefik"]` (`:299`), DNS `[]` (`:281`).
 3. **Rollout fires only when needed.** A stateless service is rolled out only if
    it was running **before** this deploy (`:252`) **and** either its config hash
@@ -39,7 +39,7 @@ per-context secrets via `get_env_with_secrets` (`lib/data.py:88`).
    regenerated bind-mounted static config (`proxy/traefik/traefik.yml`) changed —
    content invariant 4's Docker-native hash cannot see, since it is bind-mounted
    rather than part of the compose definition
-   (`projects/itsup/spec/feature/deployment/mounted-config-propagation`).
+   (`local/projects/itsup/spec/feature/deployment/mounted-config-propagation`).
 
 4. **Change detection is Docker-native.** `service_needs_update` compares
    `docker compose config --hash <service>` against the running container's
@@ -55,7 +55,7 @@ per-context secrets via `get_env_with_secrets` (`lib/data.py:88`).
 7. **Secrets are injected per subprocess.** Every compose/rollout call gets
    `env=get_env_with_secrets(project)`; `${VAR}` placeholders survive into
    generated files and Compose expands them at runtime
-   (see `projects/itsup/spec/secrets-management`).
+   (see `local/projects/itsup/spec/secrets-management`).
 
 ## Primary flows
 
@@ -121,7 +121,7 @@ stopped containers.
 
 - **Outdated config schema** — `check_schema_version` errors and exits before
   any command runs; operator must `itsup migrate` (see
-  `projects/itsup/spec/schema-migration`).
+  `local/projects/itsup/spec/schema-migration`).
 - **Image pull failure** — tolerated (`check=False`, `:224`) so local-only
   images deploy.
 - **Running-state probe failure** — fatal for that target. `service_is_running`
@@ -133,7 +133,7 @@ stopped containers.
 - **Any project validation error** — `validate_all` blocks the entire `apply`.
 - **Egress dependency cycle** — `list_projects_topo` falls back to alphabetical
   with a warning; an external `{target}_default` may not exist yet, failing that
-  project's `up` (see `projects/itsup/design/network-segmentation`).
+  project's `up` (see `local/projects/itsup/design/network-segmentation`).
 
 ## See Also
 

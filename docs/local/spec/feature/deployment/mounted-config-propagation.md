@@ -17,7 +17,7 @@ entrypoint definitions themselves) takes effect only when the process restarts.
 
 A deploy regenerates the static config on disk but the compose definition is
 unchanged, so Docker-native change detection
-(`projects/itsup/design/deployment-orchestration`, invariant 4) is blind to the new
+(`local/projects/itsup/design/deployment-orchestration`, invariant 4) is blind to the new
 file content and `docker compose up -d` no-ops. This contract closes that gap:
 when the regenerated static config content actually changed, the proxy deploy
 rolls out Traefik through the existing zero-downtime path so a fresh container
@@ -64,7 +64,7 @@ And when Traefik was not running before the deploy the changed static config is 
   static config.
 - **Idempotence.** An unchanged static config produces no rollout on the
   static-config account, preserving the deploy's skip-when-nothing-changed
-  behavior (`projects/itsup/design/deployment-orchestration`).
+  behavior (`local/projects/itsup/design/deployment-orchestration`).
 
 ## See Also
 

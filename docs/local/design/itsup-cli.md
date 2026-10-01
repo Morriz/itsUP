@@ -84,7 +84,7 @@ interpreter binding, root resolution, and PATH exposure.
    directly; humans and agents use the global `itsup`.
 4. **Single-root, not cwd/project-aware.** itsup binds to one install root; it
    does not select a project from the current directory the way `telec` does.
-   See `projects/itsup/adr/0001-itsup-cli-single-root`.
+   See `local/projects/itsup/adr/0001-itsup-cli-single-root`.
 5. **No sourcing required, anywhere.** Runtime callers (systemd units, launchd
    agents, the API self-update) invoke the absolute `<repo>/.venv/bin/itsup`
    (or the venv python) with `ITSUP_ROOT` set; interactive users and agents reach

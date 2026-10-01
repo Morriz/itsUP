@@ -21,8 +21,8 @@ masked unit, or a timer that never fired. A deadman assertion covers that class 
 asserting the age of the last successful nightly apply.
 
 Alerting is a Linux/systemd capability. The configuration surface and the alert
-command contract are specified in `projects/itsup/spec/itsup-config`; the operations it
-covers are listed in `projects/itsup/spec/runtime-operations`.
+command contract are specified in `local/projects/itsup/spec/itsup-config`; the operations it
+covers are listed in `local/projects/itsup/spec/runtime-operations`.
 
 ### Use cases
 
@@ -85,9 +85,9 @@ Then no alert is composed
 
 This spec pins the acceptance scenarios only. The `alert` configuration key, its
 command-template contract, and the placeholder-resolution rules are specified in
-`projects/itsup/spec/itsup-config`. The units covered by the failure hook, the deadman's
+`local/projects/itsup/spec/itsup-config`. The units covered by the failure hook, the deadman's
 expected window, and the operator's first checks are specified in
-`projects/itsup/spec/runtime-operations`.
+`local/projects/itsup/spec/runtime-operations`.
 
 ## See Also
 

@@ -83,12 +83,12 @@ Then validation fails with an empty-allowlist error
 ## Canonical fields
 
 - Trigger: an `Ingress` row with a non-empty `allow_source_ips`
-  (`projects/itsup/spec/project-config`).
+  (`local/projects/itsup/spec/project-config`).
 - Attachment point: per-route `middlewares` on the route's file-provider HTTP
   router in `proxy/traefik/dynamic/routers-http.yml`, plus the
   `http.middlewares.<router-name>-ipallowlist.ipAllowList.sourceRange` definition
   in the same file. Distinct from the entrypoint-level chain
-  (`projects/itsup/spec/feature/deployment/http-security-middlewares`), which stays
+  (`local/projects/itsup/spec/feature/deployment/http-security-middlewares`), which stays
   global and unchanged.
 - Router identity: each external-host route gets a per-route-unique
   (collision-free) router/service identity — `{project}-{host}-{port}` plus the

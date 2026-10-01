@@ -15,7 +15,7 @@ router — docker-label and file-provider alike — inherits security headers
 (HSTS, `X-Content-Type-Options`, `X-Frame-Options`, XSS filter) and per-client
 rate limiting without per-router wiring. The middlewares themselves are defined
 in `proxy/traefik/dynamic/middlewares.yml` and tunable through the
-`projects/middlewares.yml` override surface (see `projects/itsup/spec/itsup-config`);
+`projects/middlewares.yml` override surface (see `local/projects/itsup/spec/itsup-config`);
 this contract covers their attachment.
 
 The business value is that the hardening actually reaches responses: an HTTPS
@@ -50,7 +50,7 @@ And the generated dynamic middlewares define both default-headers and rate-limit
   HTTP-01 path). TCP/UDP entrypoints carry no HTTP middleware chain.
 - Chain order on `web-secure`: `default-headers@file`, `rate-limit@file`,
   then any conditionally attached enforcement middleware (see
-  `projects/itsup/spec/feature/deployment/crowdsec-enforcement`).
+  `local/projects/itsup/spec/feature/deployment/crowdsec-enforcement`).
 - Rate-limit values are defined in the dynamic middlewares file and tunable
   via the `projects/middlewares.yml` override; the attachment contract does
   not pin them.

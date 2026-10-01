@@ -18,7 +18,7 @@ exact route** — it admits any method and any path beginning with its prefix, a
 nothing else is served under either prefix, so a request under a prefix that no
 handler serves is answered `405` or `404` by FastAPI. `/redirect` is
 unauthenticated; `/file` carries a route-scoped source-IP allowlist at the proxy
-(`projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`) so only the
+(`local/projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`) so only the
 allowlisted origin reaches it.
 
 The apikey-guarded endpoints share no prefix with it and so carry no public route
@@ -46,7 +46,7 @@ immediately.
 | `GET /projects` | apikey | host loopback, LAN/VPN | Returns `list_projects()` (`@cache`d, `:96-100`). |
 | `GET /redirect?url=` | none | internet | 307-redirects, but **only** `message://` / `imessage://` schemes; rejects other schemes or whitespace (`:103-116`). Consumer: OtoMo (`lib/deep_links.py`) wraps iMessage deep links in this endpoint so Telegram renders them as clickable https links. |
 <!-- planned:lsrules-upload-endpoint -->
-| `PUT /upload/{name}` | apikey **and** LAN origin | LAN (over HTTPS) | Stores the request body as `{name}` in the itsUP-owned upload directory, replacing any existing file, and reports the stored location. `{name}` must be a single path segment with an allowlisted extension; the body is capped at 1 MB, enforced during the read. Feeds `GET /file`. Contract: `projects/itsup/spec/feature/api/gated-file-serving`. |
+| `PUT /upload/{name}` | apikey **and** LAN origin | LAN (over HTTPS) | Stores the request body as `{name}` in the itsUP-owned upload directory, replacing any existing file, and reports the stored location. `{name}` must be a single path segment with an allowlisted extension; the body is capped at 1 MB, enforced during the read. Feeds `GET /file`. Contract: `local/projects/itsup/spec/feature/api/gated-file-serving`. |
 <!-- /planned:lsrules-upload-endpoint -->
 
 ### Gated file endpoint (`GET /file`)
@@ -54,7 +54,7 @@ immediately.
 `GET /file?path=<host-path>` serves the bytes of a local host file selected by
 path, over the internet, to an origin-gated caller. It carries no app-side
 authentication: the origin gate is a route-scoped source-IP allowlist at the
-proxy (`projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`), and the
+proxy (`local/projects/itsup/spec/feature/deployment/route-scoped-ip-allowlist`), and the
 app-side security boundary is a positive file-extension allowlist (initially
 `.lsrules`) that refuses config/secret formats by construction. A
 non-allowlisted extension, or a path that is not an existing regular file, is
@@ -62,7 +62,7 @@ refused with a client-error status; an allowlisted-extension file is returned
 with its bytes and the content type mapped for that extension. `path` is a
 required query parameter, so omitting it is rejected by FastAPI's own request
 validation rather than by the endpoint. Behaviour contract:
-`projects/itsup/spec/feature/api/gated-file-serving`.
+`local/projects/itsup/spec/feature/api/gated-file-serving`.
 
 The GitOps chain reaches the apikey-guarded endpoints over loopback: the shared
 reconcile workflow's `curl` runs on the container host itself, inside the SSH

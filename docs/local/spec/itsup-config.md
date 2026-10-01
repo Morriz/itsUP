@@ -8,7 +8,7 @@ description: 'The infrastructure config contract — projects/itsup.yml (routerI
 
 `projects/itsup.yml` is the **infrastructure-wide** configuration for the itsUP
 host itself — distinct from the per-project routing contract
-`itsup-project.yml` (see `projects/itsup/spec/project-config`). It holds settings
+`itsup-project.yml` (see `local/projects/itsup/spec/project-config`). It holds settings
 shared by the proxy/DNS/backup machinery: the Traefik dashboard domain, image
 versions, the CrowdSec bouncer config, the router IP, and backup exclusions.
 
@@ -50,11 +50,11 @@ sample is `samples/projects/itsup.yml`):
 | `crowdsec` | map | no | `bin/write_artifacts.py:469` | CrowdSec bouncer settings. |
 | `crowdsec.enabled` | bool | no (default `False`) | `write_artifacts.py:493`; `tpl/docker-compose.yml.j2:51,73` | Gates the CrowdSec service + bouncer middleware. When false, no `crowdsec` container is generated and the bouncer block is omitted. |
 | `crowdsec.collections` | str[] | no | `tpl/docker-compose.yml.j2:89` | CrowdSec collections; space-joined into the container's `COLLECTIONS` env. |
-| `backup` | map | no | `samples/projects/itsup.yml` | Documentary holder for the S3 endpoint settings below; the live S3 credentials are read from `secrets/itsup.{enc.txt\|txt}`, not from this map. Live-tar exclusions are not configured here — each project declares its own `projects/<name>/backup.yml` (adapter + exclude paths; see `projects/itsup/design/backup-restore`). |
+| `backup` | map | no | `samples/projects/itsup.yml` | Documentary holder for the S3 endpoint settings below; the live S3 credentials are read from `secrets/itsup.{enc.txt\|txt}`, not from this map. Live-tar exclusions are not configured here — each project declares its own `projects/<name>/backup.yml` (adapter + exclude paths; see `local/projects/itsup/design/backup-restore`). |
 | `backup.s3.host` | str | no | `samples/projects/itsup.yml` | S3 endpoint host (typically `${AWS_S3_HOST}`). |
 | `backup.s3.region` | str | no | `samples/projects/itsup.yml` | S3 region (typically `${AWS_S3_REGION}`). |
 | `backup.s3.bucket` | str | no | `samples/projects/itsup.yml` | Target bucket (typically `${AWS_S3_BUCKET}`). |
-| `schemaVersion` | str | no | `lib/migrations.py:24,38` | Config schema version, owned by the migration machinery — see `projects/itsup/spec/schema-migration`. |
+| `schemaVersion` | str | no | `lib/migrations.py:24,38` | Config schema version, owned by the migration machinery — see `local/projects/itsup/spec/schema-migration`. |
 
 CrowdSec credentials are infrastructure secrets, not `projects/itsup.yml`
 fields. `CROWDSEC_APIKEY` comes from `secrets/itsup.{enc.txt|txt}` and is mounted
@@ -85,7 +85,7 @@ Contract of the template:
   another argument or command.
 - **`${VAR}` placeholders resolve from the itsUP infrastructure secrets**
   (`secrets/itsup.{enc.txt|txt}`, loaded per-context — see
-  `projects/itsup/spec/secrets-management`). A token-bearing transport therefore holds
+  `local/projects/itsup/spec/secrets-management`). A token-bearing transport therefore holds
   its credential in the secrets file and only its placeholder in
   `projects/itsup.yml`.
 - **A malformed or unresolvable command fails at the boundary, before any child

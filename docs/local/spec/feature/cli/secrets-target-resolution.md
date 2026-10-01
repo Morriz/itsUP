@@ -16,7 +16,7 @@ The refusal names the missing target through the shared location renderer
 operator's current directory: relative to the install root when the caller
 stands in it, absolute otherwise. A literal install-root-relative path in the
 message would be correct only from one directory, and the CLI is installed
-globally (`projects/itsup/spec/cli`).
+globally (`local/projects/itsup/spec/cli`).
 
 The business value is that an operator who runs a secrets command in the wrong
 place, or names a file that is not there, gets an actionable refusal — the exact
@@ -52,5 +52,5 @@ And the refusal reports the missing target as a path usable from the operator's 
 
 - The portable-path rendering is the shared `display_path` contract, not a
   per-command behavior; every location a secrets command prints goes through it
-  (`projects/itsup/spec/cli`). A message that embeds a literal install-root-relative
+  (`local/projects/itsup/spec/cli`). A message that embeds a literal install-root-relative
   path is a defect, because it is correct only from the install root.
