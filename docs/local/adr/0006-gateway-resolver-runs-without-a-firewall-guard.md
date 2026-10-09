@@ -14,7 +14,8 @@ namespace. ADR-0005 kept an iptables guard around that listener as
 defence-in-depth and rejected dropping it, on two grounds: host-local and
 VPN-routed clients are a real residue, and the rules are cheap to assert.
 
-Neither ground survives inspection of what was built to satisfy them.
+Neither ground survives the design worked out to satisfy them, which was
+planned but never built.
 
 - **The residue gains nothing harmful.** `172.20.0.1` is not routable from the
   LAN. The clients the guard would exclude beyond that are processes on the host
@@ -23,11 +24,11 @@ Neither ground survives inspection of what was built to satisfy them.
   That is not an open resolver on the LAN, and it exposes no data and grants no
   capability those clients lack.
 - **The rules are not cheap.** Asserting them from the unprivileged publish path
-  required a root-owned helper installed outside the repository, a sudoers grant
+  requires a root-owned helper installed outside the repository, a sudoers grant
   for its exact command form, a root systemd unit, a periodic reassertion hook in
   the healthcheck, and a refactor of the security monitor's iptables cleanup so
   the two owners could coexist. A passwordless-root grant is itself attack
-  surface, and the whole assembly exists to fence a listener that answers only
+  surface, and the whole assembly would exist to fence a listener that answers only
   hosts already trusted to reach the host.
 
 The guard therefore protects nothing material, and the machinery it needs is the
