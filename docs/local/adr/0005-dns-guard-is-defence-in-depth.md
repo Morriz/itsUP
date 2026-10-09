@@ -6,6 +6,10 @@ number: 5
 
 # The DNS Listener Guard Is Defence-in-Depth — ADR
 
+## Status
+
+Superseded by ADR-0006.
+
 ## Context
 
 The DNS honeypot is published on `172.20.0.1:53`, the proxynet gateway address,

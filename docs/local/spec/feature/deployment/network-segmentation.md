@@ -33,27 +33,18 @@ network topology is caught before it ships.
 <!-- planned-change:dns-fallback-off-proxynet -->
 The scenarios below capture the three network states (project-local isolation,
 ingress-gated proxynet membership, per-edge egress) plus DNS injection and
-static-IP pinning. Each is bound by exactly one functional test in
-`tests/deployment/test_network_segmentation.py`; the test mocks only the
-`load_project` filesystem line, invokes `write_upstream`, and asserts the
-generated compose structure via the imported `edge_network_name` helper.
+static-IP pinning, as rendered by `write_upstream` into the generated compose.
 <!-- change:dns-fallback-off-proxynet -->
 The scenarios below capture the three network states (project-local isolation,
-ingress-gated proxynet membership, per-edge egress) plus static-IP pinning. Each
-is bound by exactly one functional test in
-`tests/deployment/test_network_segmentation.py`; the test mocks only the
-`load_project` filesystem line, invokes `write_upstream`, and asserts the
-generated compose structure via the imported `edge_network_name` helper.
+ingress-gated proxynet membership, per-edge egress) plus static-IP pinning, as
+rendered by `write_upstream` into the generated compose.
 
-Resolver injection carries no generation-time scenario. The contract that
-mattered — that a service can actually resolve names — is not observable in the
-generated compose at all: a list naming an unreachable address and a
-self-referential one renders identically to a working one. A scenario binding
-that shape stays green against a resolver that cannot resolve, which is how the
-off-proxynet resolver defect survived its own acceptance test. Resolver
-behavior is therefore verified live against a running service, and the
-generation-time contract lives in
-`local/projects/itsup/design/artifact-generation` invariant 6.
+Resolver injection carries no generation-time scenario: whether a service can
+resolve names is not observable in the generated compose, where a list naming an
+unreachable or self-referential resolver renders identically to a working one.
+Resolver behavior is verified live against a running service, and the
+generation-time contract is `local/projects/itsup/design/artifact-generation`
+invariant 6.
 <!-- /planned-change:dns-fallback-off-proxynet -->
 
 #### UC-PROX1: A service with an ingress row joins proxynet; one without does not

@@ -66,50 +66,12 @@ Validate gate → for each target in dependency order, `deploy_*` →
 
 ### `itsup run` — orchestrated boot
 
-<!-- planned-change:dns-fallback-off-proxynet -->
 `check_schema_version` → regenerate proxy artifacts → DNS `up -d` (creates
 `proxynet`) → proxy `up -d` → start the API daemon unit → start the monitor
 daemon unit in report-only mode, both through the host supervisor
 (`commands/run.py`). **Divergence:** `run` uses plain `docker compose up -d`,
 bypassing `smart_deploy`/rollout — boot is not zero-downtime (it is the
 cold-start path).
-<!-- change:dns-fallback-off-proxynet -->
-`check_schema_version` → regenerate proxy artifacts → **assert the DNS listener
-guard** → DNS `up -d` (creates `proxynet`) → proxy `up -d` → start the API daemon
-unit → start the monitor daemon unit in report-only mode, both through the host
-supervisor (`commands/run.py`). **Divergence:** `run` uses plain `docker compose
-up -d`, bypassing `smart_deploy`/rollout — boot is not zero-downtime (it is the
-cold-start path).
-
-The guard assertion is **shared and non-blocking**. The DNS stack publishes a
-resolver on the proxynet gateway address, so both publish entry points — `run`'s
-direct `docker compose up -d` and `deploy_dns_stack`'s `smart_deploy` — call one
-`ensure_dns_guard()` helper before any compose invocation. The helper re-asserts
-the guard's `DOCKER-USER` rules, repairing any that are missing, and **warns
-without aborting** when containment cannot be established at all. Asserting the
-rules is not the same as inspecting unit history: a `RemainAfterExit` unit stays
-`active` across an `iptables -F`, a Docker chain rebuild, or a monitor cleanup,
-so the helper re-asserts state rather than reading a status.
-
-**Containment is defence-in-depth, so it never gates resolution.** The guard is
-iptables-based and therefore Linux-only, like the container security monitor.
-Where the guard cannot be established, the resolver publishes anyway and the run
-logs the warning. The guarded address is host-owned and not routable from the
-LAN, and every container is meant to reach it, so the residue the rules
-exclude — host-local processes and clients routed in over a VPN interface — does
-not justify denying DNS to every container on the host. An unestablished guard is
-reported, never enforced.
-
-**The publish itself is Linux-only, for a separate and harder reason.** Binding a
-published port to the bridge gateway address requires the host to own that
-address. A Linux host does. Under a VM-backed Docker runtime the bridges exist
-only inside the virtual machine, so the host has no `172.20.0.0/16` address and
-no bridge interface at all; the daemon rejects the port binding and the DNS stack
-does not start. This is a platform capability limit, not a containment decision —
-the defence-in-depth posture above governs the guard, never whether the listener
-can exist. Publishing this resolver on a non-Linux container host is therefore
-not yet supported.
-<!-- /planned-change:dns-fallback-off-proxynet -->
 
 ### `itsup down` — orchestrated shutdown
 
@@ -119,6 +81,7 @@ stopped containers.
 
 ## Failure modes
 
+<!-- planned-change:dns-fallback-off-proxynet -->
 - **Outdated config schema** — `check_schema_version` errors and exits before
   any command runs; operator must `itsup migrate` (see
   `local/projects/itsup/spec/schema-migration`).
@@ -134,6 +97,28 @@ stopped containers.
 - **Egress dependency cycle** — `list_projects_topo` falls back to alphabetical
   with a warning; an external `{target}_default` may not exist yet, failing that
   project's `up` (see `local/projects/itsup/design/network-segmentation`).
+<!-- change:dns-fallback-off-proxynet -->
+- **Outdated config schema** — `check_schema_version` errors and exits before
+  any command runs; operator must `itsup migrate` (see
+  `local/projects/itsup/spec/schema-migration`).
+- **Image pull failure** — tolerated (`check=False`, `:224`) so local-only
+  images deploy.
+- **Running-state probe failure** — fatal for that target. `service_is_running`
+  reports only what it determined: `docker ps` exits zero with empty output when
+  nothing matches, so any failure of the probe itself — an unreachable daemon, a
+  missing binary, a permission error — propagates rather than being reported as
+  "not running".
+- **Rollout failure** — logged, non-fatal; the `up -d` containers still run.
+- **Any project validation error** — `validate_all` blocks the entire `apply`.
+- **Egress dependency cycle** — `list_projects_topo` falls back to alphabetical
+  with a warning; an external `{target}_default` may not exist yet, failing that
+  project's `up` (see `local/projects/itsup/design/network-segmentation`).
+- **DNS stack on a VM-backed Docker runtime** — the honeypot's resolver is
+  published on the proxynet gateway address, which only a host that owns its
+  bridges can bind. Under a VM-backed runtime the bridges live inside the virtual
+  machine, so the daemon rejects the binding and the DNS stack does not start.
+  Such a host is not a supported container host.
+<!-- /planned-change:dns-fallback-off-proxynet -->
 
 ## See Also
 
