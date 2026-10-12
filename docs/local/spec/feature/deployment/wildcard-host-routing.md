@@ -46,7 +46,7 @@ And the certificate was obtained through a DNS challenge at the zone's provider
 ```gherkin
 Given a fleet with single-host routes and a wildcard route
 When the proxy obtains and renews certificates
-Then each single-host route keeps a certificate obtained through the HTTP challenge
+Then the operator sees each single-host route served with a certificate obtained through the HTTP challenge
 ```
 
 #### UC-WHR4: The DNS-provider credential never appears in clear text in generated artifacts

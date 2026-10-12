@@ -41,9 +41,9 @@ And the hop from the container host to the upstream is TLS-encrypted
 ```gherkin
 Given an external-host HTTP route declaring an encrypted upstream and its trusted certificate
 And the machine answering at the upstream address presents a different certificate
-When a client requests the route's public host
-Then the request is not forwarded to that machine
-And no unverified or plaintext connection to the upstream is attempted
+When a person's browser requests the route's public host
+Then the person receives no response from that machine
+And the operator sees that no unverified or plaintext connection to the upstream was made
 ```
 
 #### UC-PUT3: An enabled route without a usable trusted certificate fails validation
