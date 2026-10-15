@@ -52,9 +52,9 @@ overrides. This snippet is the contract for that translation. Network assignment
    `tls=true`, `tls.certresolver=letsencrypt`, SANs via `tls.domains[0]`, and
    `loadbalancer.server.port`. A companion `{router_name}-redirect` router is
    also emitted on the plain `web` entrypoint, same host rule, with
-   `middlewares=redirect@file` sending it to HTTPS. Its explicit fallback
-   priority is owned by `HTTP_REDIRECT_PRIORITY_LABEL` and keeps ACME challenge
-   routers ahead of the redirect regardless of host-rule length. The companion
+   `middlewares=redirect@file` sending it to HTTPS. `HTTP_REDIRECT_RULE_LABEL`
+   groups the host rule and excludes `ACME_CHALLENGE_PATH_PREFIX` so challenge
+   requests reach their ACME handler regardless of host-rule length. The companion
    is skipped only for the `ACME_CHALLENGE_PATH_PREFIX` passthrough carve-out,
    which must reach its
    backend unredirected. The `web` entrypoint enables Traefik's ACME bypass so

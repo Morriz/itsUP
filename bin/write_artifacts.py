@@ -35,7 +35,9 @@ logger = get_logger(f"itsup.{__name__}")
 
 # DNS honeypot for logging (used by all containers)
 DNS_HONEYPOT = "172.20.0.253"
-HTTP_REDIRECT_PRIORITY_LABEL = "traefik.http.routers.{router_name}.priority=1"
+HTTP_REDIRECT_RULE_LABEL = (
+    "traefik.http.routers.{router_name}.rule=({host_rule}) && !PathPrefix(`{challenge_path}`)"
+)
 
 
 def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
@@ -199,14 +201,19 @@ def inject_traefik_labels(
                         sans = ",".join(ingress.tls.sans)
                         labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].sans={sans}")
 
-                # The HTTP redirect is a fallback so ACME challenge routers keep
-                # precedence when the entrypoint allows ACME bypass. Explicit
+                # HTTP redirects exclude challenges so their handlers keep
+                # ownership when the entrypoint allows ACME bypass. Explicit
                 # challenge-forwarding routes reach their backend unredirected.
                 if ingress.path_prefix != ACME_CHALLENGE_PATH_PREFIX:
                     redirect_router = f"{router_name}-redirect"
                     labels.append(f"traefik.http.routers.{redirect_router}.entrypoints=web")
-                    labels.append(f"traefik.http.routers.{redirect_router}.rule={rule}")
-                    labels.append(HTTP_REDIRECT_PRIORITY_LABEL.format(router_name=redirect_router))
+                    labels.append(
+                        HTTP_REDIRECT_RULE_LABEL.format(
+                            router_name=redirect_router,
+                            host_rule=rule,
+                            challenge_path=ACME_CHALLENGE_PATH_PREFIX,
+                        )
+                    )
                     labels.append(f"traefik.http.routers.{redirect_router}.service={router_name}")
                     labels.append(f"traefik.http.routers.{redirect_router}.middlewares=redirect@file")
 
