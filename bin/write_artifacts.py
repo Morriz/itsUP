@@ -35,6 +35,7 @@ logger = get_logger(f"itsup.{__name__}")
 
 # DNS honeypot for logging (used by all containers)
 DNS_HONEYPOT = "172.20.0.253"
+HTTP_REDIRECT_PRIORITY_LABEL = "traefik.http.routers.{router_name}.priority=1"
 
 
 def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
@@ -198,16 +199,14 @@ def inject_traefik_labels(
                         sans = ",".join(ingress.tls.sans)
                         labels.append(f"traefik.http.routers.{router_name}.tls.domains[0].sans={sans}")
 
-                # Companion plain-HTTP router: redirect to HTTPS. Traefik's ACME
-                # HTTP-01 challenge handling on the `web` entrypoint intercepts
-                # /.well-known/acme-challenge/* ahead of router matching, so this
-                # can't interfere with certificate issuance/renewal — except for
-                # the narrow passthrough-ACME-forwarding carve-out, which must
-                # reach the backend unredirected.
+                # The HTTP redirect is a fallback so ACME challenge routers keep
+                # precedence when the entrypoint allows ACME bypass. Explicit
+                # challenge-forwarding routes reach their backend unredirected.
                 if ingress.path_prefix != ACME_CHALLENGE_PATH_PREFIX:
                     redirect_router = f"{router_name}-redirect"
                     labels.append(f"traefik.http.routers.{redirect_router}.entrypoints=web")
                     labels.append(f"traefik.http.routers.{redirect_router}.rule={rule}")
+                    labels.append(HTTP_REDIRECT_PRIORITY_LABEL.format(router_name=redirect_router))
                     labels.append(f"traefik.http.routers.{redirect_router}.service={router_name}")
                     labels.append(f"traefik.http.routers.{redirect_router}.middlewares=redirect@file")
 
