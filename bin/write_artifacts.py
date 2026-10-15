@@ -35,9 +35,7 @@ logger = get_logger(f"itsup.{__name__}")
 
 # DNS honeypot for logging (used by all containers)
 DNS_HONEYPOT = "172.20.0.253"
-HTTP_REDIRECT_RULE_LABEL = (
-    "traefik.http.routers.{router_name}.rule=({host_rule}) && !PathPrefix(`{challenge_path}`)"
-)
+HTTP_REDIRECT_RULE_LABEL = "traefik.http.routers.{router_name}.rule=({host_rule}) && !PathPrefix(`{challenge_path}`)"
 
 
 def write_file_if_changed(file_path: Path, content: str, description: str = None) -> bool:
