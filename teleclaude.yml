@@ -48,4 +48,4 @@ docs:
 project_name: itsUP
 description: Docker-based deployment platform
 kind: project
-schema_version: 23
+schema_version: 24
