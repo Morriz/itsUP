@@ -223,6 +223,16 @@ def resolve_backup_adapter(project_name: str, adapter: str) -> Path | None:
     return None
 
 
+def get_backup_adapter_env(project_name: str, config: BackupConfig) -> dict[str, str]:
+    """Build the environment a project's backup adapter runs with.
+
+    The compose-exec environment (process env + the project's secrets) with the
+    tunables declared in the project's backup.yml on top, so a declared tunable
+    is what the adapter sees for both `dump` and `restore`.
+    """
+    return {**get_env_with_secrets(project_name), **config.env}
+
+
 def list_projects() -> list[str]:
     """List all available projects (both container and ingress-only)"""
     projects_path = projects_dir()

@@ -7,13 +7,16 @@
 #   2. Derived exclusion — paths in `exclude` are kept out of the monolithic
 #      live-tar (no separately maintained exclude list).
 #
-# ── Shape A: adapter-backed stateful store (e.g. postgres) ──────────────────
+# ── Shape A: adapter-backed stateful store (e.g. postgres, mariadb) ─────────
 # A consistent logical dump rides inside the archive; the torn live data dir is
 # excluded so it is never archived crash-inconsistent.
 #
 #   adapter: postgres   # resolved project-local first
 #                       #   (projects/<name>/backup-adapter.sh),
-#                       # then shared (bin/backup-adapters/postgres.sh)
+#                       # then shared (bin/backup-adapters/<adapter>.sh:
+#                       #   postgres, mariadb)
+#   env:                # optional adapter tunables, exported to the adapter;
+#     PG_SERVICE: db    #   each adapter script names the ones it reads
 #   exclude: [data]     # skip the live data directory from the live-tar
 #
 # ── Shape B: ephemeral store, no adapter (e.g. redis) ───────────────────────

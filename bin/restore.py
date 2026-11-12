@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from bin.backup import DB_FILE, VALIDATED_PREFIX, build_s3_client
 from lib.data import (
-    get_env_with_secrets,
+    get_backup_adapter_env,
     load_project_backup_config,
     resolve_backup_adapter,
 )
@@ -136,7 +136,7 @@ def restore_project(staging: Path, project: str) -> None:
         print(f"Restoring '{project}' into the running instance via adapter '{config.adapter}'")
         subprocess.run(
             [str(adapter), "restore", str(dest)],
-            env=get_env_with_secrets(project),
+            env=get_backup_adapter_env(project, config),
             check=True,
         )
     else:

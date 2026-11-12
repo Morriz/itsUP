@@ -212,6 +212,10 @@ class BackupConfig(BaseModel):
     """Live-state paths under the project's archive dir (upstream/<name>/) to keep
     out of the monolithic tar (e.g. `data`), so the torn live directory is skipped
     while the adapter dump under _backup/ is included."""
+    env: Dict[str, str] = Field(default_factory=dict)
+    """Adapter tunables, exported into the adapter's environment for both verbs
+    (e.g. the compose service a shared adapter targets). Configuration only:
+    secrets reach the adapter from the project's secrets file."""
 
 
 class TraefikConfig(BaseModel):

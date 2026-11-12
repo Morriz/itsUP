@@ -24,8 +24,8 @@ touch S3 — the mother script owns shipping. The same adapter supplies the inve
 declares an adapter is automatically excluded from the live-tar at its declared
 paths, so its torn data directory is never archived while its consistent dump is.
 
-The framework is the deliverable; Postgres is the first adapter that proves the
-round trip. New stateful stores plug in by authoring an adapter pair plus a
+The framework is the deliverable; the shared adapter set covers Postgres and
+MariaDB. New stateful stores plug in by authoring an adapter pair plus a
 `backup.yml` — with no change to the framework.
 
 ## Inputs/Outputs
@@ -43,9 +43,13 @@ round trip. New stateful stores plug in by authoring an adapter pair plus a
   - `exclude: [<path>...]` — live-state paths under the project's archive dir to
     keep out of the monolithic tar (e.g. `data`), so the torn live directory is
     skipped while the adapter dump is included.
+  - `env: {<NAME>: <value>...}` — optional; adapter tunables, such as the compose
+    service a shared adapter targets. Each adapter script names the tunables it
+    reads. Configuration only: secrets stay in the project's secrets file.
 - The **running container** for an adapter-backed project, reached via the
-  existing compose-exec pattern with `get_env_with_secrets(project)` from
-  `lib.data`.
+  existing compose-exec pattern. Both verbs run with the environment
+  `get_backup_adapter_env` in `lib.data` builds: the process environment, the
+  project's secrets, and the registry's `env` on top.
 - `upstream/<name>/` — the project's archive dir (where `./data` materializes;
   see `local/projects/itsup/design/deployment-orchestration`), and the dump's destination.
 - `proxy/` — Traefik config + `acme.json` certificates, added to the monolithic
@@ -143,6 +147,18 @@ per-database `pg_dump -Fc`, executed through the compose-exec pattern, into
 `pg_restore`/`psql` each database into the running instance. `projects/postgres/`
 declares `adapter: postgres` and `exclude: [data]`.
 
+The **MariaDB** adapter targets the official MariaDB image. `dump` writes the
+engine's accounts, roles and grants as portable SQL, and one single-transaction
+snapshot of every database except the `mysql` system schema. `restore` loads the
+accounts, then the databases, in one client session: each dumped database is
+dropped and recreated, and every account the dump names takes the dump's
+credentials, so an application reaches its database with the password it held at
+backup time. The engine's own `root` and healthcheck accounts keep the
+credentials of the running engine, which holds them outside any dump — in the
+container environment and in the data directory. The clients authenticate as
+`root` with the password the engine container carries in its own environment, so
+the host never holds it.
+
 ## Failure modes
 
 - **Instance unreachable at dump/restore time.** Adapter operations run against
@@ -152,8 +168,19 @@ declares `adapter: postgres` and `exclude: [data]`.
   that project's restore and is reported — restore is operator-driven and
   targeted, so it fails closed rather than continuing.
 - **Restore order dependency.** A per-database restore before roles/globals exist
-  fails on missing roles. The Postgres adapter sequences globals first; this
-  ordering is part of the adapter contract for any role-bearing store.
+  fails on missing roles. The Postgres adapter sequences globals first and the
+  MariaDB adapter accounts first; this ordering is part of the adapter contract
+  for any role-bearing store.
+- **Failed dump in the archive.** A project whose dump failed is skipped, yet the
+  run still archives its `_backup/` as the adapter left it. The MariaDB adapter
+  leaves no dump file there, so a restore from that generation stops on the
+  missing dump. The Postgres adapter leaves an empty globals file beside the
+  database dumps of the previous run, which a restore from that generation loads
+  as if they were current.
+- **Files beside an adapter dump.** Restoring an adapter-backed project loads
+  only its dump. Whatever else the archive carries for that project — uploads or
+  key material kept next to the database — is not extracted by `bin/restore.py`
+  and is recovered from the archive generation by hand.
 - **Destructive overwrite.** Restore overwriting a running service's data is
   guarded by an unconditional confirmation prompt before any write (bypassable
   only via an explicit `-y`/`--yes` flag for automation), rather than trying to
@@ -171,3 +198,5 @@ declares `adapter: postgres` and `exclude: [data]`.
 
 - docs/local/design/deployment-orchestration.md
 - docs/local/design/network-segmentation.md
+- https://mariadb.com/kb/en/mariadb-dump/ — the dump client options the MariaDB adapter relies on.
+- https://github.com/MariaDB/mariadb-docker — the official image's entrypoint and healthcheck script, which own the root-password environment and the healthcheck account.

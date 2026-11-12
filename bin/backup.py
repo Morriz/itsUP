@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from lib.data import (
     BackupConfig,
-    get_env_with_secrets,
+    get_backup_adapter_env,
     load_project_backup_config,
     load_secrets,
     resolve_backup_adapter,
@@ -49,11 +49,11 @@ def discover_backup_configs(upstream_dir: Path) -> dict[str, BackupConfig]:
     return configs
 
 
-def run_adapter_dump(adapter: Path, project: str, target: Path) -> None:
+def run_adapter_dump(adapter: Path, project: str, config: BackupConfig, target: Path) -> None:
     """Run one adapter `dump` against the project's upstream dir (compose-exec)."""
     subprocess.run(
         [str(adapter), "dump", str(target)],
-        env=get_env_with_secrets(project),
+        env=get_backup_adapter_env(project, config),
         check=True,
         capture_output=True,
         text=True,
@@ -82,7 +82,7 @@ def run_adapter_dumps(configs: dict[str, BackupConfig], upstream_dir: Path) -> l
                 logger.error("backup: no adapter '%s' found for project '%s' — skipping", config.adapter, project)
                 failed.append(project)
                 continue
-            futures[executor.submit(run_adapter_dump, adapter, project, upstream_dir / project)] = project
+            futures[executor.submit(run_adapter_dump, adapter, project, config, upstream_dir / project)] = project
 
         for future in as_completed(futures):
             project = futures[future]

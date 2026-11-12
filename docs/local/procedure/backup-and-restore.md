@@ -12,7 +12,7 @@ Protect an itsUP container host against data loss along two independent axes:
 - **Configuration** lives in git. `projects/` (compose + ingress + traefik overrides + per-project `backup.yml`) and `secrets/` (SOPS-encrypted `*.enc.txt`) are restored by re-cloning their remotes via `itsup init`.
 - **Runtime state** lives under `upstream/` (the deployed compose trees and their bind-mounted container volumes) and `proxy/` (Traefik config + `acme.json` certificates). `bin/backup.py` tars both and uploads a single monolithic archive to an S3-compatible bucket.
 
-For a stateful store, a crash-consistent copy of a live data directory is not safely restorable. A project therefore declares a per-project **adapter** in `projects/<name>/backup.yml`; the adapter writes a consistent logical dump into the archive, and its live data directory is excluded from the tar. Restore loads that dump back **into the running instance** rather than dropping a filesystem snapshot. The framework is general; Postgres is the first adapter. The full contract lives in `local/projects/itsup/design/backup-restore`.
+For a stateful store, a crash-consistent copy of a live data directory is not safely restorable. A project therefore declares a per-project **adapter** in `projects/<name>/backup.yml`; the adapter writes a consistent logical dump into the archive, and its live data directory is excluded from the tar. Restore loads that dump back **into the running instance** rather than dropping a filesystem snapshot. The framework is general; the shared adapter set covers Postgres and MariaDB. The full contract lives in `local/projects/itsup/design/backup-restore`.
 
 Restore means: re-clone the repos, decrypt secrets, then run `bin/restore.py` to pull an archive generation from S3 and route it to each project's adapter restore (or a filesystem extract), guarded by a confirmation prompt.
 
@@ -31,6 +31,7 @@ Restore means: re-clone the repos, decrypt secrets, then run `bin/restore.py` to
 Each project that needs special backup handling carries `projects/<name>/backup.yml` (loaded by `load_project_backup_config`):
 
 - `adapter: <name>` — optional. When set, the named adapter produces a consistent logical dump under `upstream/<name>/_backup/` before the tar. The adapter script is resolved project-local first (`projects/<name>/backup-adapter.sh`), then from the shared set (`bin/backup-adapters/<name>.sh`).
+- `env: {<NAME>: <value>...}` — optional. Tunables exported to the adapter for both dump and restore, such as the compose service a shared adapter targets when it is not the adapter's default. Each adapter script names the tunables it reads; secrets stay in the project's secrets file.
 - `exclude: [<path>...]` — live-state paths under `upstream/<name>/` kept out of the tar (e.g. `data`). An ephemeral store (e.g. redis) sets only `exclude` with no `adapter`, dropping its volatile data from the archive without producing a dump.
 
 The live-tar exclusion is derived solely from these files — there is no separately maintained exclusion list, and no `backup.exclude` field in `projects/itsup.yml`.
@@ -95,8 +96,9 @@ itsup commit "<message>"   # commits + pushes projects/ and secrets/
 
 - **Host hardware loss.** Provision a new host, `make install`, clone the itsUP repo, then run the full Restore (init → decrypt → `bin/restore.py all` → apply). Configuration comes from git; runtime state and proxy certificates from the latest S3 archive.
 - **Accidental config/secret deletion.** Restore from git rather than S3 — `git checkout` the affected paths under `projects/` (and the `*.enc.txt` under `secrets/`), `itsup decrypt`, then `itsup apply <project>`. The S3 archive holds runtime state, never the source config.
-- **Database corruption or loss.** Run `bin/restore.py <project>` for the adapter-backed store; the adapter recreates roles/globals and reloads each database into the running instance. Only data captured at the last backup is recoverable; anything written since is lost (worst case ~24h with the nightly timer).
+- **Database corruption or loss.** Run `bin/restore.py <project>` for the adapter-backed store; the adapter re-establishes roles or accounts and reloads each database into the running instance. Only data captured at the last backup is recoverable; anything written since is lost (worst case ~24h with the nightly timer).
 - **Volume / `upstream/` corruption (non-adapter project).** Run `bin/restore.py <project>` for a filesystem extract, then `itsup apply`.
+- **Files beside an adapter-backed database.** `bin/restore.py <project>` loads only the adapter's dump. When the project also keeps files under `upstream/<name>/` that the archive carries, such as uploads or key material, extract those paths from the archive generation by hand and put them in place before starting the services that read them.
 - **Proxy certificate / config loss.** Run `bin/restore.py proxy` to recover `proxy/` config and `acme.json`.
 - **Repo loss with remotes intact.** Re-clone via `itsup init`; nothing else is needed for configuration. If a remote is also gone, the S3 archive contains generated compose files and runtime state but not the source `projects/`/`secrets/` definitions — reconstruct those by hand.
 - **Lost age key.** Without `~/.config/sops/age/keys.txt`, `*.enc.txt` cannot be decrypted and the backup cannot read AWS credentials from `secrets/itsup.enc.txt`. Keep the age key backed up independently of this repo.
