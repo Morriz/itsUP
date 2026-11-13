@@ -24,7 +24,7 @@ dependencies = [
   "fastapi",
   # itsup logs imports instrukt_ai_logging.cli, which releases from 0.7.0 no
   # longer ship; without the upper bound the CLI fails to start.
-  "instruktai-python-logger>=0.6.6,<0.7",
+  "instruktai-python-logger>=0.6.6,<0.11",
   "ipwhois",
   "jinja2-cli",
   "netifaces",
