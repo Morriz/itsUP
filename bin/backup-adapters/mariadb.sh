@@ -11,7 +11,7 @@
 # script (bin/backup.py) owns archiving/upload and bin/restore.py owns download.
 #
 # Tunables (env):
-#   MARIADB_SERVICE  compose service running the engine (default: mariadb)
+#   MARIADB_SERVICE  compose service running the engine
 # The clients run as root inside the container. The root password is read from the
 # container's own MARIADB_ROOT_PASSWORD, so the host never holds or passes it.
 set -eu
@@ -62,23 +62,26 @@ do_restore() {
   for dump in accounts.sql databases.sql; do
     [ -f "$src/$dump" ] || { echo "mariadb adapter: no dump at $src ($dump missing)" >&2; exit 1; }
   done
-  echo "mariadb adapter: restoring accounts and all databases"
-  # One client session, which stops at the first error. Accounts precede the
-  # databases so the definers of views, routines and events exist.
-  #
-  # The dump's accounts replace the credentials of every account they name. Two
-  # accounts belong to this engine rather than to the dump: root, whose password is
-  # the container's MARIADB_ROOT_PASSWORD, and the image's healthcheck account,
+  # Each dump reaches its client without a reader in a pipeline, whose failure the
+  # pipeline's status would hide: the accounts are read here, the databases are the
+  # client's own input. A client stops at its first error.
+  accounts="$(cat "$src/accounts.sql")"
+  echo "mariadb adapter: restoring accounts"
+  # Accounts precede the databases so the definers of views, routines and events
+  # exist. The dump's accounts replace the credentials of every account they name.
+  # Two accounts belong to this engine rather than to the dump: root, whose password
+  # is the container's MARIADB_ROOT_PASSWORD, and the image's healthcheck account,
   # whose password lives in the data directory. Their rows are set aside before the
-  # dump's accounts load and put back right after.
-  {
-    echo "CREATE TEMPORARY TABLE mysql.backup_adapter_engine_accounts AS"
-    echo "  SELECT * FROM mysql.global_priv WHERE User IN ('root', 'healthcheck');"
-    cat "$src/accounts.sql"
-    echo "REPLACE INTO mysql.global_priv SELECT * FROM mysql.backup_adapter_engine_accounts;"
-    echo "FLUSH PRIVILEGES;"
-    cat "$src/databases.sql"
-  } | dc_root mariadb --user=root
+  # dump's accounts load and put back right after, in the same client session.
+  printf '%s\n' \
+    "CREATE TEMPORARY TABLE mysql.backup_adapter_engine_accounts AS" \
+    "  SELECT * FROM mysql.global_priv WHERE User IN ('root', 'healthcheck');" \
+    "$accounts" \
+    "REPLACE INTO mysql.global_priv SELECT * FROM mysql.backup_adapter_engine_accounts;" \
+    "FLUSH PRIVILEGES;" |
+    dc_root mariadb --user=root
+  echo "mariadb adapter: restoring all databases"
+  dc_root mariadb --user=root <"$src/databases.sql"
   echo "mariadb adapter: restore complete"
 }
 

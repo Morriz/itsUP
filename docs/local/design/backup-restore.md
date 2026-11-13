@@ -150,10 +150,9 @@ declares `adapter: postgres` and `exclude: [data]`.
 The **MariaDB** adapter targets the official MariaDB image. `dump` writes the
 engine's accounts, roles and grants as portable SQL, and one single-transaction
 snapshot of every database except the `mysql` system schema. `restore` loads the
-accounts, then the databases, in one client session: each dumped database is
-dropped and recreated, and every account the dump names takes the dump's
-credentials, so an application reaches its database with the password it held at
-backup time. The engine's own `root` and healthcheck accounts keep the
+accounts, then the databases: each dumped database is dropped and recreated, and
+every account the dump names takes the dump's credentials, so an application
+reaches its database with the password it held at backup time. The engine's own `root` and healthcheck accounts keep the
 credentials of the running engine, which holds them outside any dump — in the
 container environment and in the data directory. The clients authenticate as
 `root` with the password the engine container carries in its own environment, so
