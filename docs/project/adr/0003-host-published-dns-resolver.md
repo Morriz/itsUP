@@ -26,7 +26,7 @@ from the container's network namespace so, for example, `--dns=127.0.0.1` refers
 to the container's own loopback address."* Any injected upstream must therefore be
 reachable from the asking container's own namespace.
 
-The honeypot is not only a resolver. Per `project/design/container-security-monitor`
+The honeypot is not only a resolver. Per `project/itsup/design/container-security-monitor`
 it is the monitor's trust oracle: an outbound IP is treated as legitimate only if
 some container resolved it through the honeypot, whose query log the monitor
 tails. Giving isolated services any resolver that bypasses the honeypot would
@@ -77,10 +77,10 @@ change.
 ## Consequences
 
 - DNS reachability becomes a property of the host-published listener rather than
-  of network membership, so `project/design/artifact-generation` invariant 6 and
+  of network membership, so `project/itsup/design/artifact-generation` invariant 6 and
   the UC-DNS1 contract change accordingly.
 - Oracle coverage now depends on the listener being reachable and contained, not
-  on proxynet membership. `project/design/security-architecture` records that
+  on proxynet membership. `project/itsup/design/security-architecture` records that
   shift.
 - The listener's containment must hold on every path that publishes it, including
   ordinary `itsup apply` reconciliation — not only on runtime install.
