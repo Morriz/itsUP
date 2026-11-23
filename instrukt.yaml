@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=.instrukt/schemas/instrukt.schema.json
+schema_version: 6
+project: itsup
+github:
+  repository: Morriz/itsUP

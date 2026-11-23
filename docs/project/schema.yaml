@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../.instrukt/schemas/snippet-schema.schema.json
+spec/feature:
+  required:
+    - Use cases
+spec/domain:
+  required:
+    - Ubiquitous language
+    - Ownership boundary
+    - Event subjects and origins
+    - Use cases
+    - Governing designs and decisions
+    - Context map position

@@ -30,20 +30,15 @@ __pycache__
 .claude/
 .codex/
 .gemini/
+.instrukt/
 
 # TeleClaude stuff (todos DB, session caches, etc.)
 .teleclaude/
-**/index.yaml
-# Inflated per-domain baselines generated beside their source manifest and
-# exposed via the whole-tree docs symlink at ~/.teleclaude/docs/<domain>/.
-docs/global/*/*bundle.md
 
 # Generated tool output (never tracked)
 graphify-out/
 
-# Generated agent instructions — source of truth is AGENTS.master.md; the
-# inflated AGENTS.md/CLAUDE.md build artifacts are never tracked.
-AGENTS.md
+# Generated agent instructions — AGENTS.md is committed (rendered from AGENTS.master.md by instrukt).
 CLAUDE.md
 
 # Integration/worker git worktrees (operational, never tracked)
@@ -102,6 +97,4 @@ _.pid
 _.db
 \*.db-journal
 \*.yml.lock
-\*_/index.yaml
-docs/global/_/domain-baseline-bundle.md
 publications/inbox/\*

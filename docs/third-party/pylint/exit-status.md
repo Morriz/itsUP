@@ -82,4 +82,4 @@ its bit to `msg_status` through the ordinary path. Reading `--fail-on=X` as
 
 ## See Also
 
-- docs/local/spec/feature/quality/lint-gate-status-propagation.md — the itsUP gate that consumes this status.
+- [project/itsup/spec/feature/quality/lint-gate-status-propagation](../../project/spec/feature/quality/lint-gate-status-propagation.md) — the itsUP gate that consumes this status.

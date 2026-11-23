@@ -1,7 +1,4 @@
 ---
-id: third-party/systemd/journalctl-querying
-type: third-party
-scope: project
 description: Verified journalctl query semantics itsUP delegates to — the --since/--until time grammar that rejects a bare duration, the smart-case -g/--grep default and its --case-sensitive override, -n/--lines bounds, -f/--follow, and the silent success of -u on a unit with no records.
 ---
 

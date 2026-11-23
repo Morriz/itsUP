@@ -1,7 +1,4 @@
 ---
-id: third-party/github-actions/workflow-secrets-and-injection
-type: third-party
-scope: project
 description: GitHub Actions expression-injection hardening for inline run scripts, secret-redaction limits, and the Morriz/github-openvpn-connect-action optional-input semantics that make an unset VPN peer secret fail open.
 ---
 

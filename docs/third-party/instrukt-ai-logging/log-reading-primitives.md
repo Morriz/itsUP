@@ -1,7 +1,4 @@
 ---
-id: third-party/instrukt-ai-logging/log-reading-primitives
-type: third-party
-scope: project
 description: Verified read-side contracts of the installed instrukt-ai-logging package that itsUP reuses — parse_since duration grammar, the rotation-aware iter_follow_lines follower, and why iter_recent_log_lines_merged cannot window Traefik's JSON access log.
 ---
 
@@ -11,7 +8,7 @@ Curated from the installed package
 (`.venv/lib/python3.14/site-packages/instrukt_ai_logging/`) for the `itsup logs`
 router, which reuses the library's readers rather than re-deriving them. The
 write side (`configure_logging`, `get_logger`) is covered by
-`local/projects/itsup/design/logging`; only what the router consumes is recorded here.
+`project/itsup/design/logging`; only what the router consumes is recorded here.
 
 ## Export surface
 

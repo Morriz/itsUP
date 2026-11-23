@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../../.instrukt/schemas/domain-index.schema.json
+description: Deploying or changing services on an itsUP deployment — GitOps config, secrets, or container-host operations
+expanded:
+  - itsup/concept/operating-model
+  - itsup/concept/project-and-secrets
+listed:
+  - itsup/policy/host-boundary
+  - itsup/procedure/gitops-workflow
+  - itsup/spec/cli-surface
