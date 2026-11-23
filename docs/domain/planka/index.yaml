@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../../../.instrukt/schemas/domain-index.schema.json
+description: Operating self-hosted Planka boards — card conventions, admin accounts, and project onboarding
+expanded:
+  - planka/policy/board-conventions
+listed:
+  - planka/procedure/create-admin-account
+  - planka/procedure/onboard-project

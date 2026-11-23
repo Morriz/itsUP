@@ -1,7 +1,4 @@
 ---
-id: third-party/uv/uv-migration
-type: third-party
-scope: project
 description: uv facts for migrating itsUP off pip/requirements — native dependency declarations, sync/lock commands, GitHub Actions setup-uv, and Dependabot's uv ecosystem.
 ---
 

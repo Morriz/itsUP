@@ -1,7 +1,4 @@
 ---
-id: third-party/systemd/systemctl-unit-introspection
-type: third-party
-scope: project
 description: 'What systemctl documents — and does not document — for deciding whether a named unit is installed: list-unit-files and cat carry no documented exit status for a non-matching pattern, while the Unit interface''s LoadState property has a documented value set that supports a fail-closed predicate.'
 ---
 
