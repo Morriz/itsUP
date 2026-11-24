@@ -12,10 +12,9 @@ from enum import StrEnum
 from pathlib import Path
 
 import click
-from instrukt_ai_logging.cli import iter_follow_lines
-from instrukt_ai_logging.logging import parse_since
 
 from commands.common import fail
+from lib.log_reading import follow_lines, parse_duration
 from lib.paths import access_log_file, display_path
 
 
@@ -83,7 +82,7 @@ def _parse_options(follow: bool, since: str | None, pattern: str | None) -> LogO
     cutoff = None
     if since is not None:
         try:
-            cutoff = datetime.now(timezone.utc) - parse_since(since)
+            cutoff = datetime.now(timezone.utc) - parse_duration(since)
         except ValueError as exc:
             _fail(f"Invalid --since value: {exc}")
             raise AssertionError("unreachable") from exc
@@ -208,7 +207,7 @@ def _read_file(path: Path, options: LogOptions, *, is_access_log: bool) -> None:
 
     try:
         if options.follow:
-            for line in iter_follow_lines(path, start_at_end=True):
+            for line in follow_lines(path):
                 _emit_file_line(line, options, is_access_log=is_access_log)
             return
 
