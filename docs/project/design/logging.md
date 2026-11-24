@@ -77,7 +77,9 @@ why the daemon paths configure their own stdout handler instead):
   one-shots (`bin/migrate_to_v2.py`, `bin/write_artifacts.py`), via
   `configure_logging("itsup")` (default source).
 - `instrukt-ai/itsup/backup.log` — the backup job, via
-  `configure_logging("itsup", source="backup")`.
+  `configure_logging("itsup", source="backup")`. The job runs as root with
+  `HOME` pinned to the itsUP user, so root owns this file inside that user's
+  folder (Failure modes).
 
 Each producing process declares its own `source`; the empty-source default (one
 shared `<app>.log`) is deliberately avoided because multiple independent
@@ -182,8 +184,10 @@ API's equivalent is `~/Library/Logs/itsup.api.log`.
 <source>] [--since W] [--grep RE] [--follow]`):** the logger project's reader
 resolves the files under `instrukt-ai/itsup/` and prints the requested window
 merged by timestamp; `--follow` then keeps printing new lines across rotation.
-`--include backup` narrows to `backup.log`; with no filter it merges every
-source in the folder.
+`--include itsup` narrows to `itsup.log`; with no filter it merges every source
+written inside the window, each of which the reading user must be able to open.
+On the container host the root-run backup's file is one the itsUP user cannot
+open (Failure modes).
 
 **Viewing the access log:** `tail`/`zcat` on `logs/access.log`, or any other
 ordinary text tool. The JSON record is what the reader sees; nothing reformats
@@ -212,6 +216,31 @@ and operator banners are unaffected.
   written — there is no degraded or console-fallback mode. A process that cannot
   open its file fails fast rather than starting blind. The daemon paths have no
   such failure: stdout is always available.
+- **A root-written file in the itsUP user's diagnostic folder.** The backup
+  job runs as root with `HOME` pinned to the itsUP user
+  (`samples/systemd/itsup-backup.service`), so root creates `backup.log` in that
+  user's folder. At the logger release itsUP locks, the writer keeps every file
+  readable by its producing user only and re-applies that each time it opens
+  the file, so the itsUP user cannot read `backup.log` at all, and the reader
+  refuses the whole merged read when a file it cannot open was written inside
+  the requested window. Run as the itsUP user, `instrukt-ai-logs itsup`
+  therefore exits with a permission error, printing nothing from the sources
+  it could read, whenever its window reaches back to the backup's last record;
+  a shorter window skips the file. Naming only sources that user owns
+  (`--include itsup`) reads them in any window; `backup.log` is readable only
+  as root. The same holds for every further root-run producer routed through
+  the logger. The container security monitor runs as root and logs
+  continuously, so its file would sit inside every window and the itsUP user's
+  unfiltered read would fail every time.
+- **Root as the first writer.** The writer creates every missing directory on
+  the way to the folder owned by the process that asks and closed to everyone
+  else. When a root-run producer is the first to log on a host where the itsUP
+  user's state directory does not exist yet, those directories end up owned by
+  root, and the itsUP user's own processes then fail at `configure_logging`:
+  the `itsup` CLI does not start. On an installed host the itsUP user has
+  normally logged first — `make install-runtime` starts bringup, which runs
+  `itsup` as that user — so the folder exists and is user-owned before the
+  nightly backup writes into it.
 - **Journal retention exhausted.** journald caps its own store; once the cap is
   reached the oldest records are discarded. A host that needs a longer daemon
   history raises the cap rather than reintroducing a file sink, which would put

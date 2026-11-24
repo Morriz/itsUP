@@ -518,6 +518,8 @@ instrukt-ai-logs itsup --since 1h    # Everything from the last hour, merged by 
 instrukt-ai-logs itsup --follow      # Print the recent window, then follow
 ```
 
+On the container host the nightly backup runs as root and writes its own file into the same log directory. The logger keeps each file private to the user that wrote it, so run as the itsUP user the unfiltered command stops with a permission error whenever its time window reaches back to the backup's last log line: `instrukt-ai-logs itsup --include itsup` reads the CLI's file in any window, and the backup's file needs root.
+
 `instrukt-ai-logs` is the logger project's standalone tool ([InstruktAI/logging](https://github.com/InstruktAI/logging)). The Python package itsUP depends on only writes logs, so `make install` does not provide the tool. Install it once on each machine that reads these logs:
 
 ```bash
