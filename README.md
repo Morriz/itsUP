@@ -509,25 +509,30 @@ On Linux hosts, `make install-runtime` (via `bin/install-bringup.sh`) configures
 
 ##### Runtime logs
 
-`itsup logs` is the front door for API, monitor, and supervised runtime logs:
+itsUP has no log command of its own; each log is read with the tool that owns it.
+
+**Application logs** — what itsUP's own code writes through the shared InstruktAI logger (the `itsup` CLI and the one-shot jobs) — are read with the InstruktAI logs tool, the same instruction as for every other InstruktAI project:
 
 ```bash
-itsup logs api -f
+instrukt-ai-logs itsup --since 1h    # Everything from the last hour, merged by time
+instrukt-ai-logs itsup --follow      # Print the recent window, then follow
 ```
 
-Application logs can also be queried with the InstruktAI logs CLI:
+`instrukt-ai-logs` is the logger project's standalone tool ([InstruktAI/logging](https://github.com/InstruktAI/logging)). The Python package itsUP depends on only writes logs, so `make install` does not provide the tool. Install it once on each machine that reads these logs:
 
 ```bash
-instrukt-ai-logs -f itsup
+curl -LsSf https://github.com/InstruktAI/logging/releases/latest/download/instrukt-ai-logs-installer.sh | sh
 ```
 
-Systemd-managed units (bringup, healthcheck, backup) log to stdout/stderr, captured by the journal: `journalctl -u <service>`. On macOS, launchd captures agent output to `~/Library/Logs/itsup.<name>.log`.
+**Supervised units** — the API server, the security monitor, bringup, apply, backup, and the healthcheck — write to stdout/stderr, captured by the journal: `journalctl -u <unit>` (for example `journalctl -u itsup-api -f`). On macOS, launchd captures agent output to `~/Library/Logs/itsup.<name>.log`.
+
+**The Traefik access log** is Traefik's own JSON file, `logs/access.log`, read with ordinary tools.
 
 #### 6. Monitor
 
 ```bash
 # Follow raw Traefik access records
-itsup logs access -f
+tail -f logs/access.log
 ```
 
 ### Configure services

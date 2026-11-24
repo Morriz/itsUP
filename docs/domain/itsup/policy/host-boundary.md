@@ -7,7 +7,7 @@ description: Which itsUP CLI commands may run on which machine — runtime-mutat
 
 - **Runtime-mutating commands run only on the container host** — the machine whose own LAN IP
   equals `SSH_HOST` in `.env`. These deploy or stop containers: `apply`, `run`, `down`, and the
-  stack-management commands (`dns`, `proxy`, `svc`, `monitor`, `logs`), plus host provisioning
+  stack-management commands (`dns`, `proxy`, `svc`, `monitor`), plus host provisioning
   (`make install-runtime`). On the host, the full command set is available.
 - **GitOps, config, secret, and read commands run anywhere.** `pull`, `commit`, `status`,
   `create`, `init`, `validate`, `migrate`, `edit-secret`, `encrypt`, `decrypt`, `diff-secrets`,

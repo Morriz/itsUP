@@ -4,9 +4,10 @@ description: 'What systemctl documents — and does not document — for decidin
 
 # systemctl — Unit Introspection for an Existence Predicate
 
-Curated for the `itsup logs` router, which must distinguish "this unit is not
-installed" from "this unit is installed and quiet" before querying the journal.
-Only what bears on that predicate is recorded.
+Curated for a caller that must distinguish "this unit is not installed" from
+"this unit is installed and quiet", as the runtime installer does when it
+checks whether the daemon units are registered (`bin/install-bringup.sh`). Only
+what bears on that predicate is recorded.
 
 ## What is not documented
 
