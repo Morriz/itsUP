@@ -70,8 +70,8 @@ The library writes a single folder per app, `$XDG_STATE_HOME/instrukt-ai/itsup/`
 (fallback `~/.local/state/instrukt-ai/itsup/`), and one plain-text logfmt file
 per producing process, selected by the `source=` argument of `configure_logging`
 (`configure_logging(app, *, source=None)` → `f"{source or app}.log"`, a single
-file-only `WatchedFileHandler` on the root logger — the library has no console
-mode, which is why the daemon paths configure their own stdout handler instead):
+file-only handler on the root logger — the library has no console mode, which is
+why the daemon paths configure their own stdout handler instead):
 
 - `instrukt-ai/itsup/itsup.log` — the `itsup` CLI and the ephemeral CLI-family
   one-shots (`bin/migrate_to_v2.py`, `bin/write_artifacts.py`), via
@@ -81,8 +81,8 @@ mode, which is why the daemon paths configure their own stdout handler instead):
 
 Each producing process declares its own `source`; the empty-source default (one
 shared `<app>.log`) is deliberately avoided because multiple independent
-processes must not share one `WatchedFileHandler` file. This mirrors TeleClaude's
-convention (`configure_logging("teleclaude", source="cron")`).
+processes must not share one log file. This mirrors TeleClaude's convention
+(`configure_logging("teleclaude", source="cron")`).
 
 **Container logs (ephemeral):** every Docker container also writes to Docker's
 default json-file driver. Read via `docker logs` / `docker compose logs`. These
@@ -96,10 +96,12 @@ are not part of the `logs/` directory contract.
   detection feed.
 - **`journalctl -u <unit>`** (Linux) / the agent's `StandardOutPath` file (macOS)
   — the daemon diagnostics.
-- **`instrukt-ai-logs itsup`** — the logger's shipped viewer (console script
-  `instrukt_ai_logging.cli:main`) tails the diagnostic folder: folder- and
-  rotation-aware, with `--since`, `--include <source>`, and `--grep`. itsUP
-  carries no diagnostic-log viewer of its own.
+- **`instrukt-ai-logs itsup`** — the logger project's viewer tails the
+  diagnostic folder: folder- and rotation-aware, with `--since`,
+  `--include <source>`, and `--grep`. It is a standalone tool installed on its
+  own: the `instruktai-python-logger` package itsUP depends on is the writer
+  only, so syncing itsUP's environment does not provide it. itsUP carries no
+  diagnostic-log viewer of its own.
 - **Operators** via direct `tail`/`zcat` on `logs/access.log`.
 - **`itsup logs <target>`** — the itsUP-side front door to these sinks, host-only
   like the other runtime commands because every backend it reads exists only on
@@ -110,8 +112,11 @@ are not part of the `logs/` directory contract.
   whose lines it emits verbatim. Bare `itsup logs` lists the targets with
   descriptions; `--follow`, `--grep`, and `--since` narrow the read, with
   `--since` refused for a macOS unit target whose supervisor-less stream carries
-  no per-line time. No target exists for an upstream project — those stay
-  `docker`-led via `itsup svc`/`proxy`/`dns` — and none for interactive CLI runs.
+  no per-line time. The `--since` duration grammar and the file follower behind
+  `--follow` are itsUP's own (`lib/log_reading.py`); nothing on this read path
+  comes from the logger package. No target exists for an upstream project —
+  those stay `docker`-led via `itsup svc`/`proxy`/`dns` — and none for
+  interactive CLI runs.
 
 ## Invariants
 
@@ -186,9 +191,10 @@ restarts of the unit and rotate under the host's journald retention. On macOS th
 API's equivalent is `~/Library/Logs/itsup.api.log`.
 
 **Viewing CLI and one-shot diagnostics (`instrukt-ai-logs itsup [--include
-<source>] [--since W] [--grep RE]`):** the shipped viewer resolves the files
-under `instrukt-ai/itsup/` and follows them (rotation-aware). `--include backup`
-narrows to `backup.log`; with no filter it merges every source in the folder.
+<source>] [--since W] [--grep RE]`):** the logger project's viewer resolves the
+files under `instrukt-ai/itsup/` and follows them (rotation-aware). `--include
+backup` narrows to `backup.log`; with no filter it merges every source in the
+folder.
 
 **Viewing the access log:** `itsup logs access` on the container host, or
 `tail`/`zcat` on `logs/access.log` directly. Either way the JSON record is what

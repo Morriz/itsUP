@@ -21,12 +21,6 @@ updates:
       - dependency-name: '*'
         update-types:
           - version-update:semver-major
-      # itsup imports instrukt_ai_logging.cli, which releases from 0.7.0 no
-      # longer ship. A 0.x minor is not a semver-major, so the rule above lets
-      # it through and the bump rewrites the upper bound in pyproject.toml.
-      - dependency-name: 'instruktai-python-logger'
-        versions:
-          - '>=0.7'
     groups:
       all-dependencies:
         patterns:
