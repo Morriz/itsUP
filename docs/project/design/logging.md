@@ -77,9 +77,10 @@ why the daemon paths configure their own stdout handler instead):
   one-shots (`bin/migrate_to_v2.py`, `bin/write_artifacts.py`), via
   `configure_logging("itsup")` (default source).
 - `instrukt-ai/itsup/backup.log` — the backup job, via
-  `configure_logging("itsup", source="backup")`. The job runs as root with
-  `HOME` pinned to the itsUP user, so root owns this file inside that user's
-  folder (Failure modes).
+  `configure_logging("itsup", source="backup")`. The systemd unit runs the job
+  as root with `HOME` pinned to the itsUP user, so on a systemd host root owns
+  this file inside that user's folder (Failure modes); the launchd agent runs
+  it as the user, who then owns the file.
 
 Each producing process declares its own `source`; the empty-source default (one
 shared `<app>.log`) is deliberately avoided because multiple independent
@@ -186,8 +187,8 @@ resolves the files under `instrukt-ai/itsup/` and prints the requested window
 merged by timestamp; `--follow` then keeps printing new lines across rotation.
 `--include itsup` narrows to `itsup.log`; with no filter it merges every source
 written inside the window, each of which the reading user must be able to open.
-On the container host the root-run backup's file is one the itsUP user cannot
-open (Failure modes).
+On a systemd host the backup's file is one the itsUP user cannot open (Failure
+modes).
 
 **Viewing the access log:** `tail`/`zcat` on `logs/access.log`, or any other
 ordinary text tool. The JSON record is what the reader sees; nothing reformats
@@ -216,22 +217,24 @@ and operator banners are unaffected.
   written — there is no degraded or console-fallback mode. A process that cannot
   open its file fails fast rather than starting blind. The daemon paths have no
   such failure: stdout is always available.
-- **A root-written file in the itsUP user's diagnostic folder.** The backup
-  job runs as root with `HOME` pinned to the itsUP user
-  (`samples/systemd/itsup-backup.service`), so root creates `backup.log` in that
-  user's folder. At the logger release itsUP locks, the writer keeps every file
-  readable by its producing user only and re-applies that each time it opens
-  the file, so the itsUP user cannot read `backup.log` at all, and the reader
-  refuses the whole merged read when a file it cannot open was written inside
-  the requested window. Run as the itsUP user, `instrukt-ai-logs itsup`
-  therefore exits with a permission error, printing nothing from the sources
-  it could read, whenever its window reaches back to the backup's last record;
-  a shorter window skips the file. Naming only sources that user owns
-  (`--include itsup`) reads them in any window; `backup.log` is readable only
+- **A root-written file in the itsUP user's diagnostic folder.** On a systemd
+  host the backup unit runs the job as root with `HOME` pinned to the itsUP
+  user (`samples/systemd/itsup-backup.service`), so root creates `backup.log`
+  in that user's folder; a launchd agent runs as the user and is not affected.
+  At the logger release itsUP locks, the writer keeps every file readable by
+  its producing user only and re-applies that each time it opens the file, so
+  the itsUP user cannot read `backup.log` at all. The reader is installed
+  separately and itsUP pins no release of it; the release that matches the
+  lock answers an unfiltered `instrukt-ai-logs itsup` from the itsUP user with
+  a permission error in two cases. When the file it cannot open was last
+  written inside the requested window, it prints nothing, not even from the
+  sources it could read. When nothing in the window matches and that file
+  holds the folder's most recent write, it fails as well, whatever the length
+  of the window: that is the state from a backup run that wrote to its file
+  until an `itsup` command next logs. Naming only sources that user owns
+  (`--include itsup`) reads them in both cases; `backup.log` is readable only
   as root. The same holds for every further root-run producer routed through
-  the logger. The container security monitor runs as root and logs
-  continuously, so its file would sit inside every window and the itsUP user's
-  unfiltered read would fail every time.
+  the logger, and the container security monitor's unit also runs as root.
 - **Root as the first writer.** The writer creates every missing directory on
   the way to the folder owned by the process that asks and closed to everyone
   else. When a root-run producer is the first to log on a host where the itsUP
