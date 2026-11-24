@@ -1,4 +1,4 @@
-.PHONY: help install install-runtime uninstall-runtime restart status lint format clean
+.PHONY: help install install-runtime uninstall-runtime restart status lint format smoke clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -30,6 +30,10 @@ format: ## Format code
 
 lint: ## Run linter
 	@FILES_FROM="$(FILES_FROM)" ./bin/lint.sh
+
+smoke: ## Start the CLI from the installed environment
+	@test -x .venv/bin/itsup || { echo "Run 'make install' first — no .venv/bin/itsup found"; exit 1; }
+	@.venv/bin/itsup --help >/dev/null
 
 clean: ## Remove generated artifacts and caches
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
