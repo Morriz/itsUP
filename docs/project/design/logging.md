@@ -79,9 +79,9 @@ why the daemon paths configure their own stdout handler instead):
 - `instrukt-ai/itsup/backup.log` — the backup job, via
   `configure_logging("itsup", source="backup")`.
 
-Each producing process declares its own `source`; the empty-source default (one
-shared `<app>.log`) is deliberately avoided because multiple independent
-processes must not share one log file. This mirrors TeleClaude's convention
+A producer that runs on its own trigger declares its own `source` and gets its
+own file; the CLI and the CLI-family one-shots share the default `itsup.log`.
+This mirrors TeleClaude's convention
 (`configure_logging("teleclaude", source="cron")`).
 
 **Container logs (ephemeral):** every Docker container also writes to Docker's
