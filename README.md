@@ -518,7 +518,13 @@ instrukt-ai-logs itsup --since 1h    # Everything from the last hour, merged by 
 instrukt-ai-logs itsup --follow      # Print the recent window, then follow
 ```
 
-On a systemd host the nightly backup's unit runs as root and writes its own file into the same log directory; a launchd agent runs as the user and is not affected. The logger keeps each file private to the user that wrote it, so run as the itsUP user the unfiltered command stops with a permission error when the backup's file was written inside the time window, and also when nothing in the window matches and the backup's file holds the most recent write in the directory, which a bare `instrukt-ai-logs itsup` meets after a backup run until the CLI next logs. `instrukt-ai-logs itsup --include itsup` reads the CLI's file in both cases, and the backup's file needs root.
+On a systemd host the nightly backup's unit runs as root and writes its own file into the same log directory; a launchd agent runs as the user and is not affected. The logger keeps each file private to the user that wrote it, so the itsUP user cannot read the backup's file, and the unfiltered commands above meet it in one of three ways:
+
+- The backup's file was written inside the time window: the command stops with a permission error and prints nothing, with or without `--follow`.
+- It was written before the window and `--follow` is not given: lines from the other sources print as usual, but when nothing in the window matches and the backup's file holds the most recent write in the directory, the command stops with a permission error. A bare `instrukt-ai-logs itsup` meets that after a backup run that wrote to its file, until the CLI next logs.
+- It was written before the window and `--follow` is given: no error, but the backup's new lines are left out and nothing says so.
+
+`instrukt-ai-logs itsup --include itsup` reads and follows the CLI's file in every case, and the backup's file needs root.
 
 `instrukt-ai-logs` is the logger project's standalone tool ([InstruktAI/logging](https://github.com/InstruktAI/logging)). The Python package itsUP depends on only writes logs, so `make install` does not provide the tool. Install it once on each machine that reads these logs:
 

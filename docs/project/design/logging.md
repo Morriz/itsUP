@@ -224,17 +224,27 @@ and operator banners are unaffected.
   At the logger release itsUP locks, the writer keeps every file readable by
   its producing user only and re-applies that each time it opens the file, so
   the itsUP user cannot read `backup.log` at all. The reader is installed
-  separately and itsUP pins no release of it; the release that matches the
-  lock answers an unfiltered `instrukt-ai-logs itsup` from the itsUP user with
-  a permission error in two cases. When the file it cannot open was last
-  written inside the requested window, it prints nothing, not even from the
-  sources it could read. When nothing in the window matches and that file
-  holds the folder's most recent write, it fails as well, whatever the length
-  of the window: that is the state from a backup run that wrote to its file
-  until an `itsup` command next logs. Naming only sources that user owns
-  (`--include itsup`) reads them in both cases; `backup.log` is readable only
-  as root. The same holds for every further root-run producer routed through
-  the logger, and the container security monitor's unit also runs as root.
+  separately and itsUP pins no release of it. At the release that matches the
+  lock, an unfiltered `instrukt-ai-logs itsup` from the itsUP user meets that
+  file in one of three ways:
+
+  - **The file was last written inside the requested window.** The read ends
+    with a permission error and prints nothing, not even from the sources it
+    could read, with or without `--follow`.
+  - **The file was last written before the window, without `--follow`.** Lines
+    from the readable sources inside the window print as usual. When nothing in
+    the window matches, the read ends with a permission error if that file
+    holds the folder's most recent write: that is the state from a backup run
+    that wrote to its file until an `itsup` command next logs.
+  - **The file was last written before the window, with `--follow`.** The
+    window prints from the readable sources and the follow starts without an
+    error, but the file is left out of it: lines the backup writes from then on
+    never appear, and nothing reports that they are missing.
+
+  Naming only sources that user owns (`--include itsup`) reads and follows them
+  in every case; `backup.log` is readable only as root. The same holds for
+  every further root-run producer routed through the logger, and the container
+  security monitor's unit also runs as root.
 - **Root as the first writer.** The writer creates every missing directory on
   the way to the folder owned by the process that asks and closed to everyone
   else. When a root-run producer is the first to log on a host where the itsUP
