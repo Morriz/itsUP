@@ -4,9 +4,10 @@ description: Verified journalctl query semantics itsUP delegates to — the --si
 
 # journalctl — Query Semantics
 
-Curated from the `journalctl(1)` manual page for the `itsup logs` router, which
-delegates its unit-backed targets to `journalctl` rather than reading the journal
-itself. Only the flags the router composes are covered.
+Curated from the `journalctl(1)` manual page for the journal reads itsUP
+relies on rather than reading the journal itself: an operator's
+`journalctl -u <unit>` on a supervised unit, and the failure alert composer's
+bounded tail of a failed unit (`lib/alerting.py`).
 
 ## Time window — `--since` / `--until`
 

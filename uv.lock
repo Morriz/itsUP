@@ -538,11 +538,11 @@ wheels = [
 
 [[package]]
 name = "instruktai-python-logger"
-version = "0.10.2"
+version = "0.10.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/51/42/4add0fc4138b6b8615bfc96d09d6f694c5fbcfd4108fe49dc9c6e672bb53/instruktai_python_logger-0.10.2.tar.gz", hash = "sha256:89a21ba1bf6fccf6f3ee7e3f6887b4eed510f33ea533523e0c81c54767c3f608", size = 41430, upload-time = "2026-11-13T07:07:57.692Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/e8/38e58474e1a8b22519415ea7c4909b6a8d58484f6a23c4922e13589b2ec3/instruktai_python_logger-0.10.3.tar.gz", hash = "sha256:33e103f593bfc96d9c7e97986de455d9e6d340803a006b23e9f8d33300747cbd", size = 42334, upload-time = "2026-11-21T13:49:13.707Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5c/e5/50e6c201fa706d0a6f8e7ec948ba4d0f8d033614523ceab623866989736e/instruktai_python_logger-0.10.2-py3-none-any.whl", hash = "sha256:47b57e10825e41c79ce9da579f3b649e77e9172be98dba484211d41fe6bb08da", size = 21769, upload-time = "2026-11-13T07:07:56.61Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/7f/eb72b0bb6278d39695f36dd6d746ae06307fcb0a9bc3794bd54a3c57516b/instruktai_python_logger-0.10.3-py3-none-any.whl", hash = "sha256:62939f277b1b513677066bee5afc01e434cd8841179a0205f9a9e204c5caa767", size = 22248, upload-time = "2026-11-21T13:49:12.789Z" },
 ]
 
 [[package]]
@@ -603,7 +603,7 @@ requires-dist = [
     { name = "boto3" },
     { name = "click" },
     { name = "fastapi" },
-    { name = "instruktai-python-logger", specifier = ">=0.6.6,<0.11" },
+    { name = "instruktai-python-logger", specifier = ">=0.10" },
     { name = "ipwhois" },
     { name = "jinja2-cli" },
     { name = "netifaces" },

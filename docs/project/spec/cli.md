@@ -114,83 +114,6 @@ in `project/itsup/spec/secrets-management`.
   (`lib/deploy.py:62`, `lib/deploy.py:257`)
 
 
-### `logs` — the routing front door over fragmented log backends
-
-`itsup logs [TARGET]` is the single entry point to itsUP's host-side logs. Each
-target names a producer, and the command routes it to whichever backend actually
-holds that producer's records; the operator never needs to know which. It is
-host-only (see the gate below) and read-only.
-
-**Bare invocation is discovery**: `itsup logs` with no target prints every
-routable target with its description, one pair per line, and exits 0. An
-unrecognised target exits 1 and prints the routable set. Every rejection the
-router owns — unknown target, malformed option value, unavailable backend — exits
-1; the CLI declares no exit-2 contract, so parameter failures are translated
-rather than left to the parser's own usage exit.
-
-**Targets and their backends.** Six supervised-unit targets — `api`, `monitor`,
-`bringup`, `apply`, `backup`, `healthcheck` — plus the file-backed `access`
-(Traefik's JSON access log under `logs/`, emitted verbatim: the router is a raw
-passthrough reader of that file and formats nothing, because the record's single
-JSON format is what makes it CrowdSec's parseable feed).
-The unit targets resolve per platform, following the supervision contract in
-`project/itsup/design/logging`: on Linux to `journalctl -u <unit>`; on macOS to the
-launchd agent's `StandardOutPath`, read from the installed agent's own plist so
-the path comes from what launchd actually loaded. `monitor` and `healthcheck` are
-Linux-only daemons and have no macOS agent, so on macOS they are refused with
-that reason rather than routed to a file that will never exist.
-
-There is deliberately **no `<project>` target** — container logs stay docker-led
-through `itsup svc` / `proxy` / `dns` — and **no `cli` target**: interactive runs
-are observed live, and their diagnostic file is read with `instrukt-ai-logs
-itsup`.
-
-**One option surface, translated per backend.** `-f/--follow`, `--since`, and
-`--grep` mean the same thing on every target. They **select** which lines are
-emitted; none of them changes a line's content, on any backend. Every line the
-router prints is the line its backend produced.
-
-- `--since` takes the duration grammar `<n>{s,m,h,d}`. The journal's own
-  `--since` rejects a bare duration, so the router parses the duration and hands
-  the journal an absolute timestamp. The `access` backend has no such grammar to
-  delegate to, so the router applies the same cutoff itself, reading each JSON
-  record's own timestamp field (`time`, else `StartUTC`) to decide inclusion and
-  then emitting the record unchanged. A record whose timestamp field is absent or
-  unparseable is excluded: the router cannot prove it is inside the window, and
-  admitting it would silently widen the window that was asked for.
-- `--grep` is a case-sensitive Python regular expression, applied by the router
-  itself to each complete line just before it is printed — on every backend. For
-  `access` that line is the raw JSON record, so a pattern can match a field name
-  as readily as a value. The journal's own `-g` is not used: it matches only the
-  record's message field, while the line the operator sees also carries the
-  supervisor's timestamp and identity, and its smart-case default would make the
-  same pattern mean different things on different backends.
-- `--follow` is future-only everywhere: it streams what arrives after the
-  command starts and never replays history first. The journal is asked for
-  `-n 0` alongside `-f` so it does not emit its recent window, matching the
-  file backend, which follows from the end of the file. Following `access`
-  survives the host's `copytruncate` rotation of that file
-  (`project/itsup/design/logging`).
-- An invalid duration or an invalid regex is rejected at the option boundary with
-  exit 1 before any backend is reached.
-
-**`--since` has one designed exception: macOS unit targets.** Filtering by time
-requires a per-line time, and the supervisor is what supplies it — journald does,
-launchd does not. A launchd agent's `StandardOutPath` captures the daemon's
-stream verbatim, and that stream deliberately carries no timestamp because the
-supervisor is expected to add one. So `--since` against a macOS unit target exits
-1 naming that reason, while `--follow` and `--grep` remain available there. The
-`access` target is unaffected on either platform: its record carries its own
-RFC3339 timestamp field, which is what the router reads.
-
-**Every unavailability path refuses, never degrades.** A unit target with no
-reader on this platform, and a unit target whose unit is not installed, each exit
-1 naming the reason. Unit existence is established before the query — a unit is
-usable only when its `LoadState` is `loaded`, and any other value is reported
-rather than interpreted — because a journal query against an absent unit succeeds
-with empty output.
-
-
 ### Host-identity gate (runtime-mutating commands are host-only)
 
 The CLI group refuses runtime-mutating commands on any machine that is not the
@@ -204,8 +127,8 @@ per-command argument parsing, and off-host even `itsup <host-only-cmd> --help` i
 refused.
 
 - **Host-only** (refused off-host, exit 1): `run`, `apply`, `down`, `dns`,
-  `proxy`, `svc`, `monitor`, `logs`. `make install-runtime` refuses off-host
-  before it touches systemd/launchd (`bin/install-bringup.sh`).
+  `proxy`, `svc`, `monitor`. `make install-runtime` refuses off-host before it
+  touches systemd/launchd (`bin/install-bringup.sh`).
 
 - **Available anywhere** (GitOps + config + secrets + read): `pull`, `commit`,
   `status`, `create`, `init`, `validate`, `migrate`, `encrypt`, `decrypt`,
@@ -275,10 +198,8 @@ The CLI emits only these — there is no 2/3/130 contract.
   running container's `com.docker.compose.config-hash` label (container-label
   based), not a hash stored on disk.
 - Runtime-mutating commands (`run`, `apply`, `down`, `dns`, `proxy`, `svc`,
-  `monitor`) and the read-only `logs` router are **host-only** and refuse
-  fail-closed off-host (detected LAN IP ≠ `SSH_HOST`); see the host-identity
-  gate above. `logs` is gated not because it mutates but because every backend
-  it reads exists only on the container host.
+  `monitor`) are **host-only** and refuse fail-closed off-host (detected LAN IP
+  ≠ `SSH_HOST`); see the host-identity gate above.
 
 
 ## See Also
